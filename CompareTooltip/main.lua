@@ -5,11 +5,11 @@
 		This mod adds compare tooltips to inventory items against equipped items of the same category.
 
 		TODO:
-			- Compare hotkey
-			- blacklist menus
+			- blacklist comparisons
 		BUGS:
-			- fix layout overflow for long words...
-			- fix lookat icons in name field
+			- fix quality field in uiexp ?
+			- fix arrow layout for long comaprisons
+			- fix name field for lookat comparisons
 ]] --
 local config = require("rfuzzo.CompareTooltip.config")
 local common = require("rfuzzo.CompareTooltip.common")
@@ -19,7 +19,7 @@ local uiexpansion = require("rfuzzo.CompareTooltip.module_uiexpansion")
 local lock = false
 
 -- Make sure we have the latest MWSE version.
-if (mwse.buildDate == nil) or (mwse.buildDate < 20220420) then
+if (mwse.buildDate == nil) or (mwse.buildDate < 20220423) then
 	event.register("initialized", function()
 		tes3.messageBox("[ CE ]  Compare tooltips requires the latest version of MWSE. Please run MWSE-Updater.exe.")
 	end)
@@ -171,20 +171,28 @@ local function uiObjectTooltipCallback(e)
 	if (obj == nil) then
 		return
 	end
+	-- key check
+	if (config.useKey) then
+		local inputController = tes3.worldController.inputController
+		if (not inputController:isKeyDown(config.comparisonKey.keyCode)) then
+			return
+		end
+	end
+
 	-- don't do anything for non-inventory tile objects
 	-- local reference = e.reference
 	-- if (reference ~= nil) then
 	-- 	return
 	-- end
 	--[[
-  	filter to object types:
-		armor				1330467393
-		weapon			1346454871
-		clothing		1414483011
-		TODO not supported yet:
-		ammunition	1330466113
-		lockpick		1262702412
-		probe				1112494672
+			filter to object types:
+			armor				1330467393
+			weapon			1346454871
+			clothing		1414483011
+			TODO not supported yet:
+			ammunition	1330466113
+			lockpick		1262702412
+			probe				1112494672
 	]]
 	local objectType = obj.objectType
 	if (objectType ~= 1330467393 and objectType ~= 1346454871 and objectType ~= 1414483011) then
@@ -252,6 +260,69 @@ local function uiObjectTooltipCallback(e)
 	-- end
 end
 
+-- used to display comparisions on key down
+--- @param e keyUpEventData
+local function keyUpCallback(e)
+	if (not config.enableMod) then
+		return
+	end
+	if (not config.useKey) then
+		return
+	end
+	if (e.keyCode ~= config.comparisonKey.keyCode) then
+		return
+	end
+	local helpMenu = tes3ui.findHelpLayerMenu("HelpMenu")
+	-- hack to disable comaprison for lookat help
+	local uiExpElement = helpMenu:findChild("HelpMenu_weight")
+	if (uiExpElement == nil) then
+		return
+	end
+
+	-- refresh the current tooltip
+	if (helpMenu ~= nil) then
+		local obj = helpMenu:getPropertyObject("PartHelpMenu_object")
+		if (obj ~= nil) then
+			-- common.mod_log("found obj: %s", obj.id)
+			lock = true
+			tes3ui.createTooltipMenu { item = obj }
+			lock = false
+		end
+	end
+end
+
+-- used to display comparisions on key down
+--- @param e keyDownEventData
+local function keyDownCallback(e)
+	if (not config.enableMod) then
+		return
+	end
+	if (not config.useKey) then
+		return
+	end
+	if (not e.keyCode == config.comparisonKey.keyCode) then
+		return
+	end
+	local helpMenu = tes3ui.findHelpLayerMenu("HelpMenu")
+	-- hack to disable comaprison for lookat help
+	local uiExpElement = helpMenu:findChild("HelpMenu_weight")
+	if (uiExpElement == nil) then
+		return
+	end
+
+	-- refresh the current tooltip
+	if (helpMenu ~= nil) then
+		local objOrRef = helpMenu:getPropertyObject("PartHelpMenu_object")
+		if (objOrRef ~= nil) then
+			if (objOrRef.object) then
+				tes3ui.createTooltipMenu { item = objOrRef.object }
+			else
+				tes3ui.createTooltipMenu { item = objOrRef }
+			end
+		end
+	end
+end
+
 --[[
     Init mod
 ]]
@@ -264,6 +335,9 @@ local function initializedCallback(e)
 		common.mod_log("UI Expansion plugin active: %s", tostring(tes3.isLuaModActive("UI Expansion")))
 
 		event.register(tes3.event.uiObjectTooltip, uiObjectTooltipCallback, { priority = -110 })
+		event.register(tes3.event.keyDown, keyDownCallback)
+		event.register(tes3.event.keyUp, keyUpCallback)
+
 		common.mod_log("%s v%.1f Initialized", config.mod, config.version)
 	end
 end

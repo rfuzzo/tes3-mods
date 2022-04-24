@@ -1,8 +1,7 @@
 local config = require("rfuzzo.CompareTooltip.config")
 local common = require("rfuzzo.CompareTooltip.common")
 
--- local isUIExpansionInstalled = tes3.isLuaModActive("UI Expansion")
-local isUIExpansionInstalled = true
+local isUIExpansionInstalled = tes3.isLuaModActive("UI Expansion")
 
 local this = {}
 

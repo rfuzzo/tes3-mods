@@ -6,11 +6,15 @@ local defaultConfig = {
 	author = "rfuzzo",
 
 	enableMod = true,
+	useKey = true,
+	comparisonKey = { keyCode = tes3.scanCode.leftAlt, isShiftDown = false, isControlDown = false, isAltDown = true },
+
 	-- useInlineTooltips = true, -- or comparison
 
 	useColors = true,
 	useArrows = true,
 	useParens = true,
+
 }
 
 local mwseConfig = mwse.loadConfig(defaultConfig.file, defaultConfig)
