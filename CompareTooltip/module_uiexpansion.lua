@@ -46,14 +46,22 @@ function this.uiexpansion_update(equTooltip, id, equTable)
 
 				-- Compare
 				local status = common.compare_text(cText, eText, element.name)
+				-- ui expansion fix weight here
+				if (id == 'UIEXP_Tooltip_IconWeightBlock') then
+					if (status == 1) then
+						status = 2
+					elseif (status == 2) then
+						status = 1
+					end
+				end
 				common.set_color(element, status)
 
 				if (config.useParens) then
 					-- add compare text
 					element.text = element.text .. " (" .. eText .. ")"
+					element:updateLayout()
 				end
 
-				element:updateLayout()
 			end
 		end
 	end

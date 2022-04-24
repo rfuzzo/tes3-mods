@@ -127,6 +127,8 @@ function common.compare_text(curText, equText, elementName)
 		if (elementName == "HelpMenu_weight") then
 			isReversed = true
 		end
+		-- if ui expansion used named fields that would work here
+
 		if (cur > equ) then
 			if isReversed then
 				status = 2

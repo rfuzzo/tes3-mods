@@ -5,9 +5,11 @@
 		This mod adds compare tooltips to inventory items against equipped items of the same category.
 
 		TODO:
-			- Compare Key
+			- Compare hotkey
+			- blacklist menus
 		BUGS:
 			- fix layout overflow for long words...
+			- fix lookat icons in name field
 ]] --
 local config = require("rfuzzo.CompareTooltip.config")
 local common = require("rfuzzo.CompareTooltip.common")
@@ -204,8 +206,10 @@ local function uiObjectTooltipCallback(e)
 		local tt = e.tooltip
 		for _, element in pairs(tt:findChild('PartHelpMenu_main').children) do
 			-- checks
-			-- do not compare the name field
 			if (element.name == 'HelpMenu_name') then
+				goto continue
+			end
+			if (element.name == 'HelpMenu_weaponType') then
 				goto continue
 			end
 			local cText = element.text
@@ -224,11 +228,11 @@ local function uiObjectTooltipCallback(e)
 			common.set_arrows(element, 1)
 
 			-- icon hack for arrows
-			-- TODO this messes with the layout...
-			element.text = "  " .. element.text .. "     "
+			if (config.useArrows) then
+				element.text = "  " .. element.text .. "     "
+			end
 
 			element:updateLayout()
-
 			::continue::
 		end
 
