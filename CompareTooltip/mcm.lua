@@ -23,15 +23,21 @@ local function registerModConfig()
 	-- })
 
 	settings:createOnOffButton({
-		label = "Use Colors",
+		label = "Display Colors",
 		description = "Use colored comparisons.",
 		variable = mwse.mcm.createTableVariable { id = "useColors", table = config },
 	})
 
 	settings:createOnOffButton({
-		label = "Minimal Comparison",
-		description = "Use Minimal Comparision Indicators.",
-		variable = mwse.mcm.createTableVariable { id = "useMinimal", table = config },
+		label = "Display Parentheses",
+		description = "Display parenthese in comparisons",
+		variable = mwse.mcm.createTableVariable { id = "useParens", table = config },
+	})
+
+	settings:createOnOffButton({
+		label = "Display Arrows",
+		description = "Display arrows in comparisons.",
+		variable = mwse.mcm.createTableVariable { id = "useArrows", table = config },
 	})
 
 end

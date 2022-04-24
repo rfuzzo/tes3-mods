@@ -6,9 +6,7 @@
 
 		TODO:
 			- Compare Key
-			- arrows toggle ?
 		BUGS:
-			- do not compare alchemy tools
 			- fix layout overflow for long words...
 ]] --
 local config = require("rfuzzo.CompareTooltip.config")
@@ -29,41 +27,7 @@ end
 --- Find an item to compare for a given object
 --- @param e uiObjectTooltipEventData
 local function find_compare_object(e)
-	-- don't do anything for non-inventory tile objects
-	-- local reference = e.reference
-	-- if (reference ~= nil) then
-	-- 	return
-	-- end
-
 	local obj = e.object
-
-	--[[
-  	filter to object types:
-		armor				1330467393
-		weapon			1346454871
-		clothing		1414483011
-		TODO not supported yet:
-		ammunition	1330466113
-		lockpick		1262702412
-		probe				1112494672
-	]]
-	local objectType = obj.objectType
-	if (objectType ~= 1330467393 and objectType ~= 1346454871 and objectType ~= 1414483011) then
-		-- mwse.log("[ CE ] not supported type: " .. tostring(objectType))
-		return
-	end
-	-- redundant check
-	if (obj.slotName == nil and obj.typeName == nil) then
-		-- mwse.log("[ CE ] <<<<< " .. obj.id .. " cannot be equipped")
-		return
-	end
-	-- if equipped, return
-	local isEquipped = tes3.player.object:hasItemEquipped(obj)
-	if (isEquipped) then
-		-- mwse.log("[ CE ] <<<<< " .. obj.id .. " is equipped")
-		return
-	end
-
 	-- get corresponding Equipped
 	local stack = tes3.getEquippedItem({
 		actor = tes3.player,
@@ -166,13 +130,15 @@ local function create_inline(e, stack)
 		common.set_color(element, status)
 		common.set_arrows(element, status)
 
-		if (not config.useMinimal) then
+		if (config.useParens) then
 			-- add compare text
 			element.text = element.text .. " (" .. eText .. ")"
 		end
 
 		-- icon hack for arrows
-		element.text = "  " .. element.text .. "     "
+		if (config.useArrows) then
+			element.text = "  " .. element.text .. "     "
+		end
 
 		element:updateLayout()
 
@@ -192,6 +158,7 @@ end
 --- main mod
 --- @param e uiObjectTooltipEventData
 local function uiObjectTooltipCallback(e)
+	-- checks
 	if (not config.enableMod) then
 		return
 	end
@@ -202,6 +169,33 @@ local function uiObjectTooltipCallback(e)
 	if (obj == nil) then
 		return
 	end
+	-- don't do anything for non-inventory tile objects
+	-- local reference = e.reference
+	-- if (reference ~= nil) then
+	-- 	return
+	-- end
+	--[[
+  	filter to object types:
+		armor				1330467393
+		weapon			1346454871
+		clothing		1414483011
+		TODO not supported yet:
+		ammunition	1330466113
+		lockpick		1262702412
+		probe				1112494672
+	]]
+	local objectType = obj.objectType
+	if (objectType ~= 1330467393 and objectType ~= 1346454871 and objectType ~= 1414483011) then
+		-- mwse.log("[ CE ] not supported type: " .. tostring(objectType))
+		return
+	end
+	-- if equipped, return
+	local isEquipped = tes3.player.object:hasItemEquipped(obj)
+	if (isEquipped) then
+		-- mwse.log("[ CE ] <<<<< " .. obj.id .. " is equipped")
+		return
+	end
+
 	-- no item found to compare to
 	local stack = find_compare_object(e)
 	if (stack == nil) then

@@ -2,9 +2,7 @@ local config = require("rfuzzo.CompareTooltip.config")
 
 local common = {}
 
---[[
-    local logger
-]]
+--- local logger
 --- @param msg string
 --- @vararg any *Optional*. No description yet available.
 function common.mod_log(msg, ...)
@@ -13,9 +11,8 @@ function common.mod_log(msg, ...)
 	return mwse.log(str, config.id, unpack(arg))
 end
 
---[[
-    Sets the color of an element by status
-]] --- @param element tes3uiElement
+--- Sets the color of an element by status
+--- @param element tes3uiElement
 --- @param status integer
 function common.set_color(element, status)
 	if (config.useColors) then
@@ -33,25 +30,25 @@ function common.set_color(element, status)
 	end
 end
 
---[[
-    Creates arrow icons
-]]
+--- Creates arrow icons
 --- @param element tes3uiElement
 --- @param status integer
 function common.set_arrows(element, status)
-	-- add arrows
-	local icon = ""
-	if (status == 1) then
-		icon = "textures/menu_scroll_up.dds" -- better
-	elseif (status == 2) then
-		icon = "textures/menu_scroll_down.dds" -- worse
-	end
-	if (icon ~= "") then
-		local img = element:createImage{ path = icon }
-		img.absolutePosAlignX = 0.98
-		img.absolutePosAlignY = 2.5
-		img.imageScaleX = 0.5
-		img.imageScaleY = 0.5
+	if (config.useArrows) then
+		-- add arrows
+		local icon = ""
+		if (status == 1) then
+			icon = "textures/menu_scroll_up.dds" -- better
+		elseif (status == 2) then
+			icon = "textures/menu_scroll_down.dds" -- worse
+		end
+		if (icon ~= "") then
+			local img = element:createImage{ path = icon }
+			img.absolutePosAlignX = 0.98
+			img.absolutePosAlignY = 2.5
+			img.imageScaleX = 0.5
+			img.imageScaleY = 0.5
+		end
 	end
 end
 

@@ -48,7 +48,7 @@ function this.uiexpansion_update(equTooltip, id, equTable)
 				local status = common.compare_text(cText, eText, element.name)
 				common.set_color(element, status)
 
-				if (not config.useMinimal) then
+				if (config.useParens) then
 					-- add compare text
 					element.text = element.text .. " (" .. eText .. ")"
 				end

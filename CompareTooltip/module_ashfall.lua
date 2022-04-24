@@ -43,19 +43,23 @@ function this.ashfall_update(equTooltip, id, equTable)
 		if (header ~= nil) then
 			common.set_color(header, status)
 			-- icon hack for arrows
-			header.text = "  " .. header.text
-			header:updateLayout()
+			if (config.useArrows) then
+				header.text = "  " .. header.text
+				header:updateLayout()
+			end
 		end
 
 		common.set_arrows(element, status)
 
-		if (not config.useMinimal) then
+		if (config.useParens) then
 			-- add compare text
 			element.text = element.text .. " (" .. eText .. ")"
 		end
 
 		-- icon hack for arrows
-		element.text = element.text .. "     "
+		if (config.useArrows) then
+			element.text = element.text .. "     "
+		end
 
 		element:updateLayout()
 	end
@@ -79,14 +83,18 @@ function this.ashfall_color_block(equTooltip, id, status)
 		if (header ~= nil) then
 			common.set_color(header, status)
 			-- icon hack for arrows
-			header.text = "  " .. header.text
-			header:updateLayout()
+			if (config.useArrows) then
+				header.text = "  " .. header.text
+				header:updateLayout()
+			end
 		end
 
 		common.set_arrows(element, status)
 
 		-- icon hack for arrows
-		element.text = element.text .. "     "
+		if (config.useArrows) then
+			element.text = element.text .. "     "
+		end
 
 		element:updateLayout()
 	end

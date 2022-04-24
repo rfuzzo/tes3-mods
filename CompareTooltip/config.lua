@@ -8,8 +8,9 @@ local defaultConfig = {
 	enableMod = true,
 	-- useInlineTooltips = true, -- or comparison
 
-	useColors = true, -- or not
-	useMinimal = false, -- if yes: only display arrows, if no: display arrows and numbers
+	useColors = true,
+	useArrows = true,
+	useParens = true,
 }
 
 local mwseConfig = mwse.loadConfig(defaultConfig.file, defaultConfig)
