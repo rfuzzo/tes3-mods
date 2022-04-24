@@ -5,9 +5,8 @@ local isAshfallInstalled = tes3.isLuaModActive("mer.ashfall")
 
 local this = {}
 
---[[
-    caches ashfall label text for element id
-]] --- @param id string
+--- caches ashfall label text for element id
+--- @param id string
 --- @param equTooltip tes3uiElement
 --- @param equTable table
 function this.ashfall_cache(equTooltip, id, equTable)
@@ -21,9 +20,7 @@ function this.ashfall_cache(equTooltip, id, equTable)
 	end
 end
 
---[[
-    updates ashfall label with comparisons
-]]
+--- updates ashfall label with comparisons
 --- @param id string
 --- @param equTooltip tes3uiElement
 --- @param equTable table
@@ -56,6 +53,37 @@ function this.ashfall_update(equTooltip, id, equTable)
 			-- add compare text
 			element.text = element.text .. " (" .. eText .. ")"
 		end
+
+		-- icon hack for arrows
+		element.text = element.text .. "     "
+
+		element:updateLayout()
+	end
+end
+
+--- colors a whole block
+--- @param id string
+--- @param equTooltip tes3uiElement
+--- @param status integer
+function this.ashfall_color_block(equTooltip, id, status)
+	if (not isAshfallInstalled) then
+		return
+	end
+
+	local element = equTooltip:findChild(id)
+	if (element ~= nil and element.text ~= nil) then
+		common.set_color(element, status)
+		-- set header color
+		local headerID = string.sub(id, 0, string.len(id) - 5) .. "Header"
+		local header = equTooltip:findChild(headerID)
+		if (header ~= nil) then
+			common.set_color(header, status)
+			-- icon hack for arrows
+			header.text = "  " .. header.text
+			header:updateLayout()
+		end
+
+		common.set_arrows(element, status)
 
 		-- icon hack for arrows
 		element.text = element.text .. "     "

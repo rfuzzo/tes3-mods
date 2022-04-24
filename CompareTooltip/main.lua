@@ -7,15 +7,9 @@
 		TODO:
 			- Compare Key
 			- arrows toggle ?
-			- log abbreviations
 		BUGS:
-			- do not compare helpMenu_name
 			- do not compare alchemy tools
 			- fix layout overflow for long words...
-			- fix UIEXP breaking for gold/weight
-			- Ashfall always better color
-			- UIEXP always better color
-
 ]] --
 local config = require("rfuzzo.CompareTooltip.config")
 local common = require("rfuzzo.CompareTooltip.common")
@@ -32,9 +26,7 @@ if (mwse.buildDate == nil) or (mwse.buildDate < 20220420) then
 	return
 end
 
---[[
-    Find an item to compare for a given object
-]]
+--- Find an item to compare for a given object
 --- @param e uiObjectTooltipEventData
 local function find_compare_object(e)
 	-- don't do anything for non-inventory tile objects
@@ -111,9 +103,7 @@ local function find_compare_object(e)
 	return stack
 end
 
---[[
-    Creates the inline compare tooltip
-]]
+--- Creates the inline compare tooltip
 --- @param e uiObjectTooltipEventData
 --- @param stack tes3equipmentStack 
 local function create_inline(e, stack)
@@ -146,26 +136,26 @@ local function create_inline(e, stack)
 
 	-- compare all toplevel properties
 	for _, element in pairs(tooltip:findChild('PartHelpMenu_main').children) do
-		local eText = equTable[element.name]
 
 		-- checks
-		-- do not compare new fields
-		if (eText == nil) then
-			goto continue2
-		end
-		-- do not compare fields without a text
-		if (eText == nil) then
-			goto continue2
+		-- do not compare the name field
+		if (element.name == 'HelpMenu_name') then
+			goto continue
 		end
 		local cText = element.text
 		-- do not compare the type in vanilla (UI expansion is handled by the next check)
 		if (string.find(cText, "Type: ")) then
-			goto continue2
+			goto continue
 		end
 		-- do not compare fields without a colon
 		local _, j = string.find(cText, ":")
 		if (j == nil) then
-			goto continue2
+			goto continue
+		end
+		local eText = equTable[element.name]
+		-- do not compare fields without a text
+		if (eText == nil) then
+			goto continue
 		end
 
 		eText = string.sub(eText, j + 2)
@@ -186,11 +176,10 @@ local function create_inline(e, stack)
 
 		element:updateLayout()
 
-		::continue2::
+		::continue::
 	end
 
-	-- UI Expansion support (no arrows)
-	-- TODO fix
+	-- UI Expansion support
 	uiexpansion.uiexpansion_update(equTooltip, 'UIEXP_Tooltip_IconGoldBlock', equTable)
 	uiexpansion.uiexpansion_update(equTooltip, 'UIEXP_Tooltip_IconWeightBlock', equTable)
 	-- ashfall support support
@@ -200,9 +189,7 @@ local function create_inline(e, stack)
 	tooltip:updateLayout()
 end
 
---[[
-    main mod
-]]
+--- main mod
 --- @param e uiObjectTooltipEventData
 local function uiObjectTooltipCallback(e)
 	if (not config.enableMod) then
@@ -223,15 +210,19 @@ local function uiObjectTooltipCallback(e)
 		local tt = e.tooltip
 		for _, element in pairs(tt:findChild('PartHelpMenu_main').children) do
 			-- checks
+			-- do not compare the name field
+			if (element.name == 'HelpMenu_name') then
+				goto continue
+			end
 			local cText = element.text
 			-- do not compare the type in vanilla (UI expansion is handled by the next check)
 			if (string.find(cText, "Type: ")) then
-				goto continue3
+				goto continue
 			end
 			-- do not compare fields without a colon
 			local _, j = string.find(cText, ":")
 			if (j == nil) then
-				goto continue3
+				goto continue
 			end
 
 			-- Compare
@@ -244,20 +235,23 @@ local function uiObjectTooltipCallback(e)
 
 			element:updateLayout()
 
-			::continue3::
+			::continue::
 		end
 
-		-- TODO UI expansion
-		-- TODO ashfall
+		-- UI Expansion support disabled here becasue annoying
+		-- uiexpansion.uiexpansion_color_block(tt, 'UIEXP_Tooltip_IconGoldBlock', 1)
+		-- uiexpansion.uiexpansion_color_block(tt, 'UIEXP_Tooltip_IconWeightBlock', 1)
+
+		-- Ashfall support
+		ashfall.ashfall_color_block(tt, 'Ashfall:ratings_warmthValue', 1)
+		ashfall.ashfall_color_block(tt, 'Ashfall:ratings_coverageValue', 1)
 
 		return
 	end
 
-	if (config.useInlineTooltips) then
-		create_inline(e, stack)
-	else
-		-- TODO side-by-side comparison
-	end
+	-- if (config.useInlineTooltips) then
+	create_inline(e, stack)
+	-- end
 end
 
 --[[
@@ -266,13 +260,13 @@ end
 --- @param e initializedEventData
 local function initializedCallback(e)
 	if (config.enableMod) then
-		-- init mod
 
-		mwse.log("[ CE ] ashfall plugin active: %s", tostring(tes3.isLuaModActive("mer.ashfall")))
-		mwse.log("[ CE ] UI Expansion plugin active: %s", tostring(tes3.isLuaModActive("UI Expansion")))
+		-- init mod
+		common.mod_log("ashfall plugin active: %s", tostring(tes3.isLuaModActive("mer.ashfall")))
+		common.mod_log("UI Expansion plugin active: %s", tostring(tes3.isLuaModActive("UI Expansion")))
 
 		event.register(tes3.event.uiObjectTooltip, uiObjectTooltipCallback, { priority = -110 })
-		mwse.log("[ CE ] %s v%.1f Initialized", config.mod, config.version)
+		common.mod_log("%s v%.1f Initialized", config.mod, config.version)
 	end
 end
 

@@ -11,6 +11,17 @@ local splashScreens = {}
 local isEnabled = false
 
 --[[
+    local logger
+]]
+--- @param msg string
+--- @vararg any *Optional*. No description yet available.
+local function mod_log(msg, ...)
+	local str = "[ %s ] " .. msg
+	local arg = { ... }
+	return mwse.log(str, config.id, unpack(arg))
+end
+
+--[[
     modifies the loading UI to display the splash screen
 ]]
 --- @param e uiActivatedEventData
@@ -62,7 +73,7 @@ end
 --- @param e initializedEventData
 local function initializedCallback(e)
 	-- get a list of all installed splash screens
-	local base, error = lfs.currentdir()
+	local base, _ = lfs.currentdir()
 	local path = base .. "/Data Files/Splash"
 
 	if (lfs.directoryexists(path)) then
@@ -73,11 +84,11 @@ local function initializedCallback(e)
 				-- mwse.log("[ LSS ] adding: " .. relpath)
 			end
 		end
-		mwse.log("[ LSS ] Found " .. #splashScreens .. " splash screens to use")
+		mod_log("Found %s splash screens to use", #splashScreens)
 	end
 
 	-- init mod
-	mwse.log("[ LSS ] %s v%.1f Initialized", config.mod, config.version)
+	mod_log("%s v%.1f Initialized", config.mod, config.version)
 end
 
 --[[

@@ -3,6 +3,17 @@ local config = require("rfuzzo.CompareTooltip.config")
 local common = {}
 
 --[[
+    local logger
+]]
+--- @param msg string
+--- @vararg any *Optional*. No description yet available.
+function common.mod_log(msg, ...)
+	local str = "[ %s ] " .. msg
+	local arg = { ... }
+	return mwse.log(str, config.id, unpack(arg))
+end
+
+--[[
     Sets the color of an element by status
 ]] --- @param element tes3uiElement
 --- @param status integer

@@ -16,11 +16,11 @@ local function registerModConfig()
 		variable = mwse.mcm.createTableVariable { id = "enableMod", table = config },
 	})
 
-	settings:createOnOffButton({
-		label = "Use Inline Tooltips",
-		description = "Use inline tooltips instead of a full compare popup.",
-		variable = mwse.mcm.createTableVariable { id = "useInlineTooltips", table = config },
-	})
+	-- settings:createOnOffButton({
+	-- 	label = "Use Inline Tooltips",
+	-- 	description = "Use inline tooltips instead of a full compare popup.",
+	-- 	variable = mwse.mcm.createTableVariable { id = "useInlineTooltips", table = config },
+	-- })
 
 	settings:createOnOffButton({
 		label = "Use Colors",
