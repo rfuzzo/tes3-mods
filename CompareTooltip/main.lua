@@ -3,100 +3,33 @@
 		Author: rfuzzo
 
 		This mod adds compare tooltips to inventory items against equipped items of the same category.
-]] --
 
+		TODO:
+			- Compare Key
+			- arrows toggle ?
+			- log abbreviations
+		BUGS:
+			- do not compare helpMenu_name
+			- do not compare alchemy tools
+			- fix layout overflow for long words...
+			- fix UIEXP breaking for gold/weight
+			- Ashfall always better color
+			- UIEXP always better color
+
+]] --
 local config = require("rfuzzo.CompareTooltip.config")
+local common = require("rfuzzo.CompareTooltip.common")
+local ashfall = require("rfuzzo.CompareTooltip.module_ashfall")
+local uiexpansion = require("rfuzzo.CompareTooltip.module_uiexpansion")
+
 local lock = false
 
---[[
-    compares two strings popup child fields
-		and returns a comparison result integer
-		comparison options:
-			a) scalars: 	28 vs 1 or 3.00 vs 3.00)
-			b) ranges: 		1 - 11 vs 4 - 5)
-			c) ratios:		300/300 vs 400/400
-		status: 		0 (equal), 1 (better), 2 (worse)
-]]
---- @param curText string
---- @param equText string
---- @param elementName string
-local function compare_text(curText, equText, elementName)
-	local status = 0
-
-	-- calculate compare factors
-	local equ = tonumber(equText)
-	local cur = nil
-	if (equ ~= nil) then -- (a) check scalars
-		-- if that worked, then the current one will work as well
-		cur = tonumber(curText)
-		-- mwse.log("[ CE ]   scalar comparison (" .. obj.id .. ") " .. cur .. " vs " .. equ)
-	elseif (string.find(equText, "-")) then -- (b) check ranges
-		-- what IS a better range?
-		-- average
-		local split = string.split(equText)
-		if (#split == 3) then
-			local first = tonumber(split[1])
-			local last = tonumber(split[3])
-
-			if (first ~= nil and last ~= nil) then
-				equ = (last + first)
-				-- if that worked, then the current one will work as well
-				split = string.split(curText)
-				if (#split == 3) then
-					first = tonumber(split[1])
-					last = tonumber(split[3])
-
-					if (first ~= nil and last ~= nil) then
-						cur = (last + first)
-						-- mwse.log("[ CE ]   range comparison (" .. obj.id .. ") " .. cur .. " vs " .. equ)
-					end
-				end
-			end
-		end
-	elseif (string.find(equText, "/")) then -- (b) check ratio
-		-- calculate ratio? (not necessarily a good indicator)
-		-- for now, calculate the highest last value
-		local split = string.split(equText, "/")
-		if (#split == 2) then
-			local first = tonumber(split[1])
-			local last = tonumber(split[2])
-			if (first ~= nil and last ~= nil) then
-				equ = last
-				-- if that worked, then the current one will work as well
-				split = string.split(curText, "/")
-				first = tonumber(split[1])
-				last = tonumber(split[2])
-				if (first ~= nil and last ~= nil) then
-					cur = last
-					-- mwse.log("[ CE ]   ratio comparison (" .. obj.id .. ") " .. cur .. " vs " .. equ)
-				end
-			end
-		end
-	end
-
-	-- compare
-	if (cur ~= nil and equ ~= nil) then
-		-- is bigger always better?
-		local isReversed = false
-		if (elementName == "HelpMenu_weight") then
-			isReversed = true
-		end
-		if (cur > equ) then
-			if isReversed then
-				status = 2
-			else
-				status = 1
-			end
-		elseif (cur < equ) then
-			if isReversed then
-				status = 1
-			else
-				status = 2
-			end
-		end
-	end
-
-	return status
+-- Make sure we have the latest MWSE version.
+if (mwse.buildDate == nil) or (mwse.buildDate < 20220420) then
+	event.register("initialized", function()
+		tes3.messageBox("[ CE ]  Compare tooltips requires the latest version of MWSE. Please run MWSE-Updater.exe.")
+	end)
+	return
 end
 
 --[[
@@ -105,7 +38,6 @@ end
 --- @param e uiObjectTooltipEventData
 local function find_compare_object(e)
 	-- don't do anything for non-inventory tile objects
-	-- TODO figure out different tooltips for looked-at objects vs inventory
 	-- local reference = e.reference
 	-- if (reference ~= nil) then
 	-- 	return
@@ -133,7 +65,6 @@ local function find_compare_object(e)
 		-- mwse.log("[ CE ] <<<<< " .. obj.id .. " cannot be equipped")
 		return
 	end
-
 	-- if equipped, return
 	local isEquipped = tes3.player.object:hasItemEquipped(obj)
 	if (isEquipped) then
@@ -157,12 +88,14 @@ local function find_compare_object(e)
 	local equipped = stack.object
 	-- mwse.log("[ CE ] Found equipped item: %s (for %s)", equipped.id, obj.id)
 
-	-- if the weapon types don't match, don't compare
-	-- marksmanBow 	9 	Marksman, Bow
-	-- marksmanCrossbow 	10 	Marksman, Crossbow
-	-- marksmanThrown 	11 	Marksman, Thrown
-	-- arrow 	12 	Arrows
-	-- bolt 	13 	Bolts
+	--[[
+		if the weapon types don't match, don't compare
+		marksmanBow 	9 	Marksman, Bow
+		marksmanCrossbow 	10 	Marksman, Crossbow
+		marksmanThrown 	11 	Marksman, Thrown
+		arrow 	12 	Arrows
+		bolt 	13 	Bolts
+	]]
 	local curWeapType = tonumber(obj.type)
 	local equWeapType = tonumber(equipped.type)
 	if (curWeapType ~= nil and equWeapType ~= nil) then
@@ -179,74 +112,52 @@ local function find_compare_object(e)
 end
 
 --[[
-    Sets the color of an element by status
-]]
---- @param element tes3uiElement
---- @param status integer
-local function set_color(element, status)
-	local color = "normal_color"
-	if (status == 1) then
-		color = "fatigue_color" -- better
-	elseif (status == 2) then
-		color = "health_color" -- worse
-	end
-	-- update color
-	if (color ~= "normal_color") then
-		element.color = tes3ui.getPalette(color)
-	end
-end
-
---[[
     Creates the inline compare tooltip
 ]]
 --- @param e uiObjectTooltipEventData
 --- @param stack tes3equipmentStack 
 local function create_inline(e, stack)
+
+	-- cache values
 	-- create equipped tooltip to get the fields
+	lock = true
 	local equTooltip = tes3ui.createTooltipMenu { item = stack.object, itemData = stack.itemData } -- equiped item
+	lock = false
 	local equTable = {}
 	for _, element in pairs(equTooltip:findChild('PartHelpMenu_main').children) do
 		if (element.text ~= nil and element.name ~= nil) then
 			equTable[element.name] = element.text
 		end
 	end
-	-- UI Expansion support
-	-- TODO check if installed I guess
-	local uiExpElement = equTooltip:findChild('UIEXP_Tooltip_IconGoldBlock')
-	if (uiExpElement ~= nil) then
-		for _, element in pairs(uiExpElement.children) do
-			if (element.text ~= nil and element.text ~= '') then
-				equTable['UIEXP_Tooltip_IconGoldBlock'] = element.text
-			end
-		end
-	end
-	uiExpElement = equTooltip:findChild('UIEXP_Tooltip_IconWeightBlock')
-	if (uiExpElement ~= nil) then
-		for _, element in pairs(equTooltip:findChild('UIEXP_Tooltip_IconWeightBlock').children) do
-			if (element.text ~= nil and element.text ~= '') then
-				equTable['UIEXP_Tooltip_IconWeightBlock'] = element.text
-			end
-		end
-	end
 
+	-- UI Expansion support
+	uiexpansion.uiexpansion_cache(equTooltip, 'UIEXP_Tooltip_IconGoldBlock', equTable)
+	uiexpansion.uiexpansion_cache(equTooltip, 'UIEXP_Tooltip_IconWeightBlock', equTable)
+
+	-- Ashfall support
+	ashfall.ashfall_cache(equTooltip, 'Ashfall:ratings_warmthValue', equTable)
+	ashfall.ashfall_cache(equTooltip, 'Ashfall:ratings_coverageValue', equTable)
+
+	-- modify values
 	-- create this tooltip again but don't raise the event
 	lock = true
 	local tooltip = tes3ui.createTooltipMenu { item = e.object, itemData = e.itemData } -- current item
 	lock = false
 
-	-- compare all properties
+	-- compare all toplevel properties
 	for _, element in pairs(tooltip:findChild('PartHelpMenu_main').children) do
 		local eText = equTable[element.name]
+
+		-- checks
 		-- do not compare new fields
 		if (eText == nil) then
 			goto continue2
 		end
-		-- do not compare fields without a text TODO improve this somehow?
+		-- do not compare fields without a text
 		if (eText == nil) then
 			goto continue2
 		end
 		local cText = element.text
-		-- TODO: investigate mod compatibility
 		-- do not compare the type in vanilla (UI expansion is handled by the next check)
 		if (string.find(cText, "Type: ")) then
 			goto continue2
@@ -261,79 +172,30 @@ local function create_inline(e, stack)
 		cText = string.sub(cText, j + 2)
 
 		-- Compare
-		local status = compare_text(cText, eText, element.name)
-		if (config.useColors) then
-			set_color(element, status)
-		end
-
-		-- add arrows
-		local icon = ""
-		if (status == 1) then
-			icon = "textures/menu_scroll_up.dds" -- better
-		elseif (status == 2) then
-			icon = "textures/menu_scroll_down.dds" -- worse
-		end
-		if (icon ~= "") then
-			local img = element:createImage{ path = icon }
-			img.absolutePosAlignX = 0.98
-			img.absolutePosAlignY = 2.5
-			img.imageScaleX = 0.5
-			img.imageScaleY = 0.5
-		end
+		local status = common.compare_text(cText, eText, element.name)
+		common.set_color(element, status)
+		common.set_arrows(element, status)
 
 		if (not config.useMinimal) then
 			-- add compare text
 			element.text = element.text .. " (" .. eText .. ")"
 		end
 
-		-- icon hack
-		element.text = element.text .. "     "
+		-- icon hack for arrows
+		element.text = "  " .. element.text .. "     "
+
 		element:updateLayout()
 
 		::continue2::
 	end
 
-	-- UI Expansion support
-	uiExpElement = equTooltip:findChild('UIEXP_Tooltip_IconGoldBlock')
-	if (uiExpElement ~= nil) then
-		for _, element in pairs(uiExpElement.children) do
-			if (element.text ~= nil and element.text ~= '') then
-				local eText = equTable['UIEXP_Tooltip_IconGoldBlock']
-				local cText = element.text
-				-- Compare
-				local status = compare_text(cText, eText, element.name)
-				if (config.useColors) then
-					set_color(element, status)
-				end
-				if (config.useMinimal) then
-
-				else
-					-- add compare text
-					element.text = element.text .. " (" .. eText .. ")"
-				end
-			end
-		end
-	end
-	uiExpElement = equTooltip:findChild('UIEXP_Tooltip_IconWeightBlock')
-	if (uiExpElement ~= nil) then
-		for _, element in pairs(uiExpElement.children) do
-			if (element.text ~= nil and element.text ~= '') then
-				local eText = equTable['UIEXP_Tooltip_IconWeightBlock']
-				local cText = element.text
-				-- Compare
-				local status = compare_text(cText, eText, element.name)
-				if (config.useColors) then
-					set_color(element, status)
-				end
-				if (config.useMinimal) then
-
-				else
-					-- add compare text
-					element.text = element.text .. " (" .. eText .. ")"
-				end
-			end
-		end
-	end
+	-- UI Expansion support (no arrows)
+	-- TODO fix
+	uiexpansion.uiexpansion_update(equTooltip, 'UIEXP_Tooltip_IconGoldBlock', equTable)
+	uiexpansion.uiexpansion_update(equTooltip, 'UIEXP_Tooltip_IconWeightBlock', equTable)
+	-- ashfall support support
+	ashfall.ashfall_update(equTooltip, 'Ashfall:ratings_warmthValue', equTable)
+	ashfall.ashfall_update(equTooltip, 'Ashfall:ratings_coverageValue', equTable)
 
 	tooltip:updateLayout()
 end
@@ -356,7 +218,38 @@ local function uiObjectTooltipCallback(e)
 	-- no item found to compare to
 	local stack = find_compare_object(e)
 	if (stack == nil) then
-		-- TODO then it's always better?
+
+		-- set color to green
+		local tt = e.tooltip
+		for _, element in pairs(tt:findChild('PartHelpMenu_main').children) do
+			-- checks
+			local cText = element.text
+			-- do not compare the type in vanilla (UI expansion is handled by the next check)
+			if (string.find(cText, "Type: ")) then
+				goto continue3
+			end
+			-- do not compare fields without a colon
+			local _, j = string.find(cText, ":")
+			if (j == nil) then
+				goto continue3
+			end
+
+			-- Compare
+			common.set_color(element, 1)
+			common.set_arrows(element, 1)
+
+			-- icon hack for arrows
+			-- TODO this messes with the layout...
+			element.text = "  " .. element.text .. "     "
+
+			element:updateLayout()
+
+			::continue3::
+		end
+
+		-- TODO UI expansion
+		-- TODO ashfall
+
 		return
 	end
 
@@ -374,6 +267,10 @@ end
 local function initializedCallback(e)
 	if (config.enableMod) then
 		-- init mod
+
+		mwse.log("[ CE ] ashfall plugin active: %s", tostring(tes3.isLuaModActive("mer.ashfall")))
+		mwse.log("[ CE ] UI Expansion plugin active: %s", tostring(tes3.isLuaModActive("UI Expansion")))
+
 		event.register(tes3.event.uiObjectTooltip, uiObjectTooltipCallback, { priority = -110 })
 		mwse.log("[ CE ] %s v%.1f Initialized", config.mod, config.version)
 	end

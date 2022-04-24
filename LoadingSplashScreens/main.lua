@@ -49,7 +49,7 @@ local function uiActivatedCallback(e)
 		image.height = uheight
 		image.scaleMode = true
 		image.alpha = config.alpha / 100
-		image.paddingAllSides = 15
+		-- image.paddingAllSides = 15
 
 		-- Final setup
 		menu:updateLayout()
@@ -77,7 +77,7 @@ local function initializedCallback(e)
 	end
 
 	-- init mod
-	mwse.log("[ CE ] %s v%.1f Initialized", config.mod, config.version)
+	mwse.log("[ LSS ] %s v%.1f Initialized", config.mod, config.version)
 end
 
 --[[
