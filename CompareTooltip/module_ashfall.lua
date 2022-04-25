@@ -17,6 +17,7 @@ function this.ashfall_cache(equTooltip, id, equTable)
 	local element = equTooltip:findChild(id)
 	if (element ~= nil and element.text ~= nil) then
 		equTable[id] = string.trim(element.text)
+		-- common.mod_log("  ashfall_cache (%s): %s", id, equTable[id])
 	end
 end
 
@@ -26,6 +27,7 @@ end
 --- @param equTable table
 function this.ashfall_update(equTooltip, id, equTable)
 	if (not isAshfallInstalled) then
+		-- common.mod_log("ashfall_update not installed")
 		return
 	end
 
@@ -33,6 +35,8 @@ function this.ashfall_update(equTooltip, id, equTable)
 	if (element ~= nil and element.text ~= nil) then
 		local eText = equTable[id]
 		local cText = element.text
+
+		-- common.mod_log("  ashfall_update (%s): %s vs %s", id, cText, eText)
 
 		-- Compare
 		local status = common.compare_text(cText, eText, element.name)

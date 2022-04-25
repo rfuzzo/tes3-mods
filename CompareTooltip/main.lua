@@ -7,9 +7,8 @@
 		TODO:
 			- blacklist comparisons
 		BUGS:
-			- fix quality field in uiexp ?
-			- fix arrow layout for long comaprisons
-			- fix name field for lookat comparisons
+			- fix arrow layout for long comparisons
+			- fix name icon field for lookat comparisons
 ]] --
 local config = require("rfuzzo.CompareTooltip.config")
 local common = require("rfuzzo.CompareTooltip.common")
@@ -69,63 +68,76 @@ local function find_compare_object(e)
 	return stack
 end
 
+--- checks a ui block if it should be compared
+--- @param name string
+local function check_compare_block(name)
+	-- checks
+	-- do not compare the name field
+	if (name == 'HelpMenu_name') then
+		return false
+	end
+	if (name == 'HelpMenu_weaponType') then
+		return false
+	end
+
+	return true
+end
+
 --- Creates the inline compare tooltip
 --- @param e uiObjectTooltipEventData
 --- @param stack tes3equipmentStack 
 local function create_inline(e, stack)
 
+	-- common.mod_log("------- %s ------------------------------", e.object.id)
+
 	-- cache values
-	-- create equipped tooltip to get the fields
+	-- create equipped tooltip to cache the fields but don't raise the event
 	lock = true
 	local equTooltip = tes3ui.createTooltipMenu { item = stack.object, itemData = stack.itemData } -- equiped item
 	lock = false
+
 	local equTable = {}
+
 	for _, element in pairs(equTooltip:findChild('PartHelpMenu_main').children) do
 		if (element.text ~= nil and element.name ~= nil) then
 			equTable[element.name] = element.text
+			-- common.mod_log("  vanilla_cache (%s): %s", element.name, equTable[element.name])
 		end
 	end
-
 	-- UI Expansion support
 	uiexpansion.uiexpansion_cache(equTooltip, 'UIEXP_Tooltip_IconGoldBlock', equTable)
 	uiexpansion.uiexpansion_cache(equTooltip, 'UIEXP_Tooltip_IconWeightBlock', equTable)
-
 	-- Ashfall support
 	ashfall.ashfall_cache(equTooltip, 'Ashfall:ratings_warmthValue', equTable)
 	ashfall.ashfall_cache(equTooltip, 'Ashfall:ratings_coverageValue', equTable)
 
-	-- modify values
-	-- create this tooltip again but don't raise the event
+	-- create current item tooltip again but don't raise the event
 	lock = true
 	local tooltip = tes3ui.createTooltipMenu { item = e.object, itemData = e.itemData } -- current item
 	lock = false
 
+	-- modify values
 	-- compare all toplevel properties
 	for _, element in pairs(tooltip:findChild('PartHelpMenu_main').children) do
-
-		-- checks
-		-- do not compare the name field
-		if (element.name == 'HelpMenu_name') then
-			goto continue
-		end
-		local cText = element.text
-		-- do not compare the type in vanilla (UI expansion is handled by the next check)
-		if (string.find(cText, "Type: ")) then
+		if (not check_compare_block(element.name)) then
 			goto continue
 		end
 		-- do not compare fields without a colon
+		local cText = element.text
 		local _, j = string.find(cText, ":")
 		if (j == nil) then
 			goto continue
 		end
-		local eText = equTable[element.name]
 		-- do not compare fields without a text
+		local eText = equTable[element.name]
 		if (eText == nil) then
 			goto continue
 		end
 
 		eText = string.sub(eText, j + 2)
 		cText = string.sub(cText, j + 2)
+
+		-- common.mod_log("  vanilla_update: %s vs %s", cText, eText)
 
 		-- Compare
 		local status = common.compare_text(cText, eText, element.name)
@@ -196,104 +208,68 @@ local function uiObjectTooltipCallback(e)
 	]]
 	local objectType = obj.objectType
 	if (objectType ~= 1330467393 and objectType ~= 1346454871 and objectType ~= 1414483011) then
-		-- mwse.log("[ CE ] not supported type: " .. tostring(objectType))
+		-- common.mod_log("not supported type: %s", tostring(objectType))
 		return
 	end
 	-- if equipped, return
 	local isEquipped = tes3.player.object:hasItemEquipped(obj)
 	if (isEquipped) then
-		-- mwse.log("[ CE ] <<<<< " .. obj.id .. " is equipped")
+		-- common.mod_log(" <<<<< %s is equipped", obj.id)
 		return
 	end
 
 	-- no item found to compare to
 	local stack = find_compare_object(e)
-	if (stack == nil) then
+	if (stack ~= nil) then
+		-- if (config.useInlineTooltips) then
+		create_inline(e, stack)
+		-- end
+		return
+	end
 
-		-- set color to green
-		local tt = e.tooltip
-		for _, element in pairs(tt:findChild('PartHelpMenu_main').children) do
-			-- checks
-			if (element.name == 'HelpMenu_name') then
-				goto continue
-			end
-			if (element.name == 'HelpMenu_weaponType') then
-				goto continue
-			end
-			local cText = element.text
-			-- do not compare the type in vanilla (UI expansion is handled by the next check)
-			if (string.find(cText, "Type: ")) then
-				goto continue
-			end
-			-- do not compare fields without a colon
-			local _, j = string.find(cText, ":")
-			if (j == nil) then
-				goto continue
-			end
+	-- else the looked-at item is always better
+	-- set color to green for everything
+	local tt = e.tooltip
+	for _, element in pairs(tt:findChild('PartHelpMenu_main').children) do
 
-			-- Compare
-			common.set_color(element, 1)
-			common.set_arrows(element, 1)
-
-			-- icon hack for arrows
-			if (config.useArrows) then
-				element.text = "  " .. element.text .. "     "
-			end
-
-			element:updateLayout()
-			::continue::
+		if (not check_compare_block(element.name)) then
+			goto continue
+		end
+		-- do not compare fields without a colon
+		local cText = element.text
+		local _, j = string.find(cText, ":")
+		if (j == nil) then
+			goto continue
 		end
 
-		-- UI Expansion support disabled here becasue annoying
-		-- uiexpansion.uiexpansion_color_block(tt, 'UIEXP_Tooltip_IconGoldBlock', 1)
-		-- uiexpansion.uiexpansion_color_block(tt, 'UIEXP_Tooltip_IconWeightBlock', 1)
+		-- Compare
+		common.set_color(element, 1)
+		common.set_arrows(element, 1)
 
-		-- Ashfall support
-		ashfall.ashfall_color_block(tt, 'Ashfall:ratings_warmthValue', 1)
-		ashfall.ashfall_color_block(tt, 'Ashfall:ratings_coverageValue', 1)
-
-		return
-	end
-
-	-- if (config.useInlineTooltips) then
-	create_inline(e, stack)
-	-- end
-end
-
--- used to display comparisions on key down
---- @param e keyUpEventData
-local function keyUpCallback(e)
-	if (not config.enableMod) then
-		return
-	end
-	if (not config.useKey) then
-		return
-	end
-	if (e.keyCode ~= config.comparisonKey.keyCode) then
-		return
-	end
-	local helpMenu = tes3ui.findHelpLayerMenu("HelpMenu")
-	-- hack to disable comaprison for lookat help
-	local uiExpElement = helpMenu:findChild("HelpMenu_weight")
-	if (uiExpElement == nil) then
-		return
-	end
-
-	-- refresh the current tooltip
-	if (helpMenu ~= nil) then
-		local obj = helpMenu:getPropertyObject("PartHelpMenu_object")
-		if (obj ~= nil) then
-			-- common.mod_log("found obj: %s", obj.id)
-			lock = true
-			tes3ui.createTooltipMenu { item = obj }
-			lock = false
+		-- icon hack for arrows
+		if (config.useArrows) then
+			element.text = "  " .. element.text .. "     "
 		end
+
+		element:updateLayout()
+		::continue::
 	end
+
+	-- UI Expansion support disabled here becasue annoying
+	-- uiexpansion.uiexpansion_color_block(tt, 'UIEXP_Tooltip_IconGoldBlock', 1)
+	-- uiexpansion.uiexpansion_color_block(tt, 'UIEXP_Tooltip_IconWeightBlock', 1)
+
+	-- Ashfall support
+	ashfall.ashfall_color_block(tt, 'Ashfall:ratings_warmthValue', 1)
+	ashfall.ashfall_color_block(tt, 'Ashfall:ratings_coverageValue', 1)
+
 end
 
--- used to display comparisions on key down
+--- recreate tooltip
+--- @param isVanilla boolean
 --- @param e keyDownEventData
-local function keyDownCallback(e)
+local function recreate_tooltip(isVanilla, e)
+	-- checks
 	if (not config.enableMod) then
 		return
 	end
@@ -304,23 +280,57 @@ local function keyDownCallback(e)
 		return
 	end
 	local helpMenu = tes3ui.findHelpLayerMenu("HelpMenu")
-	-- hack to disable comaprison for lookat help
-	local uiExpElement = helpMenu:findChild("HelpMenu_weight")
-	if (uiExpElement == nil) then
+	if (helpMenu == nil) then
+		return
+	end
+	local objOrRef = helpMenu:getPropertyObject("PartHelpMenu_object")
+	if (objOrRef == nil) then
 		return
 	end
 
-	-- refresh the current tooltip
-	if (helpMenu ~= nil) then
-		local objOrRef = helpMenu:getPropertyObject("PartHelpMenu_object")
-		if (objOrRef ~= nil) then
-			if (objOrRef.object) then
-				tes3ui.createTooltipMenu { item = objOrRef.object }
-			else
-				tes3ui.createTooltipMenu { item = objOrRef }
-			end
-		end
+	-- get item data
+	local obj = objOrRef.object
+	local itemData = objOrRef.itemData
+	if (obj == nil) then
+		-- it's not a ref (= not a looked at thing)
+		obj = objOrRef
+		local reference = tes3.getReference(objOrRef.id)
+		itemData = reference.itemData
 	end
+
+	-- redundant check
+	if (obj == nil) then
+		return
+	end
+
+	-- disable comparison for specific types
+	local objectType = obj.objectType
+	if (objectType ~= 1330467393 and objectType ~= 1346454871 and objectType ~= 1414483011) then
+		return
+	end
+
+	-- common.mod_log("found obj %s with itemdata %s", obj.id, tostring(itemData ~= nil))
+
+	-- recreate tooltip
+	if (isVanilla) then
+		lock = true
+	end
+	tes3ui.createTooltipMenu { item = obj, itemData = itemData }
+	if (isVanilla) then
+		lock = false
+	end
+end
+
+-- used to display comparisions on key down
+--- @param e keyDownEventData
+local function keyDownCallback(e)
+	recreate_tooltip(false, e)
+end
+
+-- used to display comparisions on key down
+--- @param e keyUpEventData
+local function keyUpCallback(e)
+	recreate_tooltip(true, e)
 end
 
 --[[
@@ -328,18 +338,15 @@ end
 ]]
 --- @param e initializedEventData
 local function initializedCallback(e)
-	if (config.enableMod) then
+	-- init mod
+	common.mod_log("ashfall plugin active: %s", tostring(tes3.isLuaModActive("mer.ashfall")))
+	common.mod_log("UI Expansion plugin active: %s", tostring(tes3.isLuaModActive("UI Expansion")))
 
-		-- init mod
-		common.mod_log("ashfall plugin active: %s", tostring(tes3.isLuaModActive("mer.ashfall")))
-		common.mod_log("UI Expansion plugin active: %s", tostring(tes3.isLuaModActive("UI Expansion")))
+	event.register(tes3.event.uiObjectTooltip, uiObjectTooltipCallback, { priority = -110 })
+	event.register(tes3.event.keyDown, keyDownCallback)
+	event.register(tes3.event.keyUp, keyUpCallback)
 
-		event.register(tes3.event.uiObjectTooltip, uiObjectTooltipCallback, { priority = -110 })
-		event.register(tes3.event.keyDown, keyDownCallback)
-		event.register(tes3.event.keyUp, keyUpCallback)
-
-		common.mod_log("%s v%.1f Initialized", config.mod, config.version)
-	end
+	common.mod_log("%s v%.1f Initialized", config.mod, config.version)
 end
 
 event.register(tes3.event.initialized, initializedCallback)

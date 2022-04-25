@@ -6,9 +6,9 @@ local common = {}
 --- @param msg string
 --- @vararg any *Optional*. No description yet available.
 function common.mod_log(msg, ...)
-	local str = "[ %s ] " .. msg
+	local str = "[ %s/%s ] " .. msg
 	local arg = { ... }
-	return mwse.log(str, config.id, unpack(arg))
+	return mwse.log(str, config.author, config.id, unpack(arg))
 end
 
 --- Sets the color of an element by status

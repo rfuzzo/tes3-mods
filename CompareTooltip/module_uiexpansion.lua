@@ -2,6 +2,7 @@ local config = require("rfuzzo.CompareTooltip.config")
 local common = require("rfuzzo.CompareTooltip.common")
 
 local isUIExpansionInstalled = tes3.isLuaModActive("UI Expansion")
+isUIExpansionInstalled = true
 
 local this = {}
 
@@ -16,10 +17,10 @@ function this.uiexpansion_cache(equTooltip, id, equTable)
 
 	local uiExpElement = equTooltip:findChild(id)
 	if (uiExpElement ~= nil) then
-		for _, element in pairs(uiExpElement.children) do
+		for _, element in ipairs(uiExpElement.children) do
 			if (element.text ~= nil and element.text ~= '') then
 				equTable[id] = element.text
-				-- common.mod_log("uiex cached (%s): %s", id, equTable[id])
+				-- common.mod_log("  uiexpansion_cache (%s): %s", id, equTable[id])
 			end
 		end
 	end
@@ -31,17 +32,18 @@ end
 --- @param equTable table
 function this.uiexpansion_update(equTooltip, id, equTable)
 	if (not isUIExpansionInstalled) then
+		-- common.mod_log("uiexpansion_update not installed")
 		return
 	end
 
 	local uiExpElement = equTooltip:findChild(id)
 	if (uiExpElement ~= nil) then
-		for _, element in pairs(uiExpElement.children) do
+		for _, element in ipairs(uiExpElement.children) do
 			if (element.text ~= nil and element.text ~= '') then
 				local eText = equTable[id]
 				local cText = element.text
 
-				-- common.mod_log("uiex update (%s): %s vs %s", id, cText, eText)
+				-- common.mod_log("  uiexpansion_update (%s): %s vs %s", id, cText, eText)
 
 				-- Compare
 				local status = common.compare_text(cText, eText, element.name)
@@ -77,7 +79,7 @@ function this.uiexpansion_color_block(equTooltip, id, status)
 
 	local uiExpElement = equTooltip:findChild(id)
 	if (uiExpElement ~= nil) then
-		for _, element in pairs(uiExpElement.children) do
+		for _, element in ipairs(uiExpElement.children) do
 			if (element.text ~= nil and element.text ~= '') then
 				common.set_color(element, status)
 				element:updateLayout()

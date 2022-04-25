@@ -10,15 +10,13 @@ local config = require("rfuzzo.LoadingSplashScreens.config")
 local splashScreens = {}
 local isEnabled = false
 
---[[
-    local logger
-]]
+--- local logger
 --- @param msg string
 --- @vararg any *Optional*. No description yet available.
 local function mod_log(msg, ...)
-	local str = "[ %s ] " .. msg
+	local str = "[ %s/%s ] " .. msg
 	local arg = { ... }
-	return mwse.log(str, config.id, unpack(arg))
+	return mwse.log(str, config.author, config.id, unpack(arg))
 end
 
 --[[
@@ -37,34 +35,32 @@ local function uiActivatedCallback(e)
 		return
 	end
 
-	if (name == "MenuLoading") then
-		local i = math.random(1, #splashScreens)
-		local p = splashScreens[i]
-		-- mwse.log("[ LSS ] ".. i .. ": " .. p)
+	local i = math.random(1, #splashScreens)
+	local p = splashScreens[i]
+	-- mwse.log("[ LSS ] ".. i .. ": " .. p)
 
-		-- local width, height = tes3.getViewportSize()
-		-- local scale = tes3ui.getViewportScale()
-		local uwidth, uheight = tes3ui.getViewportSize()
+	-- local width, height = tes3.getViewportSize()
+	-- local scale = tes3ui.getViewportScale()
+	local uwidth, uheight = tes3ui.getViewportSize()
 
-		local frame = menu:createBlock{}
-		frame.width = uwidth
-		frame.height = uheight
-		frame.childAlignX = 0.5
-		frame.alpha = 0.0
-		frame.paddingAllSides = 15
+	local frame = menu:createBlock{}
+	frame.width = uwidth
+	frame.height = uheight
+	frame.childAlignX = 0.5
+	frame.alpha = 0.0
+	frame.paddingAllSides = 15
 
-		local image = frame:createImage{ id = i, path = p }
-		image.widthProportional = 1.0
-		image.heightProportional = 1.0
-		image.width = uwidth
-		image.height = uheight
-		image.scaleMode = true
-		image.alpha = config.alpha / 100
-		-- image.paddingAllSides = 15
+	local image = frame:createImage{ id = i, path = p }
+	image.widthProportional = 1.0
+	image.heightProportional = 1.0
+	image.width = uwidth
+	image.height = uheight
+	image.scaleMode = true
+	image.alpha = config.alpha / 100
+	-- image.paddingAllSides = 15
 
-		-- Final setup
-		menu:updateLayout()
-	end
+	-- Final setup
+	menu:updateLayout()
 end
 
 --[[
@@ -116,7 +112,7 @@ end
     event hooks
 ]]
 event.register(tes3.event.initialized, initializedCallback)
-event.register(tes3.event.uiActivated, uiActivatedCallback)
+event.register(tes3.event.uiActivated, uiActivatedCallback, { filter = "MenuLoading" })
 
 event.register(tes3.event.loaded, loadedCallback)
 event.register(tes3.event.save, saveCallback)
