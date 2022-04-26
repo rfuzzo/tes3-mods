@@ -7,7 +7,7 @@
 		TODO:
 			- blacklist comparisons
 		BUGS:
-			- fix arrow layout for long comparisons
+			- fix arrow layout breaking for long comparisons
 			- fix name icon field for lookat comparisons
 ]] --
 local config = require("rfuzzo.CompareTooltip.config")
@@ -119,9 +119,11 @@ local function create_inline(e, stack)
 	-- modify values
 	-- compare all toplevel properties
 	for _, element in pairs(tooltip:findChild('PartHelpMenu_main').children) do
+
 		if (not check_compare_block(element.name)) then
 			goto continue
 		end
+
 		-- do not compare fields without a colon
 		local cText = element.text
 		local _, j = string.find(cText, ":")
@@ -218,7 +220,7 @@ local function uiObjectTooltipCallback(e)
 		return
 	end
 
-	-- no item found to compare to
+	-- if item found to compare to
 	local stack = find_compare_object(e)
 	if (stack ~= nil) then
 		-- if (config.useInlineTooltips) then
@@ -227,7 +229,7 @@ local function uiObjectTooltipCallback(e)
 		return
 	end
 
-	-- else the looked-at item is always better
+	-- else the current item is always better
 	-- set color to green for everything
 	local tt = e.tooltip
 	for _, element in pairs(tt:findChild('PartHelpMenu_main').children) do
@@ -235,6 +237,7 @@ local function uiObjectTooltipCallback(e)
 		if (not check_compare_block(element.name)) then
 			goto continue
 		end
+
 		-- do not compare fields without a colon
 		local cText = element.text
 		local _, j = string.find(cText, ":")
