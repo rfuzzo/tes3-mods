@@ -2,8 +2,7 @@
 	Mod Immersive Rotten Corpses
 	Author: rfuzzo
 
-	This mod displys splash screens during the cell loading phase instead of freezing the current frame
-	Splash screens are randomly taken from the installed splash screen pool
+	This mod changes the tooltip of creature corpses to reflect their "decay" - time passed since they died
 ]] --
 local config = require("rfuzzo.RottenCorpses.config")
 
@@ -25,16 +24,16 @@ local function uiObjectTooltipCallback(e)
 	end
 
 	local mobile = ref.mobile
-	-- if (ref.object.objectType ~= tes3.objectType.creature) then
-	-- 	return
-	-- end
+	if (ref.object.objectType ~= tes3.objectType.creature) then
+		return
+	end
 	if (mobile == nil) then
 		return
 	end
 
 	local timestampEra = tes3.getSimulationTimestamp()
 	local corpseHourstamp = mobile.corpseHourstamp
-	local gameStartTimestamp = 3746001 - 33
+	local gameStartTimestamp = 3746001 - 33 -- ???
 
 	local timestampSinceGameStart = tes3.getSimulationTimestamp() - gameStartTimestamp
 	local deadSince = timestampSinceGameStart - corpseHourstamp

@@ -20,7 +20,7 @@ local lock = false
 -- Make sure we have the latest MWSE version.
 if (mwse.buildDate == nil) or (mwse.buildDate < 20220423) then
 	event.register("initialized", function()
-		tes3.messageBox("[ CE ]  Compare tooltips requires the latest version of MWSE. Please run MWSE-Updater.exe.")
+		tes3.messageBox("[ CTT ]  Compare tooltips requires the latest version of MWSE. Please run MWSE-Updater.exe.")
 	end)
 	return
 end
