@@ -3,8 +3,12 @@
 	Author: rfuzzo
 
 	This mod changes the tooltip of creature corpses to reflect their "decay" - time passed since they died
+
+	TODO:
+		- decals
+
 ]] --
-local config = require("rfuzzo.RottenCorpses.config")
+local config = require("rfuzzo.ImmersiveRottenCorpses.config")
 
 --- local logger
 --- @param msg string
@@ -13,6 +17,25 @@ local function mod_log(msg, ...)
 	local str = "[ %s/%s ] " .. msg
 	local arg = { ... }
 	return mwse.log(str, config.author, config.id, unpack(arg))
+end
+
+--- custom timestamp on the actor, but don't store anything in the save
+local function onDamaged(e)
+	if e.attackerReference ~= tes3.player then
+		return
+	end
+
+	if e.killingBlow == true then
+		local ref = e.reference
+		local timestampEra = tes3.getSimulationTimestamp()
+
+		mod_log("%s killed, current time: %s", ref.id, tostring(timestampEra))
+
+		-- store in tempData
+		ref.tempData["rf_corpseTimeStamp"] = timestampEra
+
+		-- and when first loading get from corpseTimestamp
+	end
 end
 
 --- main mod
@@ -32,32 +55,39 @@ local function uiObjectTooltipCallback(e)
 	end
 
 	local timestampEra = tes3.getSimulationTimestamp()
-	local corpseHourstamp = mobile.corpseHourstamp
-	local gameStartTimestamp = 3746001 - 33 -- ???
+	local deadSince = mobile.corpseHourstamp - 34 -- ???
 
-	local timestampSinceGameStart = tes3.getSimulationTimestamp() - gameStartTimestamp
-	local deadSince = timestampSinceGameStart - corpseHourstamp
-
-	-- mod_log("obj %s current time: %s, dead since: %s(%s)", ref.id, tostring(timestampEra), tostring(deadSince), tostring(corpseHourstamp))
+	local corpseHourstampReal = ref.tempData["rf_corpseTimeStamp"]
+	if (corpseHourstampReal ~= nil) then
+		deadSince = timestampEra - corpseHourstampReal
+		mod_log("obj %s current time: %s, dead since: %s(%s)", ref.id, tostring(timestampEra), tostring(deadSince),
+		        tostring(corpseHourstampReal))
+	end
 
 	local adj = 'Rotten'
 	local color = tes3.palette.answerColor
+	local level = 5
 
 	if (deadSince < 7) then
 		adj = 'Fresh'
 		color = tes3.palette.fatigueColor
+		level = 1
 	elseif (deadSince < 24) then
 		adj = 'Bloated'
 		color = tes3.palette.normalColor
+		level = 2
 	elseif (deadSince < 36) then
 		adj = 'Decaying'
 		color = tes3.palette.healthNpcColor
+		level = 3
 	elseif (deadSince < 48) then
 		adj = 'Rotting'
 		color = tes3.palette.healthColor
+		level = 4
 	elseif (deadSince < 60) then
 		adj = 'Rotten'
 		color = tes3.palette.answerColor
+		level = 5
 	end
 
 	-- selector
@@ -66,12 +96,11 @@ local function uiObjectTooltipCallback(e)
 	if (nameMenu ~= nil) then
 		local perc = deadSince / 72 * 100
 		local txt = string.format("%s %s, dead since: %.1fh (%.1f%%)", adj, nameMenu.text, deadSince, perc)
-		-- nameMenu.text = adj .. " " .. nameMenu.text .. ", dead since: " .. tostring(deadSince) .. "h (" .. perc .. "%)"
+		-- local txt = string.format("%s %s", adj, nameMenu.text)
 		nameMenu.text = txt
 		nameMenu.color = tes3ui.getPalette(color)
 		nameMenu:updateLayout()
 	end
-
 end
 
 --- Init mod 
@@ -85,3 +114,5 @@ end
 ]]
 event.register(tes3.event.initialized, initializedCallback)
 event.register(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
+event.register(tes3.event.damaged, onDamaged)
+
