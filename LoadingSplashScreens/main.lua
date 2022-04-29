@@ -48,7 +48,7 @@ local function uiActivatedCallback(e)
 	frame.height = uheight
 	frame.childAlignX = 0.5
 	frame.alpha = 0.0
-	frame.paddingAllSides = 15
+	frame.paddingAllSides = 3
 
 	local image = frame:createImage{ id = i, path = p }
 	image.widthProportional = 1.0
