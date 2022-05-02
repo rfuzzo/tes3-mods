@@ -279,7 +279,7 @@ local function recreate_tooltip(isVanilla, e)
 	if (not config.useKey) then
 		return
 	end
-	if (not e.keyCode == config.comparisonKey.keyCode) then
+	if (not (e.keyCode == config.comparisonKey.keyCode)) then
 		return
 	end
 	local helpMenu = tes3ui.findHelpLayerMenu("HelpMenu")
@@ -291,28 +291,37 @@ local function recreate_tooltip(isVanilla, e)
 		return
 	end
 
+	-- local dbgStr = "keyDown"
+	-- if (isVanilla) then
+	-- 	dbgStr = "keyUp"
+	-- end
+	-- common.mod_log("%s %s/%s %s get item data", dbgStr, tostring(e.keyCode), tostring(config.comparisonKey.keyCode),
+	--                objOrRef.id)
+
 	-- get item data
 	local obj = objOrRef.object
 	local itemData = objOrRef.itemData
+	-- common.mod_log("  itemdata %s", tostring(itemData ~= nil))
+	-- common.mod_log("  obj %s", tostring(obj ~= nil))
+	-- common.mod_log("  %s objOrRef type: %s", objOrRef.id, tostring(objOrRef.objectType))
+
+	-- it's not a ref (= a not a vanilla looked at thing)
 	if (obj == nil) then
-		-- it's not a ref (= not a looked at thing)
 		obj = objOrRef
 		local reference = tes3.getReference(objOrRef.id)
-		itemData = reference.itemData
-	end
-
-	-- redundant check
-	if (obj == nil) then
-		return
+		if (reference ~= nil) then
+			itemData = reference.itemData
+		end
 	end
 
 	-- disable comparison for specific types
 	local objectType = obj.objectType
 	if (objectType ~= 1330467393 and objectType ~= 1346454871 and objectType ~= 1414483011) then
+		-- common.mod_log("  %s disable comparison for specific type: %s", obj.id, tostring(objectType))
 		return
 	end
 
-	-- common.mod_log("found obj %s with itemdata %s", obj.id, tostring(itemData ~= nil))
+	-- common.mod_log("  found obj %s with itemdata %s", obj.id, tostring(itemData ~= nil))
 
 	-- recreate tooltip
 	if (isVanilla) then
