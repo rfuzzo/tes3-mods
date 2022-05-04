@@ -91,7 +91,11 @@ local function uiActivatedCallback(e)
 	end
 
 	-- enable only for bosmer players
-	if ((tes3.player.object.race.id:lower() ~= "bosmer") and config.isBosmerOnly) then
+	debug.log(ref.object.objectType)
+	debug.log(tes3.player.object.race.id:lower())
+	debug.log(tes3.player.object.class.name:lower())
+
+	if ((tes3.player.object.race.id:lower() ~= "wood elf") and config.isBosmerOnly) then
 		return
 	end
 
@@ -105,7 +109,6 @@ local function uiActivatedCallback(e)
 	if ((not string.find(tes3.player.object.class.name:lower(), "green pact")) and config.isGreenPactOnly) then
 		return
 	end
-	-- debug.log(tes3.player.object.class.name:lower())
 
 	-- rename button
 	local removebutton = element:findChild('MenuContents_removebutton')
