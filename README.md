@@ -14,12 +14,13 @@
 	* TODO: display two tooltips at once next to each other
 
 - [ ] Immersive Realistic Maps
-	* Disable the worldmap (optional)
-	* When pressing M (or overlay the world map): open a contextually-chosen map depending on player inventory
+	* Disable the worldmap and overlay (optional) OR
+	* When pressing M open a contextually-chosen map depending on player inventory
 		* If a "Guide to X" is in the inventory, open the book
 		* If a "Map bundle" is in the inventory, open the map
 	* Crafting Framework: Add craftable maps from the books
 	* Crafting Framework: Add craftable "map bundle" from books/maps
+	* Tooltips when hovering over a city (taken from the vanilla books)
 
 - [ ] Barbers
 	* Add "Barber" dialog to publicans? -> Opens the/some character creation screen to switch haircuts in-game
