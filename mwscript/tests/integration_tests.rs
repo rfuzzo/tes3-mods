@@ -4,7 +4,7 @@ use mwscript::dump_scripts;
 
 #[test]
 fn test_dump() -> std::io::Result<()> {
-    let input = Path::new("tests/assets/Ashlander Crafting.ESP");
+    let input = Path::new("tests/assets");
     let output = Path::new("tests/assets/out");
 
     assert!(

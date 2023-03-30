@@ -14,7 +14,7 @@ struct Cli {
 enum Commands {
     /// Dump scripts from a plugin.
     Dump {
-        /// input path
+        /// input path, may be a plugin or a folder
         #[arg(short, long)]
         input: Option<PathBuf>,
     },
