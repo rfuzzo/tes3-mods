@@ -12,12 +12,14 @@ pub enum ESerializedType {
     #[default]
     Yaml,
     Toml,
+    Json,
 }
 impl fmt::Display for ESerializedType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             ESerializedType::Yaml => write!(f, "yaml"),
             ESerializedType::Toml => write!(f, "toml"),
+            ESerializedType::Json => write!(f, "json"),
         }
     }
 }
@@ -137,9 +139,15 @@ fn dump_plugin(
             for object in p.objects {
                 // if (!include.is_empty() && include.contains(&object.tag_str().to_owned()))
                 //     && !exclude.contains(&object.tag_str().to_owned())
-                {
-                    write_object(&object, out_dir_path, typ);
+                // first check for exclusion
+                if exclude.contains(&object.tag_str().to_owned()) {
+                    continue;
                 }
+                if !include.is_empty() && !include.contains(&object.tag_str().to_owned()) {
+                    continue;
+                }
+
+                write_object(&object, out_dir_path, typ);
             }
         }
         Err(_) => {
@@ -200,7 +208,7 @@ fn write_object(object: &TES3Object, out_dir_path: &Path, serialized_type: &ESer
             let (nam, typ) = get_name(object);
             let name = format!("{}.{}", nam, serialized_type);
             write_generic(object, &name, &out_dir_path.join(typ), serialized_type)
-                .unwrap_or_else(|_| panic!("Writing failed: {}", name));
+                .unwrap_or_else(|e| println!("Writing failed: {}, {}", name, e));
         }
     }
 }
@@ -317,12 +325,31 @@ fn write_generic(
     // serialize
     let text = match typ {
         ESerializedType::Yaml => {
-            let y = serde_yaml::to_string(&object);
-            y.unwrap()
+            let result = serde_yaml::to_string(&object);
+            match result {
+                Ok(t) => t,
+                Err(e) => {
+                    return Err(Error::new(ErrorKind::Other, e.to_string()));
+                }
+            }
         }
         ESerializedType::Toml => {
-            let t = toml::to_string(&object);
-            t.unwrap()
+            let result = toml::to_string(&object);
+            match result {
+                Ok(t) => t,
+                Err(e) => {
+                    return Err(Error::new(ErrorKind::Other, e.to_string()));
+                }
+            }
+        }
+        ESerializedType::Json => {
+            let result = serde_json::to_string_pretty(&object);
+            match result {
+                Ok(t) => t,
+                Err(e) => {
+                    return Err(Error::new(ErrorKind::Other, e.to_string()));
+                }
+            }
         }
     };
 

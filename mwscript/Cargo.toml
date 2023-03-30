@@ -10,3 +10,4 @@ tes3 = { git = "https://github.com/rfuzzo/tes3.git", branch = "update/rf" }
 clap = { version = "4",  features = ["derive"] }
 serde_yaml = "0.9"
 toml = "0.7"
+serde_json = "1.0"
