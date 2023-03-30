@@ -24,6 +24,84 @@ impl fmt::Display for ESerializedType {
     }
 }
 
+/// Parse the contents of the given path into a TES3 Plugin.
+/// Whether to parse as JSON or binary is inferred from first character.
+/// taken from: https://github.com/Greatness7/tes3conv
+fn parse_plugin(path: &PathBuf) -> io::Result<Plugin> {
+    let mut raw_data = vec![];
+    File::open(path)?.read_to_end(&mut raw_data)?;
+
+    let mut plugin = Plugin::new();
+
+    match raw_data.first() {
+        Some(b'T') => {
+            // if it starts with a 'T' assume it's a TES3 file
+            plugin.load_bytes(&raw_data)?;
+        }
+        _ => {
+            // anything else is guaranteed to be invalid input
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid input."));
+        }
+    }
+
+    // sort objects so that diffs are a little more useful
+    //plugin.sort();    //TODO
+
+    Ok(plugin)
+}
+
+/// Get name and typename from a TES3Object
+fn get_name_and_type(object: &TES3Object) -> Option<(String, &str)> {
+    match object {
+        TES3Object::Header(_) => None,
+        TES3Object::GameSetting(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::GlobalVariable(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Class(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Faction(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Race(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Sound(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Skill(_) => None,
+        TES3Object::MagicEffect(_) => None,
+        TES3Object::Script(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Region(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Birthsign(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::StartScript(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::LandscapeTexture(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Spell(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Static(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Door(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::MiscItem(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Weapon(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Container(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Creature(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Bodypart(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Light(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Enchanting(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Npc(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Armor(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Clothing(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::RepairItem(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Activator(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Apparatus(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Lockpick(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Probe(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Ingredient(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Book(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Alchemy(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::LeveledItem(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::LeveledCreature(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Cell(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Landscape(_) => None,
+        TES3Object::PathGrid(_) => None,
+        TES3Object::SoundGen(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Dialogue(o) => Some((o.id.to_string(), o.type_name())),
+        TES3Object::Info(o) => Some((o.id.to_string(), o.type_name())),
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////
+// Serialize
+
 /// Dump data from an esp into files
 pub fn dump(
     input: &Option<PathBuf>,
@@ -131,7 +209,7 @@ fn dump_plugin(
     exclude: &[String],
     typ: &ESerializedType,
 ) -> Result<(), Error> {
-    let plugin = parse(input);
+    let plugin = parse_plugin(input);
     // parse plugin
     // write
     match plugin {
@@ -159,7 +237,13 @@ fn dump_plugin(
 
 fn write_object(object: &TES3Object, out_dir_path: &Path, serialized_type: &ESerializedType) {
     match object {
-        TES3Object::Header(_) => {}      // do not dump the header
+        TES3Object::Header(_) => {
+            let name = format!("{}.{}", "Header", serialized_type);
+            write_generic(object, &name, &out_dir_path.join("Header"), serialized_type)
+                .unwrap_or_else(|e| println!("Writing failed: {}, {}", name, e));
+        }
+        //TES3Object::Cell(_) => {}        // not implemented
+        TES3Object::Creature(_) => {}        // not implemented
         TES3Object::Landscape(_) => {}   // not implemented
         TES3Object::PathGrid(_) => {}    // not implemented
         TES3Object::Skill(_) => {}       // not implemented
@@ -184,7 +268,8 @@ fn write_object(object: &TES3Object, out_dir_path: &Path, serialized_type: &ESer
         | TES3Object::MiscItem(_)
         | TES3Object::Weapon(_)
         | TES3Object::Container(_)
-        | TES3Object::Creature(_)
+        //| TES3Object::Creature(_)
+        | TES3Object::Cell(_)
         | TES3Object::Bodypart(_)
         | TES3Object::Light(_)
         | TES3Object::Enchanting(_)
@@ -203,61 +288,12 @@ fn write_object(object: &TES3Object, out_dir_path: &Path, serialized_type: &ESer
         | TES3Object::LeveledCreature(_)
         | TES3Object::SoundGen(_)
         | TES3Object::Dialogue(_)
-        | TES3Object::Info(_)
-        | TES3Object::Cell(_) => {
-            let (nam, typ) = get_name(object);
+        | TES3Object::Info(_) => {
+            let (nam, typ) = get_name_and_type(object).unwrap(); // we can panic here
             let name = format!("{}.{}", nam, serialized_type);
             write_generic(object, &name, &out_dir_path.join(typ), serialized_type)
                 .unwrap_or_else(|e| println!("Writing failed: {}, {}", name, e));
         }
-    }
-}
-
-fn get_name(object: &TES3Object) -> (String, &str) {
-    match object {
-        TES3Object::Header(_) => todo!(),
-        TES3Object::GameSetting(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::GlobalVariable(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Class(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Faction(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Race(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Sound(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Skill(_) => todo!(),
-        TES3Object::MagicEffect(_) => todo!(),
-        TES3Object::Script(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Region(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Birthsign(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::StartScript(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::LandscapeTexture(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Spell(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Static(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Door(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::MiscItem(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Weapon(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Container(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Creature(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Bodypart(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Light(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Enchanting(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Npc(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Armor(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Clothing(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::RepairItem(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Activator(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Apparatus(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Lockpick(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Probe(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Ingredient(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Book(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Alchemy(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::LeveledItem(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::LeveledCreature(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Cell(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Landscape(_) => todo!(),
-        TES3Object::PathGrid(_) => todo!(),
-        TES3Object::SoundGen(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Dialogue(o) => (o.id.to_string(), o.type_name()),
-        TES3Object::Info(o) => (o.id.to_string(), o.type_name()),
     }
 }
 
@@ -309,8 +345,52 @@ fn write_generic(
     out_dir: &Path,
     typ: &ESerializedType,
 ) -> std::io::Result<()> {
+    let text = match serialize(typ, object) {
+        Ok(value) => value,
+        Err(value) => return value,
+    };
+
+    write_to_file(out_dir, name, text)
+}
+
+/// Serialize a TES3Object to text
+fn serialize(typ: &ESerializedType, object: &TES3Object) -> Result<String, Result<(), Error>> {
+    let text = match typ {
+        ESerializedType::Yaml => {
+            let result = serde_yaml::to_string(&object);
+            match result {
+                Ok(t) => t,
+                Err(e) => {
+                    return Err(Err(Error::new(ErrorKind::Other, e.to_string())));
+                }
+            }
+        }
+        ESerializedType::Toml => {
+            let result = toml::to_string(&object);
+            match result {
+                Ok(t) => t,
+                Err(e) => {
+                    return Err(Err(Error::new(ErrorKind::Other, e.to_string())));
+                }
+            }
+        }
+        ESerializedType::Json => {
+            let result = serde_json::to_string_pretty(&object);
+            match result {
+                Ok(t) => t,
+                Err(e) => {
+                    return Err(Err(Error::new(ErrorKind::Other, e.to_string())));
+                }
+            }
+        }
+    };
+    Ok(text)
+}
+
+/// Convenience function to write TES3Object text to a file
+fn write_to_file(out_dir: &Path, name: &String, text: String) -> Result<(), Error> {
+    // create directory
     if !out_dir.exists() {
-        // create directory
         match fs::create_dir_all(out_dir) {
             Ok(_) => {}
             Err(_) => {
@@ -321,37 +401,6 @@ fn write_generic(
             }
         }
     }
-
-    // serialize
-    let text = match typ {
-        ESerializedType::Yaml => {
-            let result = serde_yaml::to_string(&object);
-            match result {
-                Ok(t) => t,
-                Err(e) => {
-                    return Err(Error::new(ErrorKind::Other, e.to_string()));
-                }
-            }
-        }
-        ESerializedType::Toml => {
-            let result = toml::to_string(&object);
-            match result {
-                Ok(t) => t,
-                Err(e) => {
-                    return Err(Error::new(ErrorKind::Other, e.to_string()));
-                }
-            }
-        }
-        ESerializedType::Json => {
-            let result = serde_json::to_string_pretty(&object);
-            match result {
-                Ok(t) => t,
-                Err(e) => {
-                    return Err(Error::new(ErrorKind::Other, e.to_string()));
-                }
-            }
-        }
-    };
 
     // write to file
     let output_path = out_dir.join(name);
@@ -369,28 +418,65 @@ fn write_generic(
     }
 }
 
-/// Parse the contents of the given path into a TES3 Plugin.
-/// Whether to parse as JSON or binary is inferred from first character.
-/// taken from: https://github.com/Greatness7/tes3conv
-fn parse(path: &PathBuf) -> io::Result<Plugin> {
-    let mut raw_data = vec![];
-    File::open(path)?.read_to_end(&mut raw_data)?;
+///////////////////////////////////////////////////////////////////////////
+// Deserialize
 
-    let mut plugin = Plugin::new();
-
-    match raw_data.first() {
-        Some(b'T') => {
-            // if it starts with a 'T' assume it's a TES3 file
-            plugin.load_bytes(&raw_data)?;
-        }
-        _ => {
-            // anything else is guaranteed to be invalid input
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid input."));
+pub fn pack(input_path: &Path, output_path: Option<&Path>) -> Result<(), Error> {
+    let mut files = vec![];
+    // get all files
+    for entry in fs::read_dir(input_path).unwrap().flatten() {
+        let path = entry.path();
+        if path.is_dir() && path.exists() {
+            // match folder name with type_name
+            //let folder_name = path.file_name().unwrap().to_str().unwrap();
+            for file_entry in fs::read_dir(path).unwrap().flatten() {
+                let file = file_entry.path();
+                if file.is_file() && file.exists() {
+                    files.push(file);
+                }
+            }
         }
     }
 
-    // sort objects so that diffs are a little more useful
-    //plugin.sort();    //TODO
+    // Deserialize records from files
+    let mut records = vec![];
+    for file_path in files {
+        let result = fs::read_to_string(&file_path);
+        if let Ok(yaml) = result {
+            let deserialized: Result<TES3Object, serde_yaml::Error> = serde_yaml::from_str(&yaml);
+            if let Ok(object) = deserialized {
+                records.push(object);
+            } else {
+                println!("failed deserialization for {}", file_path.display());
+            }
+        }
+    }
 
-    Ok(plugin)
+    let pos = records.iter().position(|e| e.tag_str() == "TES3").unwrap();
+    let header = records.remove(pos);
+    records.insert(0, header);
+
+    // make plugin
+    let mut plugin = Plugin::new();
+    plugin.objects = records;
+
+    // save
+    let nam = input_path
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+    let mut i = input_path.join(nam);
+    i.set_extension("esp");
+    let mut output = i.as_path();
+    if let Some(o) = output_path {
+        output = o;
+    }
+
+    // extension checks
+
+    plugin.save_path(output).expect("Error saving plugin");
+
+    Ok(())
 }

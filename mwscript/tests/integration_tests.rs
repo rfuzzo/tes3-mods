@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use mwscript::dump;
+use mwscript::{dump, pack};
 
 #[test]
 fn test_dump_yaml() -> std::io::Result<()> {
@@ -61,6 +61,16 @@ fn test_dump_json() -> std::io::Result<()> {
         .is_ok(),
         "error converting"
     );
+
+    Ok(())
+}
+
+#[test]
+fn test_pack_yaml() -> std::io::Result<()> {
+    let input = Path::new("tests/assets/out/Ashlander Crafting");
+    //let output = Path::new("tests/assets/out");
+
+    assert!(pack(input, None).is_ok(), "error converting");
 
     Ok(())
 }
