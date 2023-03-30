@@ -6,7 +6,11 @@ use std::{
 use tes3::esp::{Plugin, Script};
 
 /// Dump all scripts from an esp into files
-pub fn dump_scripts(input: &Option<PathBuf>, out_dir: Option<PathBuf>) -> std::io::Result<()> {
+pub fn dump_scripts(
+    input: &Option<PathBuf>,
+    out_dir: &Option<PathBuf>,
+    create: bool,
+) -> std::io::Result<()> {
     let mut is_file = false;
     let mut is_dir = false;
 
@@ -39,28 +43,26 @@ pub fn dump_scripts(input: &Option<PathBuf>, out_dir: Option<PathBuf>) -> std::i
     }
 
     // check output path, default is cwd
-    let mut out_dir_path = PathBuf::from("");
+    let mut out_dir_path = &PathBuf::from("");
     if let Some(p) = out_dir {
         out_dir_path = p;
-    }
-    if !out_dir_path.exists() {
-        // create directory
-        match fs::create_dir_all(&out_dir_path) {
-            Ok(_) => {}
-            Err(_) => {
-                return Err(Error::new(
-                    ErrorKind::Other,
-                    "Failed to create output directory.",
-                ));
-            }
-        }
     }
 
     // dump plugin file
     if is_file {
-        match dump_plugin_scripts(input_path, &out_dir_path) {
-            Ok(_) => {}
-            Err(e) => return Err(e),
+        if create {
+            match dump_plugin_scripts(
+                input_path,
+                &out_dir_path.join(input_path.file_stem().unwrap()),
+            ) {
+                Ok(_) => {}
+                Err(e) => return Err(e),
+            }
+        } else {
+            match dump_plugin_scripts(input_path, out_dir_path) {
+                Ok(_) => {}
+                Err(e) => return Err(e),
+            }
         }
     }
 
@@ -82,18 +84,6 @@ pub fn dump_scripts(input: &Option<PathBuf>, out_dir: Option<PathBuf>) -> std::i
                         // dump scripts into folders named after the plugin name
                         let plugin_name = path.file_stem().unwrap();
                         let out_path = &out_dir_path.join(plugin_name);
-                        if !out_path.exists() {
-                            // create directory
-                            match fs::create_dir_all(out_path) {
-                                Ok(_) => {}
-                                Err(_) => {
-                                    return Err(Error::new(
-                                        ErrorKind::Other,
-                                        "Failed to create output directory.",
-                                    ));
-                                }
-                            }
-                        }
 
                         match dump_plugin_scripts(&path, out_path) {
                             Ok(_) => {}
@@ -134,6 +124,19 @@ fn dump_plugin_scripts(input: &PathBuf, out_dir_path: &Path) -> Result<(), Error
 
 /// Write a tes3object script to a file
 fn write_script(object: tes3::esp::TES3Object, out_dir: &Path) -> std::io::Result<()> {
+    if !out_dir.exists() {
+        // create directory
+        match fs::create_dir_all(out_dir) {
+            Ok(_) => {}
+            Err(_) => {
+                return Err(Error::new(
+                    ErrorKind::Other,
+                    "Failed to create output directory.",
+                ));
+            }
+        }
+    }
+
     // get name
     let script_or_error: Result<Script, ()> = object.try_into();
     if let Ok(script) = script_or_error {
