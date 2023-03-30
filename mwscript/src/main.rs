@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use mwscript::dump_scripts;
+use mwscript::{dump, ESerializedType};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -24,6 +24,18 @@ enum Commands {
         /// Create folder with plugin name, only available if input is a file
         #[arg(short, long)]
         create: bool,
+
+        /// Include specific records
+        #[arg(short, long)]
+        include: Vec<String>,
+
+        /// Exclude specific records
+        #[arg(short, long)]
+        exclude: Vec<String>,
+
+        /// The extension to serialize to, default is yaml
+        #[arg(short, long, value_enum)]
+        serialize: ESerializedType,
     },
 }
 
@@ -37,7 +49,10 @@ fn main() {
             input,
             output,
             create,
-        } => match dump_scripts(input, output, *create) {
+            include,
+            exclude,
+            serialize,
+        } => match dump(input, output, *create, include, exclude, serialize) {
             Ok(_) => println!("Done."),
             Err(err) => println!("Error dumping scripts: {}", err),
         },

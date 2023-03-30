@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use mwscript::dump_scripts;
+use mwscript::dump;
 
 #[test]
 fn test_dump() -> std::io::Result<()> {
@@ -8,7 +8,15 @@ fn test_dump() -> std::io::Result<()> {
     let output = Path::new("tests/assets/out");
 
     assert!(
-        dump_scripts(&Some(input.into()), &Some(output.into()), false).is_ok(),
+        dump(
+            &Some(input.into()),
+            &Some(output.into()),
+            false,
+            &[],
+            &[],
+            &mwscript::ESerializedType::Yaml
+        )
+        .is_ok(),
         "error converting"
     );
 
