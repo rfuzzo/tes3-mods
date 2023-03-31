@@ -109,14 +109,14 @@ pub fn serialize_plugin(
     }
     output_path = append_ext(format.to_string(), output_path);
 
-    let plugin = parse_plugin(input_path);
+    let plugin_or_error = parse_plugin(input_path);
     // parse plugin
     // write
-    match plugin {
-        Ok(p) => {
+    match plugin_or_error {
+        Ok(plugin) => {
             let text = match format {
                 ESerializedType::Yaml => {
-                    let result = serde_yaml::to_string(&p);
+                    let result = serde_yaml::to_string(&plugin);
                     match result {
                         Ok(t) => t,
                         Err(e) => {
@@ -125,7 +125,7 @@ pub fn serialize_plugin(
                     }
                 }
                 ESerializedType::Toml => {
-                    let result = toml::to_string_pretty(&p);
+                    let result = toml::to_string_pretty(&plugin);
                     match result {
                         Ok(t) => t,
                         Err(e) => {
@@ -134,7 +134,7 @@ pub fn serialize_plugin(
                     }
                 }
                 ESerializedType::Json => {
-                    let result = serde_json::to_string_pretty(&p);
+                    let result = serde_json::to_string_pretty(&plugin);
                     match result {
                         Ok(t) => t,
                         Err(e) => {
