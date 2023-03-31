@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use mwscript::{dump, serialize_plugin, ESerializedType};
+use mwscript::{deserialize_plugin, dump, serialize_plugin, ESerializedType};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -38,7 +38,7 @@ enum Commands {
         format: ESerializedType,
     },
 
-    /// Dump scripts from a plugin.
+    /// Serialize a plugin to a human-readable format
     Serialize {
         /// input path, may be a plugin or a folder
         input: Option<PathBuf>,
@@ -50,6 +50,16 @@ enum Commands {
         /// The extension to serialize to, default is yaml
         #[arg(short, long, value_enum)]
         format: ESerializedType,
+    },
+
+    /// Deserialize a plugin from a human-readable format
+    Deserialize {
+        /// input path, may be a plugin or a folder
+        input: Option<PathBuf>,
+
+        /// output directory to dump scripts to, defaults to cwd
+        #[arg(short, long)]
+        output: Option<PathBuf>,
     },
 }
 
@@ -76,7 +86,11 @@ fn main() {
             format,
         } => match serialize_plugin(input, output, format) {
             Ok(_) => println!("Done."),
-            Err(err) => println!("Error dumping scripts: {}", err),
+            Err(err) => println!("Error serializing plugin: {}", err),
+        },
+        Commands::Deserialize { input, output } => match deserialize_plugin(input, output) {
+            Ok(_) => println!("Done."),
+            Err(err) => println!("Error deserializing file: {}", err),
         },
     }
 }

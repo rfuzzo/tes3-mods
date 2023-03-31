@@ -125,7 +125,7 @@ pub fn serialize_plugin(
                     }
                 }
                 ESerializedType::Toml => {
-                    let result = toml::to_string(&p);
+                    let result = toml::to_string_pretty(&p);
                     match result {
                         Ok(t) => t,
                         Err(e) => {
@@ -420,7 +420,7 @@ fn serialize(typ: &ESerializedType, object: &TES3Object) -> Result<String, Resul
             }
         }
         ESerializedType::Toml => {
-            let result = toml::to_string(&object);
+            let result = toml::to_string_pretty(&object);
             match result {
                 Ok(t) => t,
                 Err(e) => {
@@ -521,21 +521,21 @@ pub fn deserialize_plugin(
     let mut plugin = Plugin::new();
     if let Ok(text) = fs::read_to_string(input_path) {
         if is_extension(input_path, "toml") {
-            let deserialized: Result<Plugin, _> = toml::from_str(&text);
+            let deserialized: Result<_, _> = toml::from_str(&text);
             if let Ok(t) = deserialized {
                 plugin = t;
             } else {
                 return Err(Error::new(ErrorKind::Other, "Failed to convert from toml"));
             }
         } else if is_extension(input_path, "json") {
-            let deserialized: Result<Plugin, _> = serde_json::from_str(&text);
+            let deserialized: Result<_, _> = serde_json::from_str(&text);
             if let Ok(t) = deserialized {
                 plugin = t;
             } else {
                 return Err(Error::new(ErrorKind::Other, "Failed to convert from json"));
             }
         } else if is_extension(input_path, "yaml") {
-            let deserialized: Result<Plugin, _> = serde_yaml::from_str(&text);
+            let deserialized: Result<_, _> = serde_yaml::from_str(&text);
             if let Ok(t) = deserialized {
                 plugin = t;
             } else {

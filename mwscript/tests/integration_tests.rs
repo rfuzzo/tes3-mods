@@ -36,7 +36,7 @@ fn test_deserialize_from_json() -> std::io::Result<()> {
 
 #[test]
 fn test_dump_yaml() -> std::io::Result<()> {
-    let input = Path::new("tests/assets");
+    let input = Path::new("tests/assets/Ashlander Crafting.ESP");
     let output = Path::new("tests/assets/out");
     dump(
         &Some(input.into()),
@@ -49,7 +49,7 @@ fn test_dump_yaml() -> std::io::Result<()> {
 }
 #[test]
 fn test_dump_toml() -> std::io::Result<()> {
-    let input = Path::new("tests/assets");
+    let input = Path::new("tests/assets/Ashlander Crafting.ESP");
     let output = Path::new("tests/assets/out");
     dump(
         &Some(input.into()),
@@ -62,7 +62,7 @@ fn test_dump_toml() -> std::io::Result<()> {
 }
 #[test]
 fn test_dump_json() -> std::io::Result<()> {
-    let input = Path::new("tests/assets");
+    let input = Path::new("tests/assets/Ashlander Crafting.ESP");
     let output = Path::new("tests/assets/out");
     dump(
         &Some(input.into()),
@@ -76,16 +76,19 @@ fn test_dump_json() -> std::io::Result<()> {
 
 #[test]
 fn test_pack_yaml() -> std::io::Result<()> {
-    let input = Path::new("tests/assets/out/Ashlander Crafting");
-    pack(input, None, &ESerializedType::Yaml)
+    let input = Path::new("tests/assets/out");
+    let output = Path::new("tests/assets/out/test.yaml.esp");
+    pack(input, Some(output), &ESerializedType::Yaml)
 }
 #[test]
 fn test_pack_toml() -> std::io::Result<()> {
-    let input = Path::new("tests/assets/out/Ashlander Crafting");
-    pack(input, None, &ESerializedType::Toml)
+    let input = Path::new("tests/assets/out");
+    let output = Path::new("tests/assets/out/test.toml.esp");
+    pack(input, Some(output), &ESerializedType::Toml)
 }
 #[test]
 fn test_pack_json() -> std::io::Result<()> {
-    let input = Path::new("tests/assets/out/Ashlander Crafting");
-    pack(input, None, &ESerializedType::Json)
+    let input = Path::new("tests/assets/out");
+    let output = Path::new("tests/assets/out/test.json.esp");
+    pack(input, Some(output), &ESerializedType::Json)
 }
