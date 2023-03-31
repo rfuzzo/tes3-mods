@@ -3,9 +3,10 @@ use std::{
     fmt,
     fs::{self, File},
     io::{self, Error, ErrorKind, Read, Write},
-    path::{Path, PathBuf},
+    path::{Path, PathBuf}
 };
-use tes3::esp::{Plugin, Script, TES3Object};
+use tes3::esp::{Plugin, Script, TES3Object, EditorId};
+use tes3::esp::TypeInfo;
 
 #[derive(Default, Clone, ValueEnum)]
 pub enum ESerializedType {
@@ -48,55 +49,6 @@ fn parse_plugin(path: &PathBuf) -> io::Result<Plugin> {
     //plugin.sort();    //TODO
 
     Ok(plugin)
-}
-
-/// Get name and typename from a TES3Object
-fn get_name_and_type(object: &TES3Object) -> Option<(String, &str)> {
-    match object {
-        TES3Object::Header(_) => None,
-        TES3Object::GameSetting(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::GlobalVariable(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Class(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Faction(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Race(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Sound(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Skill(_) => None,
-        TES3Object::MagicEffect(_) => None,
-        TES3Object::Script(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Region(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Birthsign(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::StartScript(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::LandscapeTexture(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Spell(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Static(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Door(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::MiscItem(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Weapon(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Container(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Creature(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Bodypart(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Light(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Enchanting(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Npc(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Armor(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Clothing(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::RepairItem(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Activator(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Apparatus(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Lockpick(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Probe(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Ingredient(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Book(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Alchemy(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::LeveledItem(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::LeveledCreature(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Cell(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Landscape(_) => None,
-        TES3Object::PathGrid(_) => None,
-        TES3Object::SoundGen(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Dialogue(o) => Some((o.id.to_string(), o.type_name())),
-        TES3Object::Info(o) => Some((o.id.to_string(), o.type_name())),
-    }
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -242,17 +194,16 @@ fn write_object(object: &TES3Object, out_dir_path: &Path, serialized_type: &ESer
             write_generic(object, &name, &out_dir_path.join("Header"), serialized_type)
                 .unwrap_or_else(|e| println!("Writing failed: {}, {}", name, e));
         }
-        //TES3Object::Cell(_) => {}        // not implemented
-        TES3Object::Creature(_) => {}        // not implemented
         TES3Object::Landscape(_) => {}   // not implemented
         TES3Object::PathGrid(_) => {}    // not implemented
-        TES3Object::Skill(_) => {}       // not implemented
-        TES3Object::MagicEffect(_) => {} // not implemented
+       
         TES3Object::Script(script) => {
             write_script(script, &out_dir_path.join("Script"))
                 .unwrap_or_else(|_| panic!("Writing failed: {}", script.id));
         }
         TES3Object::GameSetting(_)
+        | TES3Object::Skill(_)          // enum
+        | TES3Object::MagicEffect(_)    // enum
         | TES3Object::GlobalVariable(_)
         | TES3Object::Class(_)
         | TES3Object::Faction(_)
@@ -268,8 +219,8 @@ fn write_object(object: &TES3Object, out_dir_path: &Path, serialized_type: &ESer
         | TES3Object::MiscItem(_)
         | TES3Object::Weapon(_)
         | TES3Object::Container(_)
-        //| TES3Object::Creature(_)
-        | TES3Object::Cell(_)
+        | TES3Object::Creature(_)   // fails tes3conv serialize
+        | TES3Object::Cell(_)       // fails deserialization
         | TES3Object::Bodypart(_)
         | TES3Object::Light(_)
         | TES3Object::Enchanting(_)
@@ -288,8 +239,10 @@ fn write_object(object: &TES3Object, out_dir_path: &Path, serialized_type: &ESer
         | TES3Object::LeveledCreature(_)
         | TES3Object::SoundGen(_)
         | TES3Object::Dialogue(_)
-        | TES3Object::Info(_) => {
-            let (nam, typ) = get_name_and_type(object).unwrap(); // we can panic here
+        | TES3Object::DialogueInfo(_) => {
+            let nam = object.editor_id().to_string();
+            let typ = object.type_name().to_string();
+
             let name = format!("{}.{}", nam, serialized_type);
             write_generic(object, &name, &out_dir_path.join(typ), serialized_type)
                 .unwrap_or_else(|e| println!("Writing failed: {}, {}", name, e));
@@ -315,23 +268,21 @@ fn write_script(script: &Script, out_dir: &Path) -> std::io::Result<()> {
     // get name
     let name = format!("{}.mwscript", script.id);
     // get script plaintext
-    if let Some(plain) = &script.script_text {
-        // write to file
-        let output_path = out_dir.join(name);
-        let file_or_error = File::create(&output_path);
-        match file_or_error {
-            Ok(mut file) => match file.write_all(plain.as_bytes()) {
-                Ok(_) => {
-                    // todo verbosity
-                    println!("SCPT writen to: {}", output_path.display());
-                }
-                Err(_) => {
-                    return Err(Error::new(ErrorKind::Other, "File write failed"));
-                }
-            },
-            Err(_) => {
-                return Err(Error::new(ErrorKind::Other, "File create failed"));
+    // write to file
+    let output_path = out_dir.join(name);
+    let file_or_error = File::create(output_path);
+    match file_or_error {
+        Ok(mut file) => match file.write_all(script.script_text.as_bytes()) {
+            Ok(_) => {
+                // todo verbosity
+                //println!("SCPT writen to: {}", output_path.display());
             }
+            Err(_) => {
+                return Err(Error::new(ErrorKind::Other, "File write failed"));
+            }
+        },
+        Err(_) => {
+            return Err(Error::new(ErrorKind::Other, "File create failed"));
         }
     }
 
@@ -357,7 +308,7 @@ fn write_generic(
 fn serialize(typ: &ESerializedType, object: &TES3Object) -> Result<String, Result<(), Error>> {
     let text = match typ {
         ESerializedType::Yaml => {
-            let result = serde_yaml::to_string(&object);
+            let result = serde_yaml::to_string(object);
             match result {
                 Ok(t) => t,
                 Err(e) => {
@@ -404,12 +355,12 @@ fn write_to_file(out_dir: &Path, name: &String, text: String) -> Result<(), Erro
 
     // write to file
     let output_path = out_dir.join(name);
-    let file_or_error = File::create(&output_path);
+    let file_or_error = File::create(output_path);
     match file_or_error {
         Ok(mut file) => match file.write_all(text.as_bytes()) {
             Ok(_) => {
                 // todo verbosity
-                println!("MISC writen to: {}", output_path.display());
+                //println!("MISC writen to: {}", output_path.display());
                 Ok(())
             }
             Err(_) => Err(Error::new(ErrorKind::Other, "File write failed")),

@@ -12,7 +12,7 @@ fn test_dump_yaml() -> std::io::Result<()> {
             &Some(input.into()),
             &Some(output.into()),
             false,
-            &[],
+            &["CREA".to_owned()],
             &[],
             &mwscript::ESerializedType::Yaml
         )

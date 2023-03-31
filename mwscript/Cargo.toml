@@ -16,4 +16,4 @@ serde_json = "1.0"
 #git = "https://github.com/Greatness7/tes3"
 path = "E:/GitHub/tes3conv/libs/tes3"
 default-features = false
-features = ["esp"]
+features = ["esp", "serde"]
