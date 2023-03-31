@@ -3,10 +3,10 @@ use std::{
     fmt,
     fs::{self, File},
     io::{self, Error, ErrorKind, Read, Write},
-    path::{Path, PathBuf}
+    path::{Path, PathBuf},
 };
-use tes3::esp::{Plugin, Script, TES3Object, EditorId};
 use tes3::esp::TypeInfo;
+use tes3::esp::{EditorId, Plugin, Script, TES3Object};
 
 #[derive(Default, Clone, ValueEnum)]
 pub enum ESerializedType {
@@ -23,6 +23,24 @@ impl fmt::Display for ESerializedType {
             ESerializedType::Json => write!(f, "json"),
         }
     }
+}
+
+fn is_extension(path: &Path, extension: &str) -> bool {
+    match path.extension() {
+        Some(e) => {
+            let l = e.to_ascii_lowercase();
+            l == extension.to_lowercase().as_str()
+        }
+        None => false,
+    }
+}
+
+// https://internals.rust-lang.org/t/pathbuf-has-set-extension-but-no-add-extension-cannot-cleanly-turn-tar-to-tar-gz/14187/11
+pub fn append_ext(ext: impl AsRef<std::ffi::OsStr>, path: PathBuf) -> PathBuf {
+    let mut os_string: std::ffi::OsString = path.into();
+    os_string.push(".");
+    os_string.push(ext.as_ref());
+    os_string.into()
 }
 
 /// Parse the contents of the given path into a TES3 Plugin.
@@ -53,6 +71,84 @@ fn parse_plugin(path: &PathBuf) -> io::Result<Plugin> {
 
 ///////////////////////////////////////////////////////////////////////////
 // Serialize
+
+/// Serialize a plugin to a human-readable format
+pub fn serialize_plugin(
+    input: &Option<PathBuf>,
+    output: &Option<PathBuf>,
+    format: &ESerializedType,
+) -> std::io::Result<()> {
+    let input_path: &PathBuf;
+    // check no input
+    if let Some(i) = input {
+        input_path = i;
+    } else {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "No input path specified.",
+        ));
+    }
+    // check input path exists and check if file or directory
+    if !input_path.exists()
+        || (input_path.exists()
+            && (!input_path.is_file()
+                || !(is_extension(input_path, "esp")
+                    || is_extension(input_path, "esm")
+                    || is_extension(input_path, "omwaddon"))))
+    {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "Input path does not exist",
+        ));
+    }
+
+    let mut output_path = PathBuf::from(input_path.clone().to_str().unwrap());
+    // check no input
+    if let Some(i) = output {
+        output_path = i.to_path_buf();
+    }
+    output_path = append_ext(format.to_string(), output_path);
+
+    let plugin = parse_plugin(input_path);
+    // parse plugin
+    // write
+    match plugin {
+        Ok(p) => {
+            let text = match format {
+                ESerializedType::Yaml => {
+                    let result = serde_yaml::to_string(&p);
+                    match result {
+                        Ok(t) => t,
+                        Err(e) => {
+                            return Err(Error::new(ErrorKind::Other, e.to_string()));
+                        }
+                    }
+                }
+                ESerializedType::Toml => {
+                    let result = toml::to_string(&p);
+                    match result {
+                        Ok(t) => t,
+                        Err(e) => {
+                            return Err(Error::new(ErrorKind::Other, e.to_string()));
+                        }
+                    }
+                }
+                ESerializedType::Json => {
+                    let result = serde_json::to_string_pretty(&p);
+                    match result {
+                        Ok(t) => t,
+                        Err(e) => {
+                            return Err(Error::new(ErrorKind::Other, e.to_string()));
+                        }
+                    }
+                }
+            };
+
+            return File::create(output_path)?.write_all(text.as_bytes());
+        }
+        Err(_) => Err(Error::new(ErrorKind::Other, "Plugin parsing failed.")),
+    }
+}
 
 /// Dump data from an esp into files
 pub fn dump(
@@ -86,7 +182,7 @@ pub fn dump(
         let ext = input_path.extension();
         if let Some(e) = ext {
             let e_str = e.to_str().unwrap().to_lowercase();
-            if e_str == "esp" || e_str == "omwaddon" {
+            if e_str == "esp" || e_str == "esm" || e_str == "omwaddon" {
                 is_file = true;
             }
         }
@@ -135,7 +231,7 @@ pub fn dump(
                 if let Some(e) = ext {
                     let e_str = e.to_str().unwrap().to_lowercase();
 
-                    if e_str == "esp" || e_str == "omwaddon" {
+                    if e_str == "esp" || e_str == "esm" || e_str == "omwaddon" {
                         // dump scripts into folders named after the plugin name
                         let plugin_name = path.file_stem().unwrap();
                         let out_path = &out_dir_path.join(plugin_name);
@@ -194,16 +290,21 @@ fn write_object(object: &TES3Object, out_dir_path: &Path, serialized_type: &ESer
             write_generic(object, &name, &out_dir_path.join("Header"), serialized_type)
                 .unwrap_or_else(|e| println!("Writing failed: {}, {}", name, e));
         }
-        TES3Object::Landscape(_) => {}   // not implemented
-        TES3Object::PathGrid(_) => {}    // not implemented
-       
+
         TES3Object::Script(script) => {
+            let nam = object.editor_id().to_string();
+            let typ = object.type_name().to_string();
+
+            let name = format!("{}.{}", nam, serialized_type);
+            write_generic(object, &name, &out_dir_path.join(typ), serialized_type)
+                .unwrap_or_else(|e| println!("Writing failed: {}, {}", name, e));
+
             write_script(script, &out_dir_path.join("Script"))
                 .unwrap_or_else(|_| panic!("Writing failed: {}", script.id));
         }
         TES3Object::GameSetting(_)
-        | TES3Object::Skill(_)          // enum
-        | TES3Object::MagicEffect(_)    // enum
+        | TES3Object::Skill(_)
+        | TES3Object::MagicEffect(_)
         | TES3Object::GlobalVariable(_)
         | TES3Object::Class(_)
         | TES3Object::Faction(_)
@@ -219,8 +320,8 @@ fn write_object(object: &TES3Object, out_dir_path: &Path, serialized_type: &ESer
         | TES3Object::MiscItem(_)
         | TES3Object::Weapon(_)
         | TES3Object::Container(_)
-        | TES3Object::Creature(_)   // fails tes3conv serialize
-        | TES3Object::Cell(_)       // fails deserialization
+        | TES3Object::Creature(_)
+        | TES3Object::Cell(_)
         | TES3Object::Bodypart(_)
         | TES3Object::Light(_)
         | TES3Object::Enchanting(_)
@@ -239,6 +340,8 @@ fn write_object(object: &TES3Object, out_dir_path: &Path, serialized_type: &ESer
         | TES3Object::LeveledCreature(_)
         | TES3Object::SoundGen(_)
         | TES3Object::Dialogue(_)
+        | TES3Object::Landscape(_)
+        | TES3Object::PathGrid(_)
         | TES3Object::DialogueInfo(_) => {
             let nam = object.editor_id().to_string();
             let typ = object.type_name().to_string();
@@ -372,7 +475,88 @@ fn write_to_file(out_dir: &Path, name: &String, text: String) -> Result<(), Erro
 ///////////////////////////////////////////////////////////////////////////
 // Deserialize
 
-pub fn pack(input_path: &Path, output_path: Option<&Path>) -> Result<(), Error> {
+/// Deserialize a human-readable file to esp
+pub fn deserialize_plugin(
+    input: &Option<PathBuf>,
+    output: &Option<PathBuf>,
+) -> std::io::Result<()> {
+    let input_path: &PathBuf;
+    // check no input
+    if let Some(i) = input {
+        input_path = i;
+    } else {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "No input path specified.",
+        ));
+    }
+    // check input path exists and check if file or directory
+    if !input_path.exists() {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "Input path does not exist",
+        ));
+    } else if !input_path.is_file() {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "Input path is not a file",
+        ));
+    } else if !(is_extension(input_path, "json")
+        || is_extension(input_path, "toml")
+        || is_extension(input_path, "yaml"))
+    {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "Input path is not a valid file",
+        ));
+    }
+
+    let mut output_path = PathBuf::from(input_path.clone().to_str().unwrap());
+    output_path = append_ext("esp", output_path);
+    // check no input
+    if let Some(i) = output {
+        output_path = i.to_path_buf();
+    }
+
+    let mut plugin = Plugin::new();
+    if let Ok(text) = fs::read_to_string(input_path) {
+        if is_extension(input_path, "toml") {
+            let deserialized: Result<Plugin, _> = toml::from_str(&text);
+            if let Ok(t) = deserialized {
+                plugin = t;
+            } else {
+                return Err(Error::new(ErrorKind::Other, "Failed to convert from toml"));
+            }
+        } else if is_extension(input_path, "json") {
+            let deserialized: Result<Plugin, _> = serde_json::from_str(&text);
+            if let Ok(t) = deserialized {
+                plugin = t;
+            } else {
+                return Err(Error::new(ErrorKind::Other, "Failed to convert from json"));
+            }
+        } else if is_extension(input_path, "yaml") {
+            let deserialized: Result<Plugin, _> = serde_yaml::from_str(&text);
+            if let Ok(t) = deserialized {
+                plugin = t;
+            } else {
+                return Err(Error::new(ErrorKind::Other, "Failed to convert from yaml"));
+            }
+        }
+
+        plugin.save_path(output_path)
+    } else {
+        Err(Error::new(
+            ErrorKind::Other,
+            "Failed to read the input file",
+        ))
+    }
+}
+
+pub fn pack(
+    input_path: &Path,
+    output_path: Option<&Path>,
+    format: &ESerializedType,
+) -> Result<(), Error> {
     let mut files = vec![];
     // get all files
     for entry in fs::read_dir(input_path).unwrap().flatten() {
@@ -383,7 +567,11 @@ pub fn pack(input_path: &Path, output_path: Option<&Path>) -> Result<(), Error> 
             for file_entry in fs::read_dir(path).unwrap().flatten() {
                 let file = file_entry.path();
                 if file.is_file() && file.exists() {
-                    files.push(file);
+                    if let Some(e) = file.extension() {
+                        if e == format.to_string().as_str() {
+                            files.push(file);
+                        }
+                    }
                 }
             }
         }
@@ -393,12 +581,32 @@ pub fn pack(input_path: &Path, output_path: Option<&Path>) -> Result<(), Error> 
     let mut records = vec![];
     for file_path in files {
         let result = fs::read_to_string(&file_path);
-        if let Ok(yaml) = result {
-            let deserialized: Result<TES3Object, serde_yaml::Error> = serde_yaml::from_str(&yaml);
-            if let Ok(object) = deserialized {
-                records.push(object);
-            } else {
-                println!("failed deserialization for {}", file_path.display());
+        if let Ok(text) = result {
+            match format {
+                ESerializedType::Yaml => {
+                    let deserialized: Result<TES3Object, _> = serde_yaml::from_str(&text);
+                    if let Ok(object) = deserialized {
+                        records.push(object);
+                    } else {
+                        println!("failed deserialization for {}", file_path.display());
+                    }
+                }
+                ESerializedType::Toml => {
+                    let deserialized: Result<TES3Object, _> = toml::from_str(&text);
+                    if let Ok(object) = deserialized {
+                        records.push(object);
+                    } else {
+                        println!("failed deserialization for {}", file_path.display());
+                    }
+                }
+                ESerializedType::Json => {
+                    let deserialized: Result<TES3Object, _> = serde_json::from_str(&text);
+                    if let Ok(object) = deserialized {
+                        records.push(object);
+                    } else {
+                        println!("failed deserialization for {}", file_path.display());
+                    }
+                }
             }
         }
     }
@@ -419,15 +627,11 @@ pub fn pack(input_path: &Path, output_path: Option<&Path>) -> Result<(), Error> 
         .unwrap()
         .to_string();
     let mut i = input_path.join(nam);
-    i.set_extension("esp");
+    i = append_ext("esp", i);
     let mut output = i.as_path();
     if let Some(o) = output_path {
         output = o;
     }
 
-    // extension checks
-
-    plugin.save_path(output).expect("Error saving plugin");
-
-    Ok(())
+    plugin.save_path(output)
 }
