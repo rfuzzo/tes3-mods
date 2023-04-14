@@ -17,14 +17,12 @@ end
 
 --- @param e bookGetTextEventData
 local function bookGetTextCallback(e)
-
 	-- display new map
 	if main_map_menu == nil then
 		return
 	end
 
-	-- get the first texture from the book
-	-- or switch on book name "MWSE/mods/Map and Compass/mapsWagner/vvardenfellMapWagner.tga"
+	-- switch on book name
 	local map_or_nil = GetMapFromId(e.book.id)
 	if map_or_nil == nil then
 		return
@@ -59,7 +57,8 @@ local function bookGetTextCallback(e)
 end
 event.register(tes3.event.bookGetText, bookGetTextCallback)
 
--- NEW MAP LOGIC
+-- ZOOM AND DRAG LOGIC
+-- taken and adapted from https://www.nexusmods.com/morrowind/mods/48455
 -- /////////////////////////////////////////////////////////////////
 
 local function zoomIn(e)
@@ -184,6 +183,7 @@ end
 -- MAP MENU CREATE EVENTS
 -- /////////////////////////////////////////////////////////////////
 
+--- register zoom events etc
 --- @param e uiActivatedEventData
 local function onMenuMapActivated(e)
 	local mapmenu = e.element
@@ -197,14 +197,13 @@ local function onMenuMapActivated(e)
 	mapPane.childOffsetX = 0
 	mapPane.childOffsetY = 0
 
-	-- debug.log("original map disabled")
-
 	main_map_menu = mapmenu
 
 	mapmenu:updateLayout()
 end
 event.register(tes3.event.uiActivated, onMenuMapActivated, { filter = "MenuMap" })
 
+--- disable vanilla map
 --- @param e menuEnterEventData
 local function menuEnterCallback(e)
 	if main_map_menu ~= nil then
@@ -382,8 +381,8 @@ local containers = {
 local logger = require("logging.logger").new { name = "RFuzzo", logLevel = "DEBUG" }
 local manager = MerchantManager.new { modName = "Immersive Maps", logger = logger, containers = containers }
 
-local function onInitialized()
-
+--- @param e initializedEventData
+local function initializedCallback(e)
 	-- init table
 	-- vanilla
 	map_table["bk_guide_to_ald_ruhn"] = "bookart/rfuzzo/MW-book-Ald'ruhn_Region.tga"
@@ -424,5 +423,5 @@ local function onInitialized()
 
 	mwse.log("Immersive Maps initialized")
 end
-event.register("initialized", onInitialized)
+event.register(tes3.event.initialized, initializedCallback)
 

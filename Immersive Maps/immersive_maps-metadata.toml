@@ -8,8 +8,6 @@ version = "1.0"
 
 [tools.mwse]
 lua-mod = "rfuzzo.ImmersiveMaps"
-load-order = 100
-wait-until-initialize = true
 
 [dependencies.mwse]
 buildnumber = 3074
