@@ -1,0 +1,20 @@
+[package]
+name = "Immersive Maps"
+description = "A simple mod that disables the vanilla map menu and replaces it with textured maps, if you read a map or a guide book. Integrates with various Map & Compass map packs."
+homepage = "https://www.nexusmods.com/morrowind/mods/xxx"
+repository = "https://github.com/rfuzzo/tes3-mods"
+authors = ["rfuzzo"]
+version = "1.0"
+
+[tools.mwse]
+lua-mod = "rfuzzo.ImmersiveMaps"
+load-order = 100
+wait-until-initialize = true
+
+[dependencies.mwse]
+buildnumber = 3074
+
+[dependencies.mods."The Crafting Framework"]
+mwse-module = "CraftingFramework"
+version = "^1.7.4"
+url = "https://www.nexusmods.com/morrowind/mods/51009?tab=files"
