@@ -15,15 +15,19 @@ local function GetMapFromId(name)
 	return map_table[name]
 end
 
---- @param e bookGetTextEventData
-local function bookGetTextCallback(e)
+--- @param e equipEventData
+local function equipCallback(e)
+	if (e.item.objectType ~= tes3.objectType.book) then
+		return
+	end
+
 	-- display new map
 	if main_map_menu == nil then
 		return
 	end
 
 	-- switch on book name
-	local map_or_nil = GetMapFromId(e.book.id)
+	local map_or_nil = GetMapFromId(e.item.id)
 	if map_or_nil == nil then
 		return
 	end
@@ -53,9 +57,12 @@ local function bookGetTextCallback(e)
 	mapPane.childOffsetY = 0
 
 	main_map_menu:updateLayout()
+	if string.find(e.item.id, "bk_rf") then
+		e.block = true
+	end
 
 end
-event.register(tes3.event.bookGetText, bookGetTextCallback)
+event.register(tes3.event.equip, equipCallback)
 
 -- ZOOM AND DRAG LOGIC
 -- taken and adapted from https://www.nexusmods.com/morrowind/mods/48455
@@ -378,8 +385,8 @@ local containers = {
 
 }
 
-local logger = require("logging.logger").new { name = "RFuzzo", logLevel = "DEBUG" }
-local manager = MerchantManager.new { modName = "Immersive Maps", logger = logger, containers = containers }
+-- local logger = require("logging.logger").new { name = "RFuzzo", logLevel = "DEBUG" }
+local manager = MerchantManager.new { modName = "Immersive Maps", containers = containers }
 
 --- @param e initializedEventData
 local function initializedCallback(e)
