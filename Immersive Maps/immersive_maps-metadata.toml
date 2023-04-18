@@ -1,7 +1,7 @@
 [package]
 name = "Immersive Maps"
 description = "A simple mod that disables the vanilla map menu and replaces it with textured maps, if you read a map or a guide book. Integrates with various Map & Compass map packs."
-homepage = "https://www.nexusmods.com/morrowind/mods/xxx"
+homepage = "https://www.nexusmods.com/morrowind/mods/52683"
 repository = "https://github.com/rfuzzo/tes3-mods"
 authors = ["rfuzzo"]
 version = "1.0"
