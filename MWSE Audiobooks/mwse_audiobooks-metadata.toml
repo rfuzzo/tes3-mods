@@ -1,0 +1,13 @@
+[package]
+name = "Audiobooks of Morrowind"
+description = "tbd"
+homepage = "https://www.nexusmods.com/morrowind/mods/52458"
+repository = "https://github.com/rfuzzo/tes3-mods"
+authors = ["rfuzzo"]
+version = "1.0"
+
+[tools.mwse]
+lua-mod = "rfuzzo.AudiobooksOfMorrowind_mwse"
+
+[dependencies.mwse]
+buildnumber = 3074
