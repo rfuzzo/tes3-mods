@@ -12,7 +12,16 @@
     100 can steal equipped items?
 
 ]] --
-local npcs = {}
+-- const
+local timerDuration = 0.01
+local timerResolution = 1000
+local npcForgetH = 48
+local crimeValue = 100 -- static crime value for when a victim detected you
+local pickpocketExpValue = 2
+local backstabDegrees = 80
+local backstabAngle = (2 * math.pi) * (backstabDegrees / 360)
+
+-- IDs
 local id_menu = nil
 local id_ok = nil
 local id_cancel = nil
@@ -22,25 +31,31 @@ local id_minigame_fillbar = nil
 local GUI_Pickpocket_multi = nil
 local GUI_Pickpocket_sneak = nil
 
-local pickpocketExpValue = 2
+-- variable
+local npcs = {}
 local itemsTaken = 0
 local myTimer = nil
 local timePassed = 0
 local detectionTime = 10 -- the time after which the victim detects you
 local maxDetectionTime = 20 -- the time after which the victim detects you
 local detectionTimeGuessed = 10 -- how accurate you are with detecting the time left
-
 ---@type tes3reference | nil
 local victim = nil
-local crimeValue = 100 -- static crime value for when a victim detected you
 local ready = false
-
-local backstabDegrees = 80
-local backstabAngle = (2 * math.pi) * (backstabDegrees / 360)
 
 -- /////////////////////////////////////////////////////////////////
 
--- OK button callback.
+--- @param e loadEventData
+local function loadCallback(e)
+	-- on save load, we reset all, this is cheesy I guess but hey
+	npcs = {}
+	itemsTaken = 0
+end
+event.register(tes3.event.load, loadCallback)
+
+-- /////////////////////////////////////////////////////////////////
+
+-- Leave button callback.
 local function onMinigameOK(e)
 	local menu = tes3ui.findMenu(id_minigame)
 	if (menu) then
@@ -59,6 +74,7 @@ local function canStealItems()
 	if (itemsTaken < 2 + (playerSkill / 10)) then
 		return true
 	else
+		-- TODO notification
 		return false
 	end
 end
@@ -103,11 +119,31 @@ local function ShowItemSelectmenu()
 
 				-- proc skill
 				tes3.mobilePlayer:exerciseSkill(tes3.skill.security, pickpocketExpValue)
-				ready = true
+				-- ready = true
+				timer.start {
+					duration = 0.7,
+					type = timer.real,
+					iterations = 1,
+					callback = function()
+						ready = true
+					end,
+				}
 
 				-- save npc
 				table.insert(npcs, victim.baseObject.id)
 				npcs[victim.baseObject.id] = tes3.getSimulationTimestamp()
+			else
+				-- left without picking anything: close everything
+				-- destroy timer
+				myTimer:cancel()
+				myTimer = nil
+
+				-- leave menu
+				local menu = tes3ui.findMenu(id_minigame)
+				if (menu) then
+					tes3ui.leaveMenuMode()
+					menu:destroy()
+				end
 			end
 		end,
 	}
@@ -117,6 +153,9 @@ local function reportCrime()
 	if victim == nil then
 		return
 	end
+
+	-- DBG
+	tes3.messageBox("Detected!")
 
 	local blind = victim.mobile.blind
 	local invisible = tes3.mobilePlayer.invisibility
@@ -133,9 +172,9 @@ local function onMinigameTimerTick()
 		return
 	end
 
-	timePassed = timePassed - 1
+	timePassed = timePassed - timerDuration
 
-	if timePassed <= 0 then
+	if timePassed <= timerDuration then
 		-- trigger crime for stealing
 		if (victim) then
 			reportCrime()
@@ -148,23 +187,21 @@ local function onMinigameTimerTick()
 		-- destroy inventorySelectMenu if it exists
 		local menu1 = tes3ui.findMenu("MenuInventorySelect")
 		if (menu1) then
-			tes3ui.leaveMenuMode()
 			menu1:destroy()
 		end
 		-- leave minigame menu
 		local menu = tes3ui.findMenu(id_minigame)
 		if (menu) then
-			tes3ui.leaveMenuMode()
 			menu:destroy()
 		end
-
+		tes3ui.leaveMenuMode()
 	else
 		-- update UI
 		local menu = tes3ui.findMenu(id_minigame)
 		if (menu) then
 			local fillBar = menu:findChild(id_minigame_fillbar)
 			-- decrement time
-			fillBar.widget.current = timePassed
+			fillBar.widget.current = timePassed * timerResolution
 
 			menu:updateLayout()
 
@@ -188,7 +225,7 @@ local function CreateMinigameMenu()
 	local generate = true
 	if table.find(npcs, victim.baseObject.id) then
 		local diff = tes3.getSimulationTimestamp() - table.get(npcs, victim.baseObject.id)
-		if diff < 48 then
+		if diff < npcForgetH then
 			generate = false
 			-- mwse.log("skipped " .. victim.baseObject.id)
 		else
@@ -207,7 +244,7 @@ local function CreateMinigameMenu()
 	menu.alpha = 1.0
 	-- align the menu (which consists just of the timer)
 	menu.absolutePosAlignX = 0.5
-	menu.absolutePosAlignY = 0.9
+	menu.absolutePosAlignY = 0.89
 
 	-- timer block
 	local timerblock = menu:createBlock({ id = "kcdpickpocket:menu2_chargeBlock" })
@@ -216,11 +253,21 @@ local function CreateMinigameMenu()
 	timerblock.paddingAllSides = 4
 	timerblock.paddingLeft = 2
 	timerblock.paddingRight = 2
-	local fillBar = timerblock:createFillBar({ id = id_minigame_fillbar, current = timePassed, max = timePassed })
+	local fillBar = timerblock:createFillBar({
+		id = id_minigame_fillbar,
+		current = timePassed,
+		max = timePassed * timerResolution,
+	})
+	fillBar.width = 356
 	fillBar.widget.showText = false
 	fillBar.widget.fillColor = tes3ui.getPalette("magic_color")
 	-- reset timer
-	myTimer = timer.start({ duration = 1, type = timer.real, iterations = timePassed, callback = onMinigameTimerTick })
+	myTimer = timer.start({
+		duration = timerDuration,
+		type = timer.real,
+		iterations = timePassed / timerDuration,
+		callback = onMinigameTimerTick,
+	})
 
 	-- buttons
 	local button_block = menu:createBlock{}
@@ -279,7 +326,7 @@ local function onChargeTimerTick()
 		return
 	end
 
-	timePassed = timePassed + 1
+	timePassed = timePassed + timerDuration
 
 	if timePassed >= detectionTime then
 		-- trigger crime for "just browsing"
@@ -304,11 +351,11 @@ local function onChargeTimerTick()
 		if (menu) then
 			local fillBar = menu:findChild(id_fillbar)
 			-- increment time
-			fillBar.widget.current = timePassed
+			fillBar.widget.current = timePassed * timerResolution
 			-- increment color
-			if timePassed < (detectionTimeGuessed / (3 * 1)) then
+			if timePassed < ((detectionTimeGuessed / 3) * 1) then
 				fillBar.widget.fillColor = tes3ui.getPalette("fatigue_color")
-			elseif timePassed < (detectionTimeGuessed / (3 * 2)) then
+			elseif timePassed < ((detectionTimeGuessed / 3) * 2) then
 				fillBar.widget.fillColor = tes3ui.getPalette("health_npc_color")
 			else
 				fillBar.widget.fillColor = tes3ui.getPalette("health_color")
@@ -337,12 +384,17 @@ local function CreateTimerMenu()
 	block.paddingAllSides = 4
 	block.paddingLeft = 2
 	block.paddingRight = 2
-	local fillBar = block:createFillBar({ id = id_fillbar, current = 0, max = maxDetectionTime })
-	fillBar.widget.showText = true
+	local fillBar = block:createFillBar({ id = id_fillbar, current = 0, max = maxDetectionTime * timerResolution })
+	fillBar.widget.showText = false
 	fillBar.widget.fillColor = tes3ui.getPalette("fatigue_color")
 	-- reset timer
 	timePassed = 0
-	myTimer = timer.start({ duration = 1, type = timer.real, iterations = maxDetectionTime, callback = onChargeTimerTick })
+	myTimer = timer.start({
+		duration = timerDuration,
+		type = timer.real,
+		iterations = maxDetectionTime / timerDuration,
+		callback = onChargeTimerTick,
+	})
 
 	-- buttons
 	local button_block = menu:createBlock{}
@@ -351,7 +403,7 @@ local function CreateTimerMenu()
 	button_block.childAlignX = 1.0 -- right content alignment
 
 	local button_cancel = button_block:createButton{ id = id_cancel, text = "Cancel" }
-	local button_ok = button_block:createButton{ id = id_ok, text = "OK" }
+	local button_ok = button_block:createButton{ id = id_ok, text = "Start" }
 
 	-- Events
 	button_cancel:register(tes3.uiEvent.mouseClick, onCancel)
@@ -374,6 +426,10 @@ local function CalculateDetectionTime(actor, target)
 	local playerSkill = tes3.mobilePlayer.security.current
 	local victimSkill = target.mobile.security.current
 
+	-- max detection time is dependent on your skill
+	-- value is 10 + playerSkill / 10
+	maxDetectionTime = 10 + playerSkill / 10
+
 	-- value is 10 + playerSkill / 10 - victimSkill / 10
 	detectionTime = 10 + playerSkill / 10 - victimSkill / 10
 	-- mwse.log("-------------------")
@@ -386,13 +442,13 @@ local function CalculateDetectionTime(actor, target)
 		-- mwse.log("visible " .. detectionTime)
 	end
 
-	-- if in front ... -5
-	-- blind: a blinded person would still detect a thief, but couldn't report anyone
-	-- player invisible or chameleon: same as blind
+	-- if in front ... -5, blind and invisibility victims can be pickpocketed from the front
 	local blind = victim.mobile.blind
-	-- TODO blind
-
-	if tes3.mobilePlayer.invisibility < 1 then
+	if (tes3.mobilePlayer.invisibility == 1) or (blind > 15) then
+		-- invisibility grants a flat bonus
+		detectionTime = detectionTime + 3
+		-- mwse.log("invisibility " .. detectionTime)
+	else
 		local playerFacing = actor.facing
 		local targetFacing = target.facing
 		local diff = math.abs(playerFacing - targetFacing)
@@ -407,10 +463,6 @@ local function CalculateDetectionTime(actor, target)
 			detectionTime = math.max(detectionTime - 5, 0);
 			-- mwse.log("front " .. detectionTime)
 		end
-	else
-		-- invisibility grants a flat bonus
-		detectionTime = detectionTime + 3
-		-- mwse.log("invisibility " .. detectionTime)
 	end
 
 	-- noise: a distracted person would have a hard time detecting a thief, but could report one
@@ -419,14 +471,12 @@ local function CalculateDetectionTime(actor, target)
 	-- mwse.log("sound " .. detectionTime)
 	-- mwse.log("-------------------")
 
+	detectionTime = math.min(detectionTime, maxDetectionTime - timerDuration)
+
 	-- guess detection time
 	local randomOffset = (100 - playerSkill) / 20
 	local min = math.clamp(detectionTime - randomOffset, 0, detectionTime - randomOffset)
 	detectionTimeGuessed = math.random(min, detectionTime + randomOffset)
-
-	-- max detection time is dependent on your skill
-	-- value is 10 + playerSkill / 10
-	maxDetectionTime = 10 + playerSkill / 10
 
 	-- DBG
 	-- tes3.messageBox(detectionTime .. " / " .. maxDetectionTime)
