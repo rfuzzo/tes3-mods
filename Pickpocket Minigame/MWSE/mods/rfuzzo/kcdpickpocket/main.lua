@@ -12,8 +12,7 @@
     100 can steal equipped items?
 
 ]] --
--- TODO keep track of pickpocketed npcs
--- UI ids
+local npcs = {}
 local id_menu = nil
 local id_ok = nil
 local id_cancel = nil
@@ -31,6 +30,7 @@ local detectionTime = 10 -- the time after which the victim detects you
 local maxDetectionTime = 20 -- the time after which the victim detects you
 local detectionTimeGuessed = 10 -- how accurate you are with detecting the time left
 
+---@type tes3reference | nil
 local victim = nil
 local crimeValue = 100 -- static crime value for when a victim detected you
 local ready = false
@@ -65,6 +65,10 @@ end
 
 -- This function will filter items depending on certain parameters
 local function valueFilter(e)
+	if victim == nil then
+		return false
+	end
+
 	-- filter items by value depending on your skill
 	local playerSkill = tes3.mobilePlayer.security.current
 	local isValueOk = e.item.value < 10 + (100 * playerSkill)
@@ -81,6 +85,10 @@ end
 
 --- Shows an item select menu
 local function ShowItemSelectmenu()
+	if victim == nil then
+		return
+	end
+
 	ready = false
 
 	tes3ui.showInventorySelectMenu {
@@ -97,12 +105,19 @@ local function ShowItemSelectmenu()
 				tes3.mobilePlayer:exerciseSkill(tes3.skill.security, pickpocketExpValue)
 				ready = true
 
+				-- save npc
+				table.insert(npcs, victim.baseObject.id)
+				npcs[victim.baseObject.id] = tes3.getSimulationTimestamp()
 			end
 		end,
 	}
 end
 
 local function reportCrime()
+	if victim == nil then
+		return
+	end
+
 	local blind = victim.mobile.blind
 	local invisible = tes3.mobilePlayer.invisibility
 	-- TODO crime report modifiers
@@ -169,11 +184,24 @@ local function CreateMinigameMenu()
 	end
 
 	itemsTaken = 0;
-	-- TODO always add some money to steal?
-	tes3.addItem({ reference = victim, item = "random_bandit_1-5" })
-	tes3.addItem({ reference = victim, item = "l_b_Bandit_goods" })
-	tes3.addItem({ reference = victim, item = "l_n_smuggled_goods" }) -- random gold
-	tes3.addItem({ reference = victim, item = "random gold", count = 25 }) -- 
+
+	local generate = true
+	if table.find(npcs, victim.baseObject.id) then
+		local diff = tes3.getSimulationTimestamp() - table.get(npcs, victim.baseObject.id)
+		if diff < 48 then
+			generate = false
+			-- mwse.log("skipped " .. victim.baseObject.id)
+		else
+			table.removevalue(npcs, victim.baseObject.id)
+			-- mwse.log("removed " .. victim.baseObject.id)
+		end
+	end
+	if generate then
+		tes3.addItem({ reference = victim, item = "random_pos" })
+		tes3.addItem({ reference = victim, item = "random_pos" })
+		tes3.addItem({ reference = victim, item = "random gold", count = 25 })
+		tes3.addItem({ reference = victim, item = "random gold", count = 25 })
+	end
 
 	local menu = tes3ui.createMenu({ id = id_minigame, dragFrame = true, fixedFrame = true })
 	menu.alpha = 1.0
@@ -339,23 +367,30 @@ end
 -- /////////////////////////////////////////////////////////////////
 --- Calculate how fast a victim will detect you pickpocketing
 local function CalculateDetectionTime(actor, target)
+	if victim == nil then
+		return
+	end
+
 	local playerSkill = tes3.mobilePlayer.security.current
 	local victimSkill = target.mobile.security.current
 
 	-- value is 10 + playerSkill / 10 - victimSkill / 10
 	detectionTime = 10 + playerSkill / 10 - victimSkill / 10
+	-- mwse.log("-------------------")
+	-- mwse.log(detectionTime)
 
 	-- other modifiers
 	-- if detected ... -5
 	if (tes3ui.findMenu(GUI_Pickpocket_multi):findChild(GUI_Pickpocket_sneak).visible == false) then
 		detectionTime = math.max(detectionTime - 5, 0);
+		-- mwse.log("visible " .. detectionTime)
 	end
 
 	-- if in front ... -5
 	-- blind: a blinded person would still detect a thief, but couldn't report anyone
 	-- player invisible or chameleon: same as blind
 	local blind = victim.mobile.blind
-	-- debug.log(blind)
+	-- TODO blind
 
 	if tes3.mobilePlayer.invisibility < 1 then
 		local playerFacing = actor.facing
@@ -367,15 +402,22 @@ local function CalculateDetectionTime(actor, target)
 		if (diff < backstabAngle) then
 			-- in the back: a slight bonus
 			detectionTime = detectionTime + 1
+			-- mwse.log("back " .. detectionTime)
 		else
 			detectionTime = math.max(detectionTime - 5, 0);
+			-- mwse.log("front " .. detectionTime)
 		end
+	else
+		-- invisibility grants a flat bonus
+		detectionTime = detectionTime + 3
+		-- mwse.log("invisibility " .. detectionTime)
 	end
 
 	-- noise: a distracted person would have a hard time detecting a thief, but could report one
 	local sound = victim.mobile.sound
-	-- debug.log(sound)
 	detectionTime = detectionTime + (sound / 10)
+	-- mwse.log("sound " .. detectionTime)
+	-- mwse.log("-------------------")
 
 	-- guess detection time
 	local randomOffset = (100 - playerSkill) / 20
