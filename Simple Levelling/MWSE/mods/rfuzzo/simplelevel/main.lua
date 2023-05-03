@@ -7,7 +7,8 @@
 
 	E.g. 
 	- Before leveling up you have Strength: 10 level ups, Int 2 level ups. 
-	- At level up you pick Strength, Endur
+	- At level up you pick Strength, Endurance and Luck. 
+	- After leveling you now have 2 Int levelups left, and no strength levelups
 ]] --
 local llu_cache = {}
 local attr_cache = {}
@@ -58,3 +59,4 @@ local function levelUpCallback(e)
 	attr_cache = {}
 end
 event.register(tes3.event.levelUp, levelUpCallback)
+
