@@ -518,7 +518,7 @@ local function activateCallback(e)
 end
 event.register(tes3.event.activate, activateCallback)
 
---- innit mod
+--- init mod
 local function init()
 	id_menu = tes3ui.registerID("kcdpickpocket:menu1")
 	id_fillbar = tes3ui.registerID("kcdpickpocket:menu1_fillbar")
