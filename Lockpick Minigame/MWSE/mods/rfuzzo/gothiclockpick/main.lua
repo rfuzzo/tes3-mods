@@ -34,21 +34,22 @@ local currentPickQuality = nil
 --- @type tes3itemData | nil
 local currentPickData = nil
 local currentPickName = ""
---- @type tes3lockpick | tes3item | nil
+--- @type tes3item | nil
 local currentPick = nil
 
 -- ///////////////////////////////////////////////////////////////
 -- LOCALS
 
---- @param s string
+--- @param s tes3vector3
 --- @return {}
 local function GetCombination(s)
 	-- generate sequence
 	local hash = 16777619
-	for i = 1, #s do
-		local c = s:sub(i, i)
-		hash = hash * string.byte(c)
-	end
+	-- for i = 1, #s do
+	-- 	local c = s:sub(i, i)
+	-- 	hash = hash * string.byte(c)
+	-- end
+	hash = math.round(hash * s.x * s.y * s.z)
 	local hashStr = string.format("%.f", hash)
 
 	-- reverse hash
@@ -126,6 +127,7 @@ local function EndAttempt()
 
 			-- delete and notify
 			if newCondition <= 0 then
+				---@diagnostic disable-next-line: assign-type-mismatch
 				tes3.removeItem({ reference = tes3.player, item = currentPick, itemData = currentPickData })
 				tes3.messageBox(currentPickName .. " has been used up.")
 			end
@@ -267,11 +269,10 @@ local function lockPickCallback(e)
 	currentPick = e.tool
 
 	-- on lockpicking
-	local id = e.reference.baseObject.id
-	currentSequence = GetCombination(id)
+	local pos = e.reference.position
+	currentSequence = GetCombination(pos)
 
 	if ENABLE_LOG then
-		debug.log(e.tool.id)
 		local dbg = ""
 		for _, value in ipairs(currentSequence) do
 			dbg = dbg .. value
