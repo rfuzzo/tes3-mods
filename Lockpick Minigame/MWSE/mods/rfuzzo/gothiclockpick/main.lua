@@ -33,6 +33,9 @@ local currentLockLevel = nil
 local currentPickQuality = nil
 --- @type tes3itemData | nil
 local currentPickData = nil
+local currentPickName = ""
+--- @type tes3lockpick | tes3item | nil
+local currentPick = nil
 
 -- ///////////////////////////////////////////////////////////////
 -- LOCALS
@@ -111,18 +114,22 @@ local function EndAttempt()
 	--- break lockpick
 	if rnd > chance then
 
-		if ENABLE_LOG then
-			tes3.messageBox("Broke!")
-			mwse.log("Broke!")
-		end
+		---@diagnostic disable-next-line: param-type-mismatch
+		tes3.messageBox(tes3.findGMST("sLockFail").value)
 
 		-- break lockpick
 		-- currentPickData.condition = 0
-		if currentPickData ~= nil then
-			local newCondition = math.max(0, currentPickData.condition - pickConditionSub)
+		if currentPickData ~= nil and currentPick ~= nil then
+			-- local newCondition = math.max(0, currentPickData.condition - pickConditionSub)
+			local newCondition = currentPickData.condition - pickConditionSub
 			currentPickData.condition = newCondition
-		end
 
+			-- delete and notify
+			if newCondition <= 0 then
+				tes3.removeItem({ reference = tes3.player, item = currentPick, itemData = currentPickData })
+				tes3.messageBox(currentPickName .. " has been used up.")
+			end
+		end
 	end
 end
 
@@ -143,9 +150,8 @@ local function Unlock()
 	-- unlock reference
 	tes3.unlock({ reference = currentRef })
 
-	if ENABLE_LOG then
-		tes3.messageBox("Unlocked!")
-	end
+	---@diagnostic disable-next-line: param-type-mismatch
+	tes3.messageBox(tes3.findGMST("sLockSuccess").value)
 end
 
 local function Validate()
@@ -240,6 +246,11 @@ local function lockPickCallback(e)
 	if ENABLE_MOD == false then
 		return
 	end
+	-- special case for skeleton_key
+	if e.tool.id == "skeleton_key" then
+		return
+	end
+
 	-- only care about actually locked chests
 	if e.lockPresent == false then
 		return
@@ -250,14 +261,17 @@ local function lockPickCallback(e)
 	currentAttempt = {}
 	currentRef = e.reference
 	currentLockLevel = e.lockData.level
+	currentPickName = e.tool.name
 	currentPickQuality = e.tool.quality
 	currentPickData = e.toolItemData
+	currentPick = e.tool
 
 	-- on lockpicking
 	local id = e.reference.baseObject.id
 	currentSequence = GetCombination(id)
 
 	if ENABLE_LOG then
+		debug.log(e.tool.id)
 		local dbg = ""
 		for _, value in ipairs(currentSequence) do
 			dbg = dbg .. value
