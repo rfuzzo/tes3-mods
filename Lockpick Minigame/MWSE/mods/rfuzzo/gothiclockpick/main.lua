@@ -1,12 +1,20 @@
 --[[
   Gothic 2 lockpicking
   by rfuzzo
-  version 1.0
+  version 1.1
 
   Implements a gothic-like lockpicking minigame.
 
 	- uses charges of lockpick each attempt
 	- may break lockpick completely on fail (uses vanilla formula)
+	- perks
+		- 0-25	knows the maximum sequence count
+		- 25-50	knows the point in the sequence
+		- 50-75	remembers the individual choices
+		- 75-99	max sequence -1 (70s), -2 (80s), -3 (90s)
+		- 100		doesn't need to start over (TODO)
+	- keyboard shortcuts
+	- 
 ]] --
 -- dbg
 local ENABLE_MOD = true
@@ -15,10 +23,11 @@ local ENABLE_LOG = false
 -- const
 local lockpickAttemptExpValue = 1
 local lockpickSuccessExpValueBase = 2
-local pickConditionSub = 10 -- how much condition a pick loses on fail
+local pickConditionSub = 8 -- how much condition a pick loses on fail
 
 -- ui
 local id_menu = nil
+local id_label = nil
 local id_left = nil
 local id_right = nil
 local id_cancel = nil
@@ -40,15 +49,23 @@ local currentPick = nil
 -- ///////////////////////////////////////////////////////////////
 -- LOCALS
 
+local function Cleanup()
+	-- cleanup
+	currentSequence = {}
+	currentAttempt = {}
+	currentRef = nil
+	currentLockLevel = nil
+	currentPickName = ""
+	currentPickQuality = nil
+	currentPickData = nil
+	currentPick = nil
+end
+
 --- @param s tes3vector3
 --- @return {}
 local function GetCombination(s)
 	-- generate sequence
 	local hash = 16777619
-	-- for i = 1, #s do
-	-- 	local c = s:sub(i, i)
-	-- 	hash = hash * string.byte(c)
-	-- end
 	hash = math.round(hash * s.x * s.y * s.z)
 	local hashStr = string.format("%.f", hash)
 
@@ -133,6 +150,8 @@ local function EndAttempt()
 			end
 		end
 	end
+
+	Cleanup()
 end
 
 --- Unlocks the container
@@ -154,27 +173,66 @@ local function Unlock()
 
 	---@diagnostic disable-next-line: param-type-mismatch
 	tes3.messageBox(tes3.findGMST("sLockSuccess").value)
+
+	Cleanup()
+end
+
+local function UpdateUI()
+	-- update UI 
+	local menu = tes3ui.findMenu(id_menu)
+	if (menu) then
+		local label = menu:findChild(id_label)
+		local s = ""
+		for _, value in ipairs(currentAttempt) do
+			if tes3.mobilePlayer.security.current < 25 then
+				-- do nothing
+			elseif tes3.mobilePlayer.security.current < 50 then
+				-- knows the position
+				s = s .. "x"
+			else
+				-- knows the value
+				s = s .. value
+			end
+		end
+		label.text = s
+
+		menu:updateLayout()
+	end
 end
 
 local function Validate()
-	-- decrease pick use
-	if currentPickData ~= nil then
-		currentPickData.charge = currentPickData.charge - 1
-	end
-
-	-- proc skill
-	tes3.mobilePlayer:exerciseSkill(tes3.skill.security, lockpickAttemptExpValue)
-
-	for i, value in ipairs(currentAttempt) do
-		if currentSequence[i] ~= value then
-			EndAttempt()
-			return
+	local menu = tes3ui.findMenu(id_menu)
+	if (menu) then
+		-- decrease pick use
+		if currentPickData ~= nil then
+			currentPickData.charge = currentPickData.charge - 1
 		end
-	end
 
-	-- if we make it here, we unlock the container
-	if #currentAttempt == #currentSequence then
-		Unlock()
+		UpdateUI()
+
+		-- proc skill
+		tes3.mobilePlayer:exerciseSkill(tes3.skill.security, lockpickAttemptExpValue)
+
+		for i, value in ipairs(currentAttempt) do
+			if currentSequence[i] ~= value then
+				EndAttempt()
+				return
+			end
+		end
+
+		-- if we make it here, we unlock the container
+		local max = #currentSequence
+		if tes3.mobilePlayer.security.current >= 90 then
+			max = math.max(2, max - 3)
+		elseif tes3.mobilePlayer.security.current >= 80 then
+			max = math.max(2, max - 2)
+		elseif tes3.mobilePlayer.security.current >= 75 then
+			max = math.max(2, max - 1)
+		end
+		if #currentAttempt == max then
+			Unlock()
+		end
+
 	end
 
 end
@@ -189,6 +247,8 @@ local function onCancel(e)
 		tes3ui.leaveMenuMode()
 		menu:destroy()
 	end
+
+	Cleanup()
 end
 
 -- Cancel button callback.
@@ -206,12 +266,55 @@ end
 --- the timer menu that determins how much time you get with the minigame 
 local function CreateLockpickMenu()
 	-- Create window and frame
-	local menu = tes3ui.createMenu { id = id_menu, dragFrame = true, fixedFrame = true }
+	local menu = tes3ui.createMenu { id = id_menu, fixedFrame = true }
 	menu.alpha = 1.0
 
 	-- Create layout
-	local input_label = menu:createLabel{ text = "Lockpicking ..." }
-	input_label.borderBottom = 5
+	local label = menu:createLabel{ text = "Lockpicking ..." }
+	label.borderBottom = 5
+	label.minWidth = 350
+
+	-- sequence
+	local sequence_block = menu:createThinBorder()
+	sequence_block.widthProportional = 1.0 -- width is 100% parent width
+	sequence_block.autoHeight = true
+	sequence_block.autoWidth = true
+	sequence_block.childAlignX = -1.0 -- left content alignment
+	sequence_block.paddingAllSides = 5
+	sequence_block.borderBottom = 5
+	-- label with your progress
+	sequence_block:createLabel{ id = id_label, text = "" }
+	-- annotate if the max length has been reduced
+	local s = ""
+	if tes3.mobilePlayer.security.current >= 90 then
+		s = s .. " - 3"
+	elseif tes3.mobilePlayer.security.current >= 80 then
+		s = s .. " - 2"
+	elseif tes3.mobilePlayer.security.current >= 75 then
+		s = s .. " - 1"
+	end
+	sequence_block:createLabel{ text = " | " .. #currentSequence .. s }
+
+	-- info
+	local reduce = " 0"
+	if s ~= "" then
+		reduce = s
+	end
+	local info_text = "Your security skill reduces the maximum lock sequence by:" .. reduce ..
+	                  " (but not lower than 2). \n"
+	if tes3.mobilePlayer.security.current > 0 then
+		info_text = info_text .. "You can guess the maximum sequence count." .. "\n"
+	end
+	if tes3.mobilePlayer.security.current >= 25 then
+		info_text = info_text .. "You can guess where you are in the sequence." .. "\n"
+	end
+	if tes3.mobilePlayer.security.current >= 50 then
+		info_text = info_text .. "You know your current sequence attempt." .. "\n"
+	end
+	local info_label = menu:createLabel{ text = info_text }
+	info_label.wrapText = true
+	info_label.maxWidth = 300
+	info_label.minHeight = 70
 
 	-- buttons
 	local button_block = menu:createBlock{}
@@ -226,13 +329,8 @@ local function CreateLockpickMenu()
 
 	-- Events
 	button_cancel:register(tes3.uiEvent.mouseClick, onCancel)
-
 	button_left:register(tes3.uiEvent.mouseClick, onLeft)
 	button_right:register(tes3.uiEvent.mouseClick, onRight)
-
-	-- TODO register keys
-	-- menu:register(tes3.uiEvent.keyEnter, onOK)
-	-- menu:register(tes3.uiEvent.keyEnter, onOK)
 
 	-- Final setup
 	menu:updateLayout()
@@ -258,9 +356,7 @@ local function lockPickCallback(e)
 		return
 	end
 
-	-- cleanup
-	currentSequence = {}
-	currentAttempt = {}
+	-- init
 	currentRef = e.reference
 	currentLockLevel = e.lockData.level
 	currentPickName = e.tool.name
@@ -283,6 +379,7 @@ local function lockPickCallback(e)
 
 	-- make ui
 	CreateLockpickMenu()
+	UpdateUI()
 
 	-- claim the event
 	return false
@@ -292,8 +389,24 @@ event.register(tes3.event.lockPick, lockPickCallback)
 --- init mod
 local function init()
 	id_menu = tes3ui.registerID("gothiclockpick:menu1")
+	id_label = tes3ui.registerID("gothiclockpick:menu1_label")
 	id_left = tes3ui.registerID("gothiclockpick:menu1_left")
 	id_right = tes3ui.registerID("gothiclockpick:menu1_right")
 	id_cancel = tes3ui.registerID("gothiclockpick:menu1_cancel")
 end
 event.register(tes3.event.initialized, init)
+
+--- @param e keyDownEventData
+local function keyDownCallback(e)
+	local menu = tes3ui.findMenu(id_menu)
+	if (menu) then
+		-- trigger key
+		if e.keyCode == tes3.scanCode.keyLeft then
+			onLeft()
+		end
+		if e.keyCode == tes3.scanCode.keyRight then
+			onRight()
+		end
+	end
+end
+event.register(tes3.event.keyDown, keyDownCallback)
