@@ -90,6 +90,7 @@ local function valueFilter(e)
 	local isValueOk = e.item.value < 10 + (100 * playerSkill)
 
 	-- filter on equipped
+	---@diagnostic disable-next-line: param-type-mismatch
 	local isItemEquipped = victim.object:hasItemEquipped(e.item, e.itemData)
 
 	if (isValueOk and not isItemEquipped) then
@@ -163,6 +164,7 @@ local function reportCrime()
 
 	---@diagnostic disable-next-line: undefined-field
 	tes3.worldController.mobController.processManager:detectPresence(tes3.mobilePlayer, true)
+	---@diagnostic disable-next-line: assign-type-mismatch
 	tes3.triggerCrime({ type = 5, value = crimeValue, victim = victim })
 end
 
