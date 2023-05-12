@@ -1,3 +1,22 @@
+--[[
+Immersive Travel Mod
+v 0.1
+by rfuzzo
+
+mwse real-time travel mod
+
+---
+Current Usage (Debug)
+- renders current route (Seyda-Neen to Balmora) with debug markers
+- to move a marker 			... L-Ctrl
+- to exit edit mode 			... L-Ctrl again
+- to add a marker			... < key
+- to log the current marker list 	... > key
+
+- to start traveling	... / on the silt strider in Seyda Neen
+
+--]]
+
 local test_menu = tes3ui.registerID("example:MenuTest")
 local test_menu_ok = tes3ui.registerID("example:MenuTest_Ok")
 local test_menu_cancel = tes3ui.registerID("example:MenuTest_Cancel")
