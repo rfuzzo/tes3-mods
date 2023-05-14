@@ -161,7 +161,7 @@ fn get_openmwcfg() -> Option<PathBuf> {
 }
 
 /// Checks an input path and returns the default cfg if its not valid
-fn check_cfg_path(in_path_option: &Option<PathBuf>) -> Option<PathBuf> {
+fn check_cfg_path(in_path_option: Option<PathBuf>) -> Option<PathBuf> {
     let in_path: PathBuf;
     if let Some(path) = in_path_option {
         // checks
@@ -173,7 +173,7 @@ fn check_cfg_path(in_path_option: &Option<PathBuf>) -> Option<PathBuf> {
             error!("{} is not a file", path.display());
             return None;
         }
-        in_path = path.to_path_buf();
+        in_path = path;
     } else {
         // get cfg from default path
         if let Some(path) = get_openmwcfg() {
@@ -187,16 +187,13 @@ fn check_cfg_path(in_path_option: &Option<PathBuf>) -> Option<PathBuf> {
 }
 
 /// Copy plugins found in the openmw.cfg to specified directory, default is current working directory
-pub fn export(
-    in_path_option: &Option<PathBuf>,
-    out_path_option: &Option<PathBuf>,
-) -> Option<usize> {
+pub fn export(in_path_option: Option<PathBuf>, out_path_option: Option<PathBuf>) -> Option<usize> {
     // checks
     let in_path = match check_cfg_path(in_path_option) {
         Some(value) => value,
         None => return None,
     };
-    let mut out_path = Path::new("");
+    let mut out_path = Path::new("").to_path_buf();
     if let Some(path) = out_path_option {
         // checks
         if !path.exists() {
@@ -228,7 +225,7 @@ pub fn export(
     // now copy the actual files
     let manifest: Manifest;
     info!("Copying files to {} ...", out_path.display());
-    let copy_result = copy_files(&plugins_to_copy, out_path);
+    let copy_result = copy_files(&plugins_to_copy, &out_path);
     if let Some(copied_files) = copy_result {
         manifest = Manifest {
             files: copied_files.clone(),
@@ -322,9 +319,9 @@ pub fn cleanup(dir_option: &Option<PathBuf>) -> Option<usize> {
 /// # Panics
 ///
 /// Panics if filenames are stupid
-pub fn import(data_files_opt: &Option<PathBuf>, cfg_opt: &Option<PathBuf>, clean: bool) -> bool {
+pub fn import(data_files_opt: Option<PathBuf>, cfg_opt: Option<PathBuf>, clean: bool) -> bool {
     // checks
-    let mut data_files_path = Path::new("");
+    let mut data_files_path = Path::new("").to_path_buf();
     if let Some(path) = data_files_opt {
         // checks
         if !path.exists() {
@@ -345,7 +342,7 @@ pub fn import(data_files_opt: &Option<PathBuf>, cfg_opt: &Option<PathBuf>, clean
     };
 
     // gets all plugins and sort them by modification time
-    let all_plugins = get_plugins_in_folder(data_files_path);
+    let all_plugins = get_plugins_in_folder(&data_files_path);
     // TODO sort
 
     // get everything that is not a content line
@@ -389,7 +386,7 @@ pub fn import(data_files_opt: &Option<PathBuf>, cfg_opt: &Option<PathBuf>, clean
 
     // optionally clean up
     if clean {
-        match cleanup(&Some(data_files_path.into())) {
+        match cleanup(&Some(data_files_path)) {
             Some(_) => return true,
             None => return false,
         }

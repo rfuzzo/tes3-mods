@@ -57,7 +57,7 @@ fn main() -> ExitCode {
 
     match &cli.command {
         Some(Commands::Export { config, dir }) => {
-            let _result = export(dir, config);
+            let _result = export(dir.to_owned(), config.to_owned());
             ExitCode::SUCCESS
         }
         Some(Commands::Import {
@@ -65,7 +65,7 @@ fn main() -> ExitCode {
             config,
             cleanup,
         }) => {
-            if import(dir, config, *cleanup) {
+            if import(dir.to_owned(), config.to_owned(), *cleanup) {
                 ExitCode::SUCCESS
             } else {
                 ExitCode::FAILURE

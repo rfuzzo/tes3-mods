@@ -16,25 +16,29 @@ mod integration_tests {
 
     #[test]
     fn test_export() {
-        simple_logger::init().unwrap();
+        //simple_logger::init().unwrap();
+        let data_files = get_data_files_path();
+
         let (p, _d, c) = get_cfg();
-        let result = export(&Some(p), &Some(get_data_files_path()));
+        let result = export(Some(p), Some(data_files.to_owned()));
         assert_eq!(result, Some(c));
 
-        let cleanup = cleanup(&Some(get_data_files_path()));
+        let cleanup = cleanup(&Some(data_files));
         assert_eq!(cleanup, Some(c));
     }
 
     #[test]
     fn test_import() {
-        simple_logger::init().unwrap();
+        //simple_logger::init().unwrap();
+        let data_files = get_data_files_path();
+
         let (p, _d, c) = get_cfg();
         // export to set up test
-        let result = export(&Some(p), &Some(get_data_files_path()));
+        let result = export(Some(p), Some(data_files.to_owned()));
         assert_eq!(result, Some(c));
         // import
         let (p_out, d_out, c_out) = get_out_cfg();
-        let result = import(&Some(get_data_files_path()), &Some(p_out.clone()), true);
+        let result = import(Some(data_files), Some(p_out.clone()), true);
         assert!(result);
 
         // check cfg
