@@ -18,7 +18,6 @@ mod unit_tests {
     fn test_parse() {
         // parse cfg for data dirs
         let (mut in_path, mut d, mut c) = get_cfg();
-        assert!(in_path.exists());
         let result = parse_cfg(in_path);
         assert!(result.is_some());
         let Some((data_dirs ,plugin_names)) = result else { return };
@@ -27,7 +26,6 @@ mod unit_tests {
 
         // parse full cfg for data dirs
         (in_path, d, c) = get_cfg_full();
-        assert!(in_path.exists());
         let result = parse_cfg(in_path);
         assert!(result.is_some());
         let Some((data_dirs ,plugin_names)) = result else { return };

@@ -1,7 +1,7 @@
 use std::{
     env::consts::OS,
     fs::{self, File},
-    io::{self, BufRead},
+    io::{self, BufRead, Write},
     path::{Path, PathBuf},
 };
 
@@ -60,38 +60,47 @@ pub fn parse_cfg(cfg_path: PathBuf) -> Option<(Vec<PathBuf>, Vec<String>)> {
 ///
 /// # Panics
 ///
-/// Panics if the self value equals None of a file in the cfg
+/// Panics if a filename can't be read
 pub fn get_plugins(data_dirs: Vec<PathBuf>, plugin_names: &[String]) -> Vec<PathBuf> {
     let mut manifest: Vec<PathBuf> = vec![];
     for path in data_dirs {
         if path.exists() {
-            // get all plugins
-            if let Ok(plugins) = fs::read_dir(path) {
-                plugins.for_each(|p| {
-                    if let Ok(file) = p {
-                        let file_path = file.path();
-                        if file_path.is_file() {
-                            if let Some(ext) = file_path.extension() {
-                                if ext == "esp" || ext == "omwaddon" || ext == "omwscripts" {
-                                    // rust wtf :hidethepain:
-                                    let file_name =
-                                        file_path.file_name().unwrap().to_str().unwrap().to_owned();
-                                    // check if the
-                                    if plugin_names.contains(&file_name) {
-                                        // add to manifest
-                                        manifest.push(file_path);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
+            let files = get_plugins_in_folder(&path);
+            for file_path in files {
+                // check if the plugin is in the active plugins list
+                // rust wtf :hidethepain:
+                let file_name = file_path.file_name().unwrap().to_str().unwrap().to_owned();
+                if plugin_names.contains(&file_name) {
+                    // add to manifest
+                    manifest.push(file_path);
+                }
             }
         } else {
             warn!("data path {} does not exist", path.display())
         }
     }
     manifest
+}
+
+/// Get all plugins (esp, omwaddon, omwscripts) in a folder
+fn get_plugins_in_folder(path: &Path) -> Vec<PathBuf> {
+    // get all plugins
+    let mut results: Vec<PathBuf> = vec![];
+    if let Ok(plugins) = fs::read_dir(path) {
+        plugins.for_each(|p| {
+            if let Ok(file) = p {
+                let file_path = file.path();
+                if file_path.is_file() {
+                    if let Some(ext) = file_path.extension() {
+                        if ext == "esp" || ext == "omwaddon" || ext == "omwscripts" {
+                            results.push(file_path);
+                        }
+                    }
+                }
+            }
+        });
+    }
+    results
 }
 
 /// Copies files to out_path
@@ -151,12 +160,8 @@ fn get_openmwcfg() -> Option<PathBuf> {
     }
 }
 
-/// Copy plugins found in the openmw.cfg to specified directory, default is current working directory
-pub fn export(
-    in_path_option: &Option<PathBuf>,
-    out_path_option: &Option<PathBuf>,
-) -> Option<usize> {
-    // checks for in dir
+/// Checks an input path and returns the default cfg if its not valid
+fn check_cfg_path(in_path_option: &Option<PathBuf>) -> Option<PathBuf> {
     let in_path: PathBuf;
     if let Some(path) = in_path_option {
         // checks
@@ -178,7 +183,19 @@ pub fn export(
             return None;
         }
     }
-    // checks for out dir
+    Some(in_path)
+}
+
+/// Copy plugins found in the openmw.cfg to specified directory, default is current working directory
+pub fn export(
+    in_path_option: &Option<PathBuf>,
+    out_path_option: &Option<PathBuf>,
+) -> Option<usize> {
+    // checks
+    let in_path = match check_cfg_path(in_path_option) {
+        Some(value) => value,
+        None => return None,
+    };
     let mut out_path = Path::new("");
     if let Some(path) = out_path_option {
         // checks
@@ -229,7 +246,7 @@ pub fn export(
         return None;
     }
 
-    // and save the manifest as toml
+    // save the manifest as toml
     match toml::to_string_pretty(&manifest) {
         Ok(toml) => {
             let manifest_path = out_path.join("omw-util.manifest");
@@ -244,13 +261,16 @@ pub fn export(
         }
     }
 
+    // and modify the vanilla ini
+
     Some(manifest.files.len())
 }
 
-pub fn cleanup(out_path_option: &Option<PathBuf>) -> Option<usize> {
-    // checks for out dir
-    let mut out_path = Path::new("");
-    if let Some(path) = out_path_option {
+/// Cleans up a directory with a valid omw-util.manifest file
+pub fn cleanup(dir_option: &Option<PathBuf>) -> Option<usize> {
+    // checks
+    let mut in_path = Path::new("");
+    if let Some(path) = dir_option {
         // checks
         if !path.exists() {
             error!("{} does not exist", path.display());
@@ -260,11 +280,11 @@ pub fn cleanup(out_path_option: &Option<PathBuf>) -> Option<usize> {
             error!("{} is not a directory", path.display());
             return None;
         }
-        out_path = path;
+        in_path = path;
     }
 
     // read manifest
-    let manifest_path = out_path.join("omw-util.manifest");
+    let manifest_path = in_path.join("omw-util.manifest");
     if manifest_path.exists() {
         if let Ok(file_content) = fs::read_to_string(&manifest_path) {
             if let Ok(manifest) = toml::from_str::<Manifest>(file_content.as_str()) {
@@ -292,4 +312,88 @@ pub fn cleanup(out_path_option: &Option<PathBuf>) -> Option<usize> {
     }
 
     None
+}
+
+/// Imports all plugins in a folder to an openmw.cfg
+/// # Caveats
+/// This is meant to be used in conjunction with a proper mod manager!
+/// It does not filter the plugins according to a morrowind.ini
+///
+/// # Panics
+///
+/// Panics if filenames are stupid
+pub fn import(data_files_opt: &Option<PathBuf>, cfg_opt: &Option<PathBuf>, clean: bool) -> bool {
+    // checks
+    let mut data_files_path = Path::new("");
+    if let Some(path) = data_files_opt {
+        // checks
+        if !path.exists() {
+            error!("{} does not exist", path.display());
+            return false;
+        }
+        if !path.is_dir() {
+            error!("{} is not a directory", path.display());
+            return false;
+        }
+        data_files_path = path;
+    }
+
+    // find omw cfg
+    let cfg_path = match check_cfg_path(cfg_opt) {
+        Some(value) => value,
+        None => return false,
+    };
+
+    // gets all plugins and sort them by modification time
+    let all_plugins = get_plugins_in_folder(data_files_path);
+    // TODO sort
+
+    // get everything that is not a content line
+    info!("Parsing cfg {} ...", cfg_path.display());
+    let mut original_cfg: Vec<String> = vec![];
+    if let Ok(lines) = read_lines(&cfg_path) {
+        for line in lines.flatten() {
+            // parse each line
+            if !line.starts_with("content=") {
+                original_cfg.push(line);
+            }
+        }
+    } else {
+        error!("Could not parse cfg file {}", cfg_path.display());
+        return false;
+    }
+    // reassemble cfg
+    if let Ok(mut file) = File::create(&cfg_path) {
+        // write original lines
+        for line in original_cfg {
+            // TODO proper eol
+            let line_with_eol = format!("{}\n", line);
+            match file.write(line_with_eol.as_bytes()) {
+                Ok(_) => {}
+                Err(err) => warn!("Error writing line {}: {}", line, err),
+            }
+        }
+        // write plugins
+        for p in all_plugins {
+            // TODO proper eol
+            let content_line = format!("content={}\n", p.file_name().unwrap().to_str().unwrap());
+            match file.write(content_line.as_bytes()) {
+                Ok(_) => {}
+                Err(err) => warn!("Error writing plugin {}: {}", p.display(), err),
+            }
+        }
+    } else {
+        error!("Could not write cfg file {}", cfg_path.display());
+        return false;
+    }
+
+    // optionally clean up
+    if clean {
+        match cleanup(&Some(data_files_path.into())) {
+            Some(_) => return true,
+            None => return false,
+        }
+    }
+
+    false
 }

@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use omw_util::{cleanup, export};
+use omw_util::{cleanup, export, import};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -17,21 +17,37 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Copy plugins found in the openmw.cfg to specified directory, default is current working directory
+    /// Copy plugins found in the openmw.cfg to specified directory
     Export {
         // arguments
-        /// TBD
-        out_dir: Option<PathBuf>,
+        /// The directory where the plugins should be copied to, default is current working directory
+        dir: Option<PathBuf>,
 
         // options
-        /// TBD
+        /// The path to the openmw.cfg, default is openMWs's default location
         #[arg(short, long)]
-        in_dir: Option<PathBuf>,
+        config: Option<PathBuf>,
     },
+    /// Cleans up a directory with a valid omw-util.manifest file
     Cleanup {
         // arguments
-        /// TBD
-        out_dir: Option<PathBuf>,
+        /// The directory to clean up, default is current working directory
+        dir: Option<PathBuf>,
+    },
+    /// Imports a morrowind.ini file contents to openmw.cfg.
+    /// Currently only supports content names
+    Import {
+        // arguments
+        /// The Data Files directory, default is current working directory
+        dir: Option<PathBuf>,
+
+        // options
+        /// The path to the openmw.cfg, default is openMWs's default location
+        #[arg(short, long)]
+        config: Option<PathBuf>,
+        /// Clean up files after importing
+        #[arg(short, long)]
+        cleanup: bool,
     },
 }
 
@@ -40,14 +56,25 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
 
     match &cli.command {
-        Some(Commands::Export { in_dir, out_dir }) => {
-            let _result = export(out_dir, in_dir);
+        Some(Commands::Export { config, dir }) => {
+            let _result = export(dir, config);
             ExitCode::SUCCESS
         }
-        Some(Commands::Cleanup { out_dir }) => {
-            cleanup(out_dir);
-            ExitCode::SUCCESS
+        Some(Commands::Import {
+            dir,
+            config,
+            cleanup,
+        }) => {
+            if import(dir, config, *cleanup) {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            }
         }
+        Some(Commands::Cleanup { dir }) => match cleanup(dir) {
+            Some(_) => ExitCode::SUCCESS,
+            None => ExitCode::FAILURE,
+        },
         None => ExitCode::FAILURE,
     }
 }
