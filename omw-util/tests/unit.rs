@@ -2,7 +2,7 @@
 mod unit_tests {
     use std::path::{Path, PathBuf};
 
-    use omw_util::{copy_files, create_manifest, parse_cfg};
+    use omw_util::{cleanup, copy_files, get_plugins, parse_cfg};
 
     fn get_cfg() -> (PathBuf, usize, usize) {
         (Path::new("tests/assets/openmw.cfg").into(), 2, 2)
@@ -46,8 +46,8 @@ mod unit_tests {
         assert_eq!(data_dirs.len(), d);
         assert_eq!(plugin_names.len(), c);
         // create a manifest
-        let manifest = create_manifest(data_dirs, &plugin_names);
-        assert_eq!(manifest.files.len(), plugin_names.len());
+        let files = get_plugins(data_dirs, &plugin_names);
+        assert_eq!(files.len(), plugin_names.len());
     }
 
     #[test]
@@ -65,14 +65,17 @@ mod unit_tests {
         assert_eq!(plugin_names.len(), c);
 
         // create a manifest
-        let manifest = create_manifest(data_dirs, &plugin_names);
-        assert_eq!(manifest.files.len(), plugin_names.len());
+        let files = get_plugins(data_dirs, &plugin_names);
+        assert_eq!(files.len(), plugin_names.len());
 
         // now copy the actual files
-        let copy_result = copy_files(&manifest.files, out_path.as_path());
+        let copy_result = copy_files(&files, out_path.as_path());
         assert!(copy_result.is_some());
-        if let Some(count) = copy_result {
-            assert_eq!(manifest.files.len(), count);
-        }
+        let count = copy_result.unwrap().len();
+        assert_eq!(count, c);
+
+        // cleanup
+        let cleanup = cleanup(&Some(out_path));
+        assert_eq!(cleanup, Some(c));
     }
 }

@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use omw_util::export;
+use omw_util::{cleanup, export};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -28,6 +28,11 @@ enum Commands {
         #[arg(short, long)]
         in_dir: Option<PathBuf>,
     },
+    Cleanup {
+        // arguments
+        /// TBD
+        out_dir: Option<PathBuf>,
+    },
 }
 
 fn main() -> ExitCode {
@@ -37,6 +42,10 @@ fn main() -> ExitCode {
     match &cli.command {
         Some(Commands::Export { in_dir, out_dir }) => {
             let _result = export(out_dir, in_dir);
+            ExitCode::SUCCESS
+        }
+        Some(Commands::Cleanup { out_dir }) => {
+            cleanup(out_dir);
             ExitCode::SUCCESS
         }
         None => ExitCode::FAILURE,

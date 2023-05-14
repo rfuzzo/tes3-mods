@@ -61,7 +61,7 @@ pub fn parse_cfg(cfg_path: PathBuf) -> Option<(Vec<PathBuf>, Vec<String>)> {
 /// # Panics
 ///
 /// Panics if the self value equals None of a file in the cfg
-pub fn create_manifest(data_dirs: Vec<PathBuf>, plugin_names: &[String]) -> Manifest {
+pub fn get_plugins(data_dirs: Vec<PathBuf>, plugin_names: &[String]) -> Vec<PathBuf> {
     let mut manifest: Vec<PathBuf> = vec![];
     for path in data_dirs {
         if path.exists() {
@@ -91,22 +91,24 @@ pub fn create_manifest(data_dirs: Vec<PathBuf>, plugin_names: &[String]) -> Mani
             warn!("data path {} does not exist", path.display())
         }
     }
-    Manifest { files: manifest }
+    manifest
 }
 
-/// Copies the files specified in the manifest to out_path
-pub fn copy_files(manifest: &Vec<PathBuf>, out_path: &Path) -> Option<usize> {
+/// Copies files to out_path
+pub fn copy_files(in_files: &Vec<PathBuf>, out_path: &Path) -> Option<Vec<PathBuf>> {
     if !out_path.is_dir() {
         return None;
     }
-    let mut count = 0;
-    for file in manifest {
+    let mut result: Vec<PathBuf> = vec![];
+    for file in in_files {
         // copy file
         if let Some(file_name) = file.file_name() {
-            match fs::copy(file, out_path.join(file_name)) {
+            let new_path = out_path.join(file_name);
+            match fs::copy(file, &new_path) {
                 Ok(_) => {
                     debug!("Copied {}", file.display());
-                    count += 1;
+
+                    result.push(new_path);
                 }
                 Err(_) => {
                     warn!("Failed to copy {}", file.display());
@@ -114,7 +116,39 @@ pub fn copy_files(manifest: &Vec<PathBuf>, out_path: &Path) -> Option<usize> {
             }
         }
     }
-    Some(count)
+    Some(result)
+}
+
+/// Returns the default openmw.cfg path if it exists, and None if not
+///
+/// # Panics
+///
+/// Panics if Home dir is not found in the OS
+fn get_openmwcfg() -> Option<PathBuf> {
+    let os_str = OS;
+    match os_str {
+        "linux" => {
+            todo!();
+        }
+        "macos" => {
+            // default cfg for mac is at $HOME/Library/Preferences/openmw
+            let home = dirs::home_dir().unwrap();
+            let cfg = home
+                .join("Library")
+                .join("Preferences")
+                .join("openmw")
+                .join("openmw.cfg");
+            if cfg.exists() {
+                Some(cfg)
+            } else {
+                None
+            }
+        }
+        "windows" => {
+            todo!()
+        }
+        _ => None,
+    }
 }
 
 /// Copy plugins found in the openmw.cfg to specified directory, default is current working directory
@@ -167,11 +201,32 @@ pub fn export(
 
     // create a manifest of files to copy
     info!("Creating manifest ...");
-    let manifest = create_manifest(data_dirs, &plugin_names);
-    if manifest.files.len() == plugin_names.len() {
+    let plugins_to_copy = get_plugins(data_dirs, &plugin_names);
+    if plugins_to_copy.len() == plugin_names.len() {
         info!("All plugins accounted for");
     } else {
         warn!("Not all content plugins found in the data directories!")
+    }
+
+    // now copy the actual files
+    let manifest: Manifest;
+    info!("Copying files to {} ...", out_path.display());
+    let copy_result = copy_files(&plugins_to_copy, out_path);
+    if let Some(copied_files) = copy_result {
+        manifest = Manifest {
+            files: copied_files.clone(),
+        };
+
+        info!("Copied {} files", copied_files.len());
+
+        if copied_files.len() == plugins_to_copy.len() {
+            info!("All files accounted for");
+        } else {
+            warn!("Could not copy all files!");
+        }
+    } else {
+        error!("Could not copy any files!");
+        return None;
     }
 
     // and save the manifest as toml
@@ -189,52 +244,52 @@ pub fn export(
         }
     }
 
-    // now copy the actual files
-    info!("Copying files to {} ...", out_path.display());
-    let copy_result = copy_files(&manifest.files, out_path);
-    if let Some(count) = copy_result {
-        info!("Copied {} files", count);
-        if count == manifest.files.len() {
-            info!("All files accounted for");
-            return Some(count);
-        } else {
-            warn!("Could not copy all files!")
+    Some(manifest.files.len())
+}
+
+pub fn cleanup(out_path_option: &Option<PathBuf>) -> Option<usize> {
+    // checks for out dir
+    let mut out_path = Path::new("");
+    if let Some(path) = out_path_option {
+        // checks
+        if !path.exists() {
+            error!("{} does not exist", path.display());
+            return None;
         }
+        if !path.is_dir() {
+            error!("{} is not a directory", path.display());
+            return None;
+        }
+        out_path = path;
+    }
+
+    // read manifest
+    let manifest_path = out_path.join("omw-util.manifest");
+    if manifest_path.exists() {
+        if let Ok(file_content) = fs::read_to_string(&manifest_path) {
+            if let Ok(manifest) = toml::from_str::<Manifest>(file_content.as_str()) {
+                // read the files
+                info!("Found {} files to delete", manifest.files.len());
+                let mut count = 0;
+                for file in &manifest.files {
+                    // delete file
+                    if fs::remove_file(file).is_err() {
+                        debug!("Could not delete file {}", file.display());
+                    } else {
+                        debug!("Deleted file {}", file.display());
+                        count += 1;
+                    }
+                }
+                if count != manifest.files.len() {
+                    warn!("Not all files were deleted!")
+                }
+                return Some(count);
+            }
+        }
+        error!("Could not read manifest file {}", manifest_path.display());
     } else {
-        error!("Could not copy any files!")
+        error!("No manifest file at {}", manifest_path.display());
     }
 
     None
-}
-
-/// Returns the default openmw.cfg path if it exists, and None if not
-///
-/// # Panics
-///
-/// Panics if Home dir is not found in the OS
-fn get_openmwcfg() -> Option<PathBuf> {
-    let os_str = OS;
-    match os_str {
-        "linux" => {
-            todo!();
-        }
-        "macos" => {
-            // default cfg for mac is at $HOME/Library/Preferences/openmw
-            let home = dirs::home_dir().unwrap();
-            let cfg = home
-                .join("Library")
-                .join("Preferences")
-                .join("openmw")
-                .join("openmw.cfg");
-            if cfg.exists() {
-                Some(cfg)
-            } else {
-                None
-            }
-        }
-        "windows" => {
-            todo!()
-        }
-        _ => None,
-    }
 }
