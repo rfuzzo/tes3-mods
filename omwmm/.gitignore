@@ -15,8 +15,3 @@ Cargo.lock
 
 # macos
 .DS_Store
-
-
-tests/assets/Data Files/
-
-tests/assets/out
