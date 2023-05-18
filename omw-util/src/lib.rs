@@ -92,7 +92,8 @@ fn get_plugins_in_folder(path: &Path) -> Vec<PathBuf> {
                 let file_path = file.path();
                 if file_path.is_file() {
                     if let Some(ext) = file_path.extension() {
-                        if ext == "esp" || ext == "omwaddon" || ext == "omwscripts" {
+                        if ext == "esm" || ext == "esp" || ext == "omwaddon" || ext == "omwscripts"
+                        {
                             results.push(file_path);
                         }
                     }
@@ -137,16 +138,19 @@ fn get_openmwcfg() -> Option<PathBuf> {
     let os_str = OS;
     match os_str {
         "linux" => {
-            todo!();
+            // default cfg for linux is at $HOME/.config/openmw
+            let preference_dir = dirs::config_dir().unwrap();
+            let cfg = preference_dir.join("openmw.cfg");
+            if cfg.exists() {
+                Some(cfg)
+            } else {
+                None
+            }
         }
         "macos" => {
-            // default cfg for mac is at $HOME/Library/Preferences/openmw
-            let home = dirs::home_dir().unwrap();
-            let cfg = home
-                .join("Library")
-                .join("Preferences")
-                .join("openmw")
-                .join("openmw.cfg");
+            // default cfg for mac is at /Users/Username/Library/Preferences/openmw
+            let preference_dir = dirs::preference_dir().unwrap();
+            let cfg = preference_dir.join("openmw").join("openmw.cfg");
             if cfg.exists() {
                 Some(cfg)
             } else {
@@ -154,7 +158,17 @@ fn get_openmwcfg() -> Option<PathBuf> {
             }
         }
         "windows" => {
-            todo!()
+            // default cfg for windows is at C:\Users\Username\Documents\my games\openmw
+            let preference_dir = dirs::document_dir().unwrap();
+            let cfg = preference_dir
+                .join("my games")
+                .join("openmw")
+                .join("openmw.cfg");
+            if cfg.exists() {
+                Some(cfg)
+            } else {
+                None
+            }
         }
         _ => None,
     }
@@ -187,9 +201,9 @@ fn check_cfg_path(in_path_option: Option<PathBuf>) -> Option<PathBuf> {
 }
 
 /// Copy plugins found in the openmw.cfg to specified directory, default is current working directory
-pub fn export(in_path_option: Option<PathBuf>, out_path_option: Option<PathBuf>) -> Option<usize> {
+pub fn export(cfg_path_option: Option<PathBuf>, out_path_option: Option<PathBuf>) -> Option<usize> {
     // checks
-    let in_path = match check_cfg_path(in_path_option) {
+    let in_path = match check_cfg_path(cfg_path_option) {
         Some(value) => value,
         None => return None,
     };
@@ -226,7 +240,7 @@ pub fn export(in_path_option: Option<PathBuf>, out_path_option: Option<PathBuf>)
     let manifest: Manifest;
     info!("Copying files to {} ...", out_path.display());
     let copy_result = copy_files(&plugins_to_copy, &out_path);
-    if let Some(copied_files) = copy_result {
+    if let Some(copied_files) = &copy_result {
         manifest = Manifest {
             files: copied_files.clone(),
         };
@@ -258,7 +272,52 @@ pub fn export(in_path_option: Option<PathBuf>, out_path_option: Option<PathBuf>)
         }
     }
 
-    // and modify the vanilla ini
+    // modify the vanilla ini with the plugins
+    let ini_path = out_path
+        .parent()
+        .expect("No Data File parent folder")
+        .join("Morrowind.ini");
+    info!("Parsing morrowind.ini {} ...", ini_path.display());
+    let mut original_ini: Vec<String> = vec![];
+    if let Ok(lines) = read_lines(&ini_path) {
+        for line in lines.flatten() {
+            // parse each line
+            if !line.starts_with("GameFile") {
+                original_ini.push(line);
+            }
+        }
+    } else {
+        error!("Could not parse cfg file {}", ini_path.display());
+        return None;
+    }
+    // reassemble ini
+    if let Ok(mut file) = File::create(&ini_path) {
+        // write original lines
+        for line in original_ini {
+            // TODO proper eol
+            let line_with_eol = format!("{}\n", line);
+            match file.write(line_with_eol.as_bytes()) {
+                Ok(_) => {}
+                Err(err) => warn!("Error writing line {}: {}", line, err),
+            }
+        }
+        // write plugins
+        for (i, p) in copy_result.unwrap().iter().enumerate() {
+            // TODO proper eol
+            let content_line = format!(
+                "GameFile{}={}\n",
+                i,
+                p.file_name().unwrap().to_str().unwrap()
+            );
+            match file.write(content_line.as_bytes()) {
+                Ok(_) => {}
+                Err(err) => warn!("Error writing plugin {}: {}", p.display(), err),
+            }
+        }
+    } else {
+        error!("Could not write cfg file {}", ini_path.display());
+        return None;
+    }
 
     Some(manifest.files.len())
 }
@@ -342,8 +401,15 @@ pub fn import(data_files_opt: Option<PathBuf>, cfg_opt: Option<PathBuf>, clean: 
     };
 
     // gets all plugins and sort them by modification time
-    let all_plugins = get_plugins_in_folder(&data_files_path);
-    // TODO sort
+    let mut all_plugins = get_plugins_in_folder(&data_files_path);
+    // sort
+    all_plugins.sort_by(|a, b| {
+        fs::metadata(a)
+            .expect("filetime")
+            .modified()
+            .unwrap()
+            .cmp(&fs::metadata(b).expect("filetime").modified().unwrap())
+    });
 
     // get everything that is not a content line
     info!("Parsing cfg {} ...", cfg_path.display());

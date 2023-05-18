@@ -6,7 +6,7 @@ use std::process::ExitCode;
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-    /// Verbose output
+    /// TODO Verbose output
     #[arg(short, long)]
     verbose: bool,
 

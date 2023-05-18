@@ -4,8 +4,9 @@ mod integration_tests {
 
     use omw_util::{cleanup, export, import, parse_cfg};
 
+    // path, data dirs, plugins
     fn get_cfg() -> (PathBuf, usize, usize) {
-        (Path::new("tests/assets/openmw.cfg").into(), 2, 2)
+        (Path::new("tests/assets/openmw.cfg").into(), 3, 5)
     }
     fn get_out_cfg() -> (PathBuf, usize, usize) {
         (Path::new("tests/assets/openmw_out.cfg").into(), 2, 2)
@@ -23,19 +24,25 @@ mod integration_tests {
         let result = export(Some(p), Some(data_files.to_owned()));
         assert_eq!(result, Some(c));
 
+        // check order
+
         let cleanup = cleanup(&Some(data_files));
         assert_eq!(cleanup, Some(c));
     }
 
     #[test]
     fn test_import() {
-        //simple_logger::init().unwrap();
         let data_files = get_data_files_path();
 
         let (p, _d, c) = get_cfg();
         // export to set up test
         let result = export(Some(p), Some(data_files.to_owned()));
         assert_eq!(result, Some(c));
+
+        // modify a file to test import
+        let modified_esp = Path::new("tests/assets/Data Files/mod1.esp");
+        assert!(std::fs::write(modified_esp, b"test").is_ok());
+
         // import
         let (p_out, d_out, c_out) = get_out_cfg();
         let result = import(Some(data_files), Some(p_out.clone()), true);
