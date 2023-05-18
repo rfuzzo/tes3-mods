@@ -67,9 +67,10 @@ mod unit_tests {
         assert_eq!(files.len(), plugin_names.len());
 
         // now copy the actual files
-        let copy_result = copy_files(&files, out_path.as_path(), false);
-        assert!(copy_result.is_some());
-        let count = copy_result.unwrap().len();
+        let mut manifest = omw_util::Manifest::default();
+        copy_files(&files, out_path.as_path(), &mut manifest, false);
+        assert!(!manifest.files.is_empty());
+        let count = manifest.files.len();
         assert_eq!(count, c);
 
         // cleanup

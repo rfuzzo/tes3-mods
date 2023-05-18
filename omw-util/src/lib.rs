@@ -8,9 +8,10 @@ use std::{
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Default, Serialize, Deserialize, Debug)]
 pub struct Manifest {
-    pub files: Vec<PathBuf>,
+    pub files: Vec<String>,
+    pub existing_files: Vec<String>,
 }
 
 /// Returns an Iterator to the Reader of the lines of the file.
@@ -105,30 +106,46 @@ fn get_plugins_in_folder(path: &Path) -> Vec<PathBuf> {
 }
 
 /// Copies files to out_path
-pub fn copy_files(in_files: &Vec<PathBuf>, out_path: &Path, verbose: bool) -> Option<Vec<PathBuf>> {
-    if !out_path.is_dir() {
-        return None;
-    }
-    let mut result: Vec<PathBuf> = vec![];
+pub fn copy_files(
+    in_files: &Vec<PathBuf>,
+    out_path: &Path,
+    manifest: &mut Manifest,
+    verbose: bool,
+) {
+    let mut existing: Vec<String> = vec![];
+    let mut result: Vec<String> = vec![];
     for file in in_files {
         // copy file
         if let Some(file_name) = file.file_name() {
             let new_path = out_path.join(file_name);
-            match fs::copy(file, &new_path) {
-                Ok(_) => {
-                    if verbose {
-                        debug!("Copied {}", file.display());
-                    }
+            // if the working dir is the same as the data files dir
+            // we will save the existing files to the manifest
+            // this can be used later to prevent deleting existing files
+            if file == &new_path {
+                warn!(
+                    "Working directory is equal to mod directory. {} not copied",
+                    file_name.to_string_lossy()
+                );
+                result.push(file_name.to_string_lossy().into_owned());
+                existing.push(file_name.to_string_lossy().into_owned()); // duplicate here to retain the correct order
+            } else {
+                match fs::copy(file, &new_path) {
+                    Ok(_) => {
+                        if verbose {
+                            debug!("Copied {}", file.display());
+                        }
 
-                    result.push(new_path);
-                }
-                Err(_) => {
-                    warn!("Failed to copy {}", file.display());
+                        result.push(file_name.to_string_lossy().into_owned());
+                    }
+                    Err(_) => {
+                        warn!("Failed to copy {}", file.display());
+                    }
                 }
             }
         }
     }
-    Some(result)
+    manifest.files = result;
+    manifest.existing_files = existing;
 }
 
 /// Returns the default openmw.cfg path if it exists, and None if not
@@ -245,25 +262,12 @@ pub fn export(
     }
 
     // now copy the actual files
-    let manifest: Manifest;
+    let mut manifest = Manifest::default();
     info!("Copying files to {} ...", out_path.display());
-    let copy_result = copy_files(&plugins_to_copy, &out_path, verbose);
-    if let Some(copied_files) = &copy_result {
-        manifest = Manifest {
-            files: copied_files.clone(),
-        };
+    copy_files(&plugins_to_copy, &out_path, &mut manifest, verbose);
 
-        info!("Copied {} files", copied_files.len());
-
-        if copied_files.len() == plugins_to_copy.len() {
-            info!("All files accounted for");
-        } else {
-            warn!("Could not copy all files!");
-        }
-    } else {
-        error!("Could not copy any files!");
-        return None;
-    }
+    info!("Processed {} files", manifest.files.len());
+    info!("Found {} existing files", manifest.existing_files.len());
 
     // save the manifest as toml
     match toml::to_string_pretty(&manifest) {
@@ -310,19 +314,16 @@ pub fn export(
             }
         }
         // write plugins
+        // get existing and copied files
         let mut count = 0;
-        for (i, p) in copy_result.unwrap().iter().enumerate() {
+        for (i, p) in manifest.files.iter().enumerate() {
             // TODO proper eol
-            let content_line = format!(
-                "GameFile{}={}\n",
-                i,
-                p.file_name().unwrap().to_str().unwrap()
-            );
+            let content_line = format!("GameFile{}={}\n", i, p);
             match file.write(content_line.as_bytes()) {
                 Ok(_) => {
                     count += 1;
                 }
-                Err(err) => warn!("Error writing plugin {}: {}", p.display(), err),
+                Err(err) => warn!("Error writing plugin {}: {}", p, err),
             }
         }
         info!("Updated morrowind.ini with {} plugins", count);
@@ -360,19 +361,31 @@ pub fn cleanup(dir_option: &Option<PathBuf>) -> Option<usize> {
             if let Ok(manifest) = toml::from_str::<Manifest>(file_content.as_str()) {
                 // read the files
                 info!("Found {} files to delete", manifest.files.len());
+                info!(
+                    "Found {} existing files to ignore",
+                    manifest.existing_files.len()
+                );
                 let mut count = 0;
-                for file in &manifest.files {
+                for file_name in &manifest.files {
+                    // check against existing mod files
+                    if manifest.existing_files.contains(file_name) {
+                        debug!("Skipping existing file {}", file_name);
+                        continue;
+                    }
                     // delete file
+                    let file = in_path.join(file_name);
                     if fs::remove_file(file).is_err() {
-                        debug!("Could not delete file {}", file.display());
+                        debug!("Could not delete file {}", file_name);
                     } else {
-                        debug!("Deleted file {}", file.display());
+                        debug!("Deleted file {}", file_name);
                         count += 1;
                     }
                 }
-                if count != manifest.files.len() {
+                if count != manifest.files.len() - manifest.existing_files.len() {
                     warn!("Not all files were deleted!")
                 }
+
+                info!("Removed {} files from {}", count, in_path.display());
                 return Some(count);
             }
         }
