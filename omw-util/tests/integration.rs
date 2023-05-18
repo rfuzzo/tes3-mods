@@ -21,7 +21,7 @@ mod integration_tests {
         let data_files = get_data_files_path();
 
         let (p, _d, c) = get_cfg();
-        let result = export(Some(p), Some(data_files.to_owned()));
+        let result = export(Some(p), Some(data_files.to_owned()), false);
         assert_eq!(result, Some(c));
 
         // check order
@@ -36,7 +36,7 @@ mod integration_tests {
 
         let (p, _d, c) = get_cfg();
         // export to set up test
-        let result = export(Some(p), Some(data_files.to_owned()));
+        let result = export(Some(p), Some(data_files.to_owned()), false);
         assert_eq!(result, Some(c));
 
         // modify a file to test import

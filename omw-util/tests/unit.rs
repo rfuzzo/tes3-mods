@@ -67,7 +67,7 @@ mod unit_tests {
         assert_eq!(files.len(), plugin_names.len());
 
         // now copy the actual files
-        let copy_result = copy_files(&files, out_path.as_path());
+        let copy_result = copy_files(&files, out_path.as_path(), false);
         assert!(copy_result.is_some());
         let count = copy_result.unwrap().len();
         assert_eq!(count, c);
