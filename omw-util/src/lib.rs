@@ -105,7 +105,7 @@ fn get_plugins_in_folder(path: &Path) -> Vec<PathBuf> {
 }
 
 /// Copies files to out_path
-pub fn copy_files(in_files: &Vec<PathBuf>, out_path: &Path) -> Option<Vec<PathBuf>> {
+pub fn copy_files(in_files: &Vec<PathBuf>, out_path: &Path, verbose: bool) -> Option<Vec<PathBuf>> {
     if !out_path.is_dir() {
         return None;
     }
@@ -116,7 +116,9 @@ pub fn copy_files(in_files: &Vec<PathBuf>, out_path: &Path) -> Option<Vec<PathBu
             let new_path = out_path.join(file_name);
             match fs::copy(file, &new_path) {
                 Ok(_) => {
-                    debug!("Copied {}", file.display());
+                    if verbose {
+                        debug!("Copied {}", file.display());
+                    }
 
                     result.push(new_path);
                 }
@@ -201,13 +203,19 @@ fn check_cfg_path(in_path_option: Option<PathBuf>) -> Option<PathBuf> {
 }
 
 /// Copy plugins found in the openmw.cfg to specified directory, default is current working directory
-pub fn export(cfg_path_option: Option<PathBuf>, out_path_option: Option<PathBuf>) -> Option<usize> {
+pub fn export(
+    cfg_path_option: Option<PathBuf>,
+    out_path_option: Option<PathBuf>,
+    verbose: bool,
+) -> Option<usize> {
     // checks
     let in_path = match check_cfg_path(cfg_path_option) {
         Some(value) => value,
         None => return None,
     };
-    let mut out_path = Path::new("").to_path_buf();
+    let mut out_path = Path::new("./")
+        .canonicalize()
+        .expect("Could not expand relative path");
     if let Some(path) = out_path_option {
         // checks
         if !path.exists() {
@@ -239,7 +247,7 @@ pub fn export(cfg_path_option: Option<PathBuf>, out_path_option: Option<PathBuf>
     // now copy the actual files
     let manifest: Manifest;
     info!("Copying files to {} ...", out_path.display());
-    let copy_result = copy_files(&plugins_to_copy, &out_path);
+    let copy_result = copy_files(&plugins_to_copy, &out_path, verbose);
     if let Some(copied_files) = &copy_result {
         manifest = Manifest {
             files: copied_files.clone(),
@@ -287,7 +295,7 @@ pub fn export(cfg_path_option: Option<PathBuf>, out_path_option: Option<PathBuf>
             }
         }
     } else {
-        error!("Could not parse cfg file {}", ini_path.display());
+        error!("Could not parse ini file {}", ini_path.display());
         return None;
     }
     // reassemble ini
@@ -302,6 +310,7 @@ pub fn export(cfg_path_option: Option<PathBuf>, out_path_option: Option<PathBuf>
             }
         }
         // write plugins
+        let mut count = 0;
         for (i, p) in copy_result.unwrap().iter().enumerate() {
             // TODO proper eol
             let content_line = format!(
@@ -310,10 +319,13 @@ pub fn export(cfg_path_option: Option<PathBuf>, out_path_option: Option<PathBuf>
                 p.file_name().unwrap().to_str().unwrap()
             );
             match file.write(content_line.as_bytes()) {
-                Ok(_) => {}
+                Ok(_) => {
+                    count += 1;
+                }
                 Err(err) => warn!("Error writing plugin {}: {}", p.display(), err),
             }
         }
+        info!("Updated morrowind.ini with {} plugins", count);
     } else {
         error!("Could not write cfg file {}", ini_path.display());
         return None;
@@ -325,7 +337,9 @@ pub fn export(cfg_path_option: Option<PathBuf>, out_path_option: Option<PathBuf>
 /// Cleans up a directory with a valid omw-util.manifest file
 pub fn cleanup(dir_option: &Option<PathBuf>) -> Option<usize> {
     // checks
-    let mut in_path = Path::new("");
+    let mut in_path = &Path::new("./")
+        .canonicalize()
+        .expect("Could not expand relative path");
     if let Some(path) = dir_option {
         // checks
         if !path.exists() {
@@ -380,7 +394,9 @@ pub fn cleanup(dir_option: &Option<PathBuf>) -> Option<usize> {
 /// Panics if filenames are stupid
 pub fn import(data_files_opt: Option<PathBuf>, cfg_opt: Option<PathBuf>, clean: bool) -> bool {
     // checks
-    let mut data_files_path = Path::new("").to_path_buf();
+    let mut data_files_path = Path::new("./")
+        .canonicalize()
+        .expect("Could not expand relative path");
     if let Some(path) = data_files_opt {
         // checks
         if !path.exists() {
@@ -410,9 +426,10 @@ pub fn import(data_files_opt: Option<PathBuf>, cfg_opt: Option<PathBuf>, clean: 
             .unwrap()
             .cmp(&fs::metadata(b).expect("filetime").modified().unwrap())
     });
+    info!("Found {} plugins to import", all_plugins.len());
 
     // get everything that is not a content line
-    info!("Parsing cfg {} ...", cfg_path.display());
+    info!("Writing cfg {} ...", cfg_path.display());
     let mut original_cfg: Vec<String> = vec![];
     if let Ok(lines) = read_lines(&cfg_path) {
         for line in lines.flatten() {
@@ -437,7 +454,7 @@ pub fn import(data_files_opt: Option<PathBuf>, cfg_opt: Option<PathBuf>, clean: 
             }
         }
         // write plugins
-        for p in all_plugins {
+        for p in all_plugins.iter() {
             // TODO proper eol
             let content_line = format!("content={}\n", p.file_name().unwrap().to_str().unwrap());
             match file.write(content_line.as_bytes()) {
@@ -445,6 +462,8 @@ pub fn import(data_files_opt: Option<PathBuf>, cfg_opt: Option<PathBuf>, clean: 
                 Err(err) => warn!("Error writing plugin {}: {}", p.display(), err),
             }
         }
+
+        info!("Imported {} plugins", all_plugins.len());
     } else {
         error!("Could not write cfg file {}", cfg_path.display());
         return false;
@@ -452,6 +471,7 @@ pub fn import(data_files_opt: Option<PathBuf>, cfg_opt: Option<PathBuf>, clean: 
 
     // optionally clean up
     if clean {
+        info!("Cleaning up plugins ...");
         match cleanup(&Some(data_files_path)) {
             Some(_) => return true,
             None => return false,

@@ -6,7 +6,7 @@ use std::process::ExitCode;
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-    /// TODO Verbose output
+    /// Verbose output
     #[arg(short, long)]
     verbose: bool,
 
@@ -44,7 +44,8 @@ enum Commands {
         // options
         /// The path to the openmw.cfg, default is openMWs's default location
         #[arg(short, long)]
-        config: Option<PathBuf>,
+        in_path: Option<PathBuf>,
+
         /// Clean up files after importing
         #[arg(short, long)]
         cleanup: bool,
@@ -57,12 +58,12 @@ fn main() -> ExitCode {
 
     match &cli.command {
         Some(Commands::Export { config, dir }) => {
-            let _result = export(dir.to_owned(), config.to_owned());
+            let _result = export(dir.to_owned(), config.to_owned(), cli.verbose);
             ExitCode::SUCCESS
         }
         Some(Commands::Import {
             dir,
-            config,
+            in_path: config,
             cleanup,
         }) => {
             if import(dir.to_owned(), config.to_owned(), *cleanup) {
