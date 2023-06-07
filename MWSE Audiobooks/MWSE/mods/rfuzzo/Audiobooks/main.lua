@@ -263,83 +263,6 @@ end
 
 ------------------------------------------------------------------------------------
 
--- OK button callback.
-local function onPromptRead(e)
-    local menu = tes3ui.findMenu(read_menu)
-
-    if (menu) then
-        playSoundInternal()
-
-        tes3ui.leaveMenuMode()
-        menu:destroy()
-    end
-end
-
--- Stop button callback.
-local function onPromptStop(e)
-    local menu = tes3ui.findMenu(read_menu)
-
-    if (menu) then
-        removeSoundInternal()
-
-        tes3ui.leaveMenuMode()
-        menu:destroy()
-    end
-end
-
--- Cancel button callback.
-local function onPromptCancel(e)
-    local menu = tes3ui.findMenu(read_menu)
-    if (menu) then
-        tes3ui.leaveMenuMode()
-        menu:destroy()
-    end
-end
-
-local function createReadWindow()
-    -- Return if window is already open
-    if (tes3ui.findMenu(read_menu) ~= nil) then return end
-
-    -- Create window and frame
-    local menu = tes3ui.createMenu {id = read_menu, fixedFrame = true}
-
-    -- To avoid low contrast, text input windows should not use menu transparency settings
-    menu.alpha = 1.0
-
-    -- Create layout
-    local input_label = menu:createLabel{
-        text = "Would you like to read this book out loud?"
-    }
-    input_label.borderBottom = 5
-
-    local input_block = menu:createBlock{}
-    input_block.autoHeight = true
-    input_block.childAlignX = 0.5 -- centre content alignment
-
-    local button_block = menu:createBlock{}
-    button_block.widthProportional = 1.0 -- width is 100% parent width
-    button_block.autoHeight = true
-    button_block.childAlignX = 0.5 -- centre content alignment
-    local button_ok = button_block:createButton{id = read_menu_ok, text = "Yes"}
-    local button_stop = button_block:createButton{
-        id = read_menu_stop,
-        text = "Read silently"
-    }
-    local button_cancel = button_block:createButton{
-        id = read_menu_cancel,
-        text = "Cancel"
-    }
-
-    -- Events
-    button_ok:register(tes3.uiEvent.mouseClick, onPromptRead)
-    button_stop:register(tes3.uiEvent.mouseClick, onPromptStop)
-    button_cancel:register(tes3.uiEvent.mouseClick, onPromptCancel)
-
-    -- Final setup
-    menu:updateLayout()
-    tes3ui.enterMenuMode(read_menu)
-end
-
 --- @param e equipEventData
 local function equipCallback(e)
     if (e.item.objectType ~= tes3.objectType.book) then return end
@@ -351,7 +274,11 @@ local function equipCallback(e)
     -- debug.log(sanitized_id)
     -- debug.log(sound_path)
 
-    if sound_path ~= nil then temp_book_id = sanitized_id end
+    if sound_path ~= nil then
+        temp_book_id = sanitized_id
+    else
+        temp_book_id = nil
+    end
 
 end
 event.register(tes3.event.equip, equipCallback, {priority = 100})
@@ -367,7 +294,11 @@ local function activateCallback(e)
     -- debug.log(sanitized_id)
     -- debug.log(sound_path)
 
-    if sound_path ~= nil then temp_book_id = sanitized_id end
+    if sound_path ~= nil then
+        temp_book_id = sanitized_id
+    else
+        temp_book_id = nil
+    end
 end
 event.register(tes3.event.activate, activateCallback)
 
@@ -387,8 +318,6 @@ local function uiActivatedCallback(e)
     if (e.element.name ~= "MenuBook") then return end
 
     if temp_book_id == nil then return end
-
-    -- createReadWindow()
 
     -- add buttons
     if ADD_BUTTONS then
