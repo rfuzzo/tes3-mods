@@ -7,12 +7,16 @@ mwse real-time travel mod
 
 ---
 Current Usage (Debug)
-- renders current route (Seyda-Neen to Balmora) with debug markers
-- to move a marker 			... L-Ctrl
-- to exit edit mode 			... L-Ctrl again
-- to add a marker			... < key
-- to log the current marker list 	... > key
+- render current route 						... p key
+- move a marker 									... L-Ctrl
+- delete a marker 								... Del
+- exit edit mode 									... L-Ctrl
+- add a marker										... <
+- log the current marker list 		... >
+- display distance to ground 			... o
+- 
 
+to refactor:
 - to start traveling	... / on the silt strider in Seyda Neen
 
 --]] local test_menu = tes3ui.registerID("example:MenuTest")
