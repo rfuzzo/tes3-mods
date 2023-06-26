@@ -17,11 +17,16 @@ Current Usage (Debug)
 - 
 
 to refactor:
-- to start traveling	... / on the silt strider in Seyda Neen
+- to start traveling	... / on the silt strider in Seyda Neen --]] -- 
+-- /////////////////////////////////////////////////////////////////////////////////////////
+-- ////////////// VARIABLES
+local edit_menu = tes3ui.registerID("it:MenuEdit")
+local edit_menu_display = tes3ui.registerID("it:MenuEdit_Display")
+local edit_menu_cancel = tes3ui.registerID("it:MenuEdit_Cancel")
 
---]] local test_menu = tes3ui.registerID("example:MenuTest")
-local test_menu_ok = tes3ui.registerID("example:MenuTest_Ok")
-local test_menu_cancel = tes3ui.registerID("example:MenuTest_Cancel")
+local test_menu = tes3ui.registerID("it:test_menu")
+local test_menu_ok = tes3ui.registerID("it:test_menu_ok")
+local test_menu_cancel = tes3ui.registerID("it:test_menu_cancel")
 
 ---@type mwseTimer | nil
 local myTimer = nil
@@ -30,21 +35,27 @@ local speed = 4 -- the speed of the object in units per timertick
 local angle = 0.002 -- the angle of rotation in radians per timertick
 local timertick = 0.01
 
-local sn = require("rfuzzo.ImmersiveTravel.data.default")
+local data = require("rfuzzo.ImmersiveTravel.data.data")
+local current_data = "sb_bm"
 
 ---@type tes3reference | nil
 local mount = nil
 local mountOffset = tes3vector3.new(0, 0, -1100)
 
 -- editor
+local editmode = false
+local editor_marker = "marker_arrow.nif"
 ---@type niNode[]
 local editor_markers = {}
 local editor_instance = nil
-local editmode = false
-local editor_marker = "marker_arrow.nif"
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// LOGIC
+
+local function get_current_spline()
+    -- get currently selected spline
+    return data.splines[current_data]
+end
 
 local function getLookedAtReference()
     -- Get the player's eye position and direction.
@@ -65,12 +76,73 @@ local function getLookedAtReference()
     return nil
 end
 
+---@param a number
+---@return tes3matrix33
+local function rotation_matrix_z(a)
+    local c = math.cos(a)
+    local s = math.sin(a)
+    return tes3matrix33.new(c, -s, 0, s, c, 0, 0, 0, 1)
+end
+
+local function raytest()
+    local from = tes3.player.position
+    local rayhit = tes3.rayTest {
+        position = from,
+        direction = tes3vector3.new(0, 0, -1),
+        returnNormal = true
+    }
+
+    if (rayhit) then
+        local to = rayhit.intersection
+        local dist = to.z - from.z
+        tes3.messageBox("DIST( " .. dist .. " ) - FROM (" .. from.z .. ")" ..
+                            "TO (" .. to.z .. ")")
+
+    end
+
+end
+
+--- @param from tes3vector3
+--- @return number|nil
+local function getDistToGround(from)
+    local rayhit = tes3.rayTest {
+        position = from,
+        direction = tes3vector3.new(0, 0, -1),
+        returnNormal = true
+    }
+
+    if (rayhit) then
+        local to = rayhit.intersection
+        local dist = to.z - from.z
+        return dist
+    end
+
+    return nil
+end
+
+--- @param from tes3vector3
+--- @return number|nil
+local function getGroundZ(from)
+    local rayhit = tes3.rayTest {
+        position = from,
+        direction = tes3vector3.new(0, 0, -1),
+        returnNormal = true
+    }
+
+    if (rayhit) then
+        local to = rayhit.intersection
+        return to.z
+    end
+
+    return nil
+end
+
 local function onTimerTick()
     if mount == nil then return; end
     if myTimer == nil then return; end
 
-    if spline_index <= #sn.spline then -- if i is not at the end of the list
-        local s = sn.spline[spline_index]
+    if spline_index <= #get_current_spline() then -- if i is not at the end of the list
+        local s = get_current_spline()[spline_index]
         local next_pos = tes3vector3.new(s.x, s.y, s.z)
 
         local d = next_pos - tes3.player.position -- get the direction vector from the object to the coordinate
@@ -133,35 +205,6 @@ end
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// TEST WINDOW
 
--- OK button callback.
-local function onTestOK(e)
-    if mount == nil then return end
-
-    local menu = tes3ui.findMenu(test_menu)
-    if (menu) then
-        myTimer = timer.start({
-            duration = timertick,
-            type = timer.real,
-            iterations = -1,
-            callback = onTimerTick
-        })
-
-        tes3ui.leaveMenuMode()
-        menu:destroy()
-    end
-end
-
--- Cancel button callback.
-local function onTestCancel(e)
-    local menu = tes3ui.findMenu(test_menu)
-
-    if (menu) then
-        mount = nil
-        tes3ui.leaveMenuMode()
-        menu:destroy()
-    end
-end
-
 -- Create window and layout. Called by onCommand.
 local function createTestWindow()
     -- Return if window is already open
@@ -197,8 +240,30 @@ local function createTestWindow()
     }
 
     -- Events
-    button_cancel:register(tes3.uiEvent.mouseClick, onTestCancel)
-    button_ok:register(tes3.uiEvent.mouseClick, onTestOK)
+    button_cancel:register(tes3.uiEvent.mouseClick, function()
+        local m = tes3ui.findMenu(test_menu)
+        if (m) then
+            mount = nil
+            tes3ui.leaveMenuMode()
+            m:destroy()
+        end
+    end)
+    button_ok:register(tes3.uiEvent.mouseClick, function()
+        if mount == nil then return end
+
+        local m = tes3ui.findMenu(test_menu)
+        if (m) then
+            myTimer = timer.start({
+                duration = timertick,
+                type = timer.real,
+                iterations = -1,
+                callback = onTimerTick
+            })
+
+            tes3ui.leaveMenuMode()
+            m:destroy()
+        end
+    end)
 
     -- Final setup
     menu:updateLayout()
@@ -208,31 +273,16 @@ end
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// EDITOR
 
--- Keydown callback.
-local function startTravel()
-    local t = getLookedAtReference()
-    if (t) then
+event.register("simulate", function(e)
+    if editmode == false then return end
 
-        mwse.log("=== start === ")
-        mwse.log("baseObject: " .. t.baseObject.id)
-        mwse.log("mesh: " .. t.baseObject.mesh)
-        mwse.log("position: " .. t.position:__tostring())
-        mwse.log("boundingBox: " .. t.baseObject.boundingBox:__tostring())
-        mwse.log("height: " .. t.baseObject.boundingBox.max.z)
-        mwse.log("=== end === ")
+    local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
+    local groundZ = getGroundZ(from)
+    from.z = groundZ + 1025
 
-        mount = t
-        createTestWindow()
-    end
-end
-
----@param a number
----@return tes3matrix33
-local function rotation_matrix_z(a)
-    local c = math.cos(a)
-    local s = math.sin(a)
-    return tes3matrix33.new(c, -s, 0, s, c, 0, 0, 0, 1)
-end
+    editor_instance.translation = from
+    editor_instance:update()
+end)
 
 local function updateMarkers()
     -- update rotation
@@ -289,59 +339,6 @@ local function getClosestMarkerIdx()
     return finali
 end
 
-local function raytest()
-    local from = tes3.player.position
-    local rayhit = tes3.rayTest {
-        position = from,
-        direction = tes3vector3.new(0, 0, -1),
-        returnNormal = true
-    }
-
-    if (rayhit) then
-        local to = rayhit.intersection
-        local dist = to.z - from.z
-        tes3.messageBox("DIST( " .. dist .. " ) - FROM (" .. from.z .. ")" ..
-                            "TO (" .. to.z .. ")")
-
-    end
-
-end
-
---- @param from tes3vector3
---- @return number|nil
-local function getDistToGround(from)
-    local rayhit = tes3.rayTest {
-        position = from,
-        direction = tes3vector3.new(0, 0, -1),
-        returnNormal = true
-    }
-
-    if (rayhit) then
-        local to = rayhit.intersection
-        local dist = to.z - from.z
-        return dist
-    end
-
-    return nil
-end
-
---- @param from tes3vector3
---- @return number|nil
-local function getGroundZ(from)
-    local rayhit = tes3.rayTest {
-        position = from,
-        direction = tes3vector3.new(0, 0, -1),
-        returnNormal = true
-    }
-
-    if (rayhit) then
-        local to = rayhit.intersection
-        return to.z
-    end
-
-    return nil
-end
-
 local function renderMarkers()
     local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
     vfxRoot:detachAllChildren()
@@ -349,7 +346,7 @@ local function renderMarkers()
     -- add markers
     local mesh = tes3.loadMesh(editor_marker)
 
-    for idx, v in ipairs(sn.spline) do
+    for idx, v in ipairs(get_current_spline()) do
 
         local child = mesh:clone()
         child.translation = tes3vector3.new(v.x, v.y, v.z)
@@ -366,35 +363,109 @@ local function renderMarkers()
     updateMarkers()
 end
 
--- Keydown callback.
-local function onLogCommand(e)
-    -- createLogWindow()
-    mwse.log(tes3.player.position.x .. "," .. tes3.player.position.y .. "," ..
-                 tes3.player.position.z)
-    tes3.messageBox(tes3.player.position.x .. "," .. tes3.player.position.y ..
-                        "," .. tes3.player.position.z)
+local function createEditWindow()
+    -- Return if window is already open
+    if (tes3ui.findMenu(edit_menu) ~= nil) then return end
 
+    -- Create window and frame
+    local menu = tes3ui.createMenu {
+        id = edit_menu,
+        fixedFrame = false,
+        dragFrame = true
+    }
+
+    -- To avoid low contrast, text input windows should not use menu transparency settings
+    menu.alpha = 1.0
+    menu.width = 300
+    menu.height = 400
+
+    -- Create layout
+    local input_label = menu:createLabel{text = "Editor"}
+    input_label.borderBottom = 5
+
+    -- local input_block = menu:createBlock{}
+    -- input_block.width = 300
+    -- input_block.height = 600
+    -- input_block.childAlignX = 0.5 -- centre content alignment
+
+    local pane = menu:createVerticalScrollPane{id = "sortedPane"}
+    for _key, value in ipairs(table.keys(data.splines)) do
+        local button = pane:createButton{
+            id = "button_spline" .. value,
+            text = value
+        }
+        button:register(tes3.uiEvent.mouseClick, function()
+            current_data = value
+            renderMarkers()
+        end)
+    end
+    pane:getContentElement():sortChildren(function(a, b)
+        return a.text < b.text
+    end)
+
+    local button_block = menu:createBlock{}
+    button_block.widthProportional = 1.0 -- width is 100% parent width
+    button_block.autoHeight = true
+    button_block.childAlignX = 1.0 -- right content alignment
+
+    local button_display = button_block:createButton{
+        id = edit_menu_display,
+        text = "Save"
+    }
+    local button_cancel = button_block:createButton{
+        id = edit_menu_cancel,
+        text = "Exit"
+    }
+
+    -- Leave Menu
+    button_cancel:register(tes3.uiEvent.mouseClick, function()
+        local m = tes3ui.findMenu(edit_menu)
+        if (m) then
+            mount = nil
+            tes3ui.leaveMenuMode()
+            m:destroy()
+        end
+    end)
+    -- log current spline
+    button_display:register(tes3.uiEvent.mouseClick, function()
+        -- reset spline
+        data.splines[current_data] = {}
+        -- print to file
+        mwse.log("============================================")
+        mwse.log(current_data)
+        mwse.log("============================================")
+        for i, value in ipairs(editor_markers) do
+            local t = value.translation
+            mwse.log("X { x = " .. math.round(t.x) .. ", y = " ..
+                         math.round(t.y) .. ", z = " .. math.round(t.z) .. " },")
+            -- save currently edited markers back to spline
+            table.insert(data.splines[current_data], i, {
+                x = math.round(t.x),
+                y = math.round(t.y),
+                z = math.round(t.z)
+            })
+
+        end
+        mwse.log("============================================")
+
+        renderMarkers()
+
+        tes3.messageBox("Printed coordinates")
+    end)
+
+    -- Final setup
+    menu:updateLayout()
+    tes3ui.enterMenuMode(edit_menu)
 end
 
---- @param e loadEventData
-local function loadCallback(e)
-    -- renderMarkers()
-end
-event.register(tes3.event.load, loadCallback)
-
-event.register("simulate", function(e)
-    if editmode == false then return end
-
-    local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
-    local groundZ = getGroundZ(from)
-    from.z = groundZ + 1025
-
-    editor_instance.translation = from
-    editor_instance:update()
-end)
+-- /////////////////////////////////////////////////////////////////////////////////////////
+-- ////////////// INPUT
 
 --- @param e keyDownEventData
 local function keyDownCallback(e)
+
+    -- menu
+    if e.keyCode == tes3.scanCode["rCtrl"] then createEditWindow() end
 
     -- edit mode
     if e.keyCode == tes3.scanCode["lCtrl"] then
@@ -411,10 +482,22 @@ local function keyDownCallback(e)
     end
 
     -- start travel
-    if e.keyCode == tes3.scanCode["forwardSlash"] then startTravel() end
+    if e.keyCode == tes3.scanCode["forwardSlash"] then
+        local t = getLookedAtReference()
+        if (t) then
 
-    -- render markers
-    if e.keyCode == tes3.scanCode["p"] then renderMarkers() end
+            mwse.log("=== start === ")
+            mwse.log("baseObject: " .. t.baseObject.id)
+            mwse.log("mesh: " .. t.baseObject.mesh)
+            mwse.log("position: " .. t.position:__tostring())
+            mwse.log("boundingBox: " .. t.baseObject.boundingBox:__tostring())
+            mwse.log("height: " .. t.baseObject.boundingBox.max.z)
+            mwse.log("=== end === ")
+
+            mount = t
+            createTestWindow()
+        end
+    end
 
     -- raytest
     if e.keyCode == tes3.scanCode["o"] then raytest() end
@@ -450,34 +533,12 @@ local function keyDownCallback(e)
         vfxRoot:attachChild(child)
         vfxRoot:update()
 
-        table.insert(editor_markers, idx, child)
+        table.insert(editor_markers, idx + 1, child)
 
         editor_instance = child
         editmode = true
     end
 
-    -- print
-    if e.keyCode == tes3.scanCode["keyRight"] then
-
-        mwse.log("============================================")
-        for _, value in ipairs(editor_markers) do
-            local p = value.translation
-
-            -- local z = getGroundZ(p)
-            -- if z == nil then
-            mwse.log("X { x = " .. math.round(p.x) .. ", y = " ..
-                         math.round(p.y) .. ", z = " .. math.round(p.z) .. " },")
-            -- else
-            --     mwse.log("{ x = " .. math.round(p.x) .. ", y = " ..
-            --                  math.round(p.y) .. ", z = " .. math.round(z + 1025) ..
-            --                  " },")
-            -- end
-
-        end
-        mwse.log("============================================")
-
-        tes3.messageBox("Printed coordinates")
-    end
 end
 event.register(tes3.event.keyDown, keyDownCallback)
 
