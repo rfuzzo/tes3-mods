@@ -35,6 +35,8 @@ local speed = 4 -- the speed of the object in units per timertick
 local angle = 0.002 -- the angle of rotation in radians per timertick
 local timertick = 0.01
 
+local current_travel_target = ""
+
 local data = require("rfuzzo.ImmersiveTravel.data.data")
 local current_data = "sb_bm"
 
@@ -52,7 +54,15 @@ local editor_instance = nil
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// LOGIC
 
+--- @return table<string, table>
 local function get_current_spline()
+    -- get currently selected spline
+    local inverted = string.endswith(current_travel_target, ".inv")
+    if inverted then return table.invert(data.splines[current_travel_target]) end
+    return data.splines[current_travel_target]
+end
+
+local function get_current_editor_spline()
     -- get currently selected spline
     return data.splines[current_data]
 end
@@ -205,32 +215,88 @@ end
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// TEST WINDOW
 
+--- @param s string
+--- @return string
+local function sanitize(s)
+    local result = string.gsub(s, "%s+", "")
+    return result
+end
+
+--- @param cell_name string
+local function get_destinations(cell_name)
+    local id = table.get(data.cell_mapping, sanitize(cell_name), "None")
+    mwse.log("cell_name: " .. cell_name .. ", sanitized: " ..
+                 sanitize(cell_name) .. ", id: " .. id)
+
+    local ids = {}
+    for _index, key in ipairs(table.keys(data.splines)) do
+        -- mwse.log(key)
+        -- TODO additional legs
+        if string.startswith(key, id .. "_") then
+            table.insert(ids, {name = key, invert = false})
+            -- mwse.log("Added " .. key)
+        end
+        if string.endswith(key, "_" .. id) then
+            -- invert
+            table.insert(ids, {name = key, invert = true})
+            -- mwse.log("Added " .. key .. ".inv")
+        end
+    end
+
+    -- dbg
+    mwse.log("ids: ")
+    for index, value in ipairs(ids) do mwse.log(value.name) end
+
+    return ids
+end
+
 -- Create window and layout. Called by onCommand.
 local function createTestWindow()
     -- Return if window is already open
     if (tes3ui.findMenu(test_menu) ~= nil) then return end
 
     -- Create window and frame
-    local menu = tes3ui.createMenu {id = test_menu, fixedFrame = true}
-
+    local menu = tes3ui.createMenu {
+        id = test_menu,
+        fixedFrame = false,
+        dragFrame = true
+    }
+    menu.width = 300
+    menu.height = 300
     -- To avoid low contrast, text input windows should not use menu transparency settings
     menu.alpha = 1.0
 
     -- Create layout
-    local input_label = menu:createLabel{text = "Start"}
+    local input_label = menu:createLabel{text = tes3.player.cell.id}
     input_label.borderBottom = 5
 
-    local input_block = menu:createBlock{}
-    input_block.width = 300
-    input_block.autoHeight = true
-    input_block.childAlignX = 0.5 -- centre content alignment
+    local pane = menu:createVerticalScrollPane{id = "sortedPane"}
+    local destination_ids = get_destinations(tes3.player.cell.id)
+    for _key, value in ipairs(destination_ids) do
+        local name = value.name
+        if value.inverted then name = name .. ".inv" end
+
+        local button = pane:createButton{
+            id = "button_spline_" .. name,
+            text = name
+        }
+        if current_travel_target == name then
+            button.widget.idle = tes3ui.getPalette("active_color")
+            button.widget.over = tes3ui.getPalette("active_color")
+        end
+        button:register(tes3.uiEvent.mouseClick,
+                        function() current_travel_target = name end)
+    end
+    pane:getContentElement():sortChildren(function(a, b)
+        return a.text < b.text
+    end)
 
     local button_block = menu:createBlock{}
     button_block.widthProportional = 1.0 -- width is 100% parent width
     button_block.autoHeight = true
     button_block.childAlignX = 1.0 -- right content alignment
 
-    local button_ok = button_block:createButton{
+    local button_start = button_block:createButton{
         id = test_menu_ok,
         text = "Start"
     }
@@ -248,7 +314,7 @@ local function createTestWindow()
             m:destroy()
         end
     end)
-    button_ok:register(tes3.uiEvent.mouseClick, function()
+    button_start:register(tes3.uiEvent.mouseClick, function()
         if mount == nil then return end
 
         local m = tes3ui.findMenu(test_menu)
@@ -284,24 +350,30 @@ event.register("simulate", function(e)
     editor_instance:update()
 end)
 
+--- @param forward tes3vector3
+--- @return tes3matrix33
+local function rotation_matrix_from_direction(forward)
+    forward:normalize()
+    local up = tes3vector3.new(0, 0, 1)
+    local right = up:cross(forward)
+    right:normalize()
+    up = right:cross(forward)
+
+    local rotation_matrix = tes3matrix33.new(right.x, forward.x, up.x, right.y,
+                                             forward.y, up.y, right.z,
+                                             forward.z, up.z)
+
+    return rotation_matrix
+end
+
 local function updateMarkers()
     -- update rotation
     for index, marker in ipairs(editor_markers) do
         if index < #editor_markers then
             local nextMarker = editor_markers[index + 1]
-            local dist = nextMarker.translation - marker.translation
-            -- dist:normalize()
-            local rotz = tes3vector3.new(0, 1, 0):angle(
-                             tes3vector3.new(dist.x, dist.y, 0))
-            -- local rotz = math.atan2(dist.x, dist.y)
-            -- if index == 1 then
-            -- 	mwse.log(rotz)
-            -- end
-
-            local m = tes3matrix33.new()
-            m:toIdentity()
-            m = rotation_matrix_z(rotz)
-            marker.rotation = m
+            local direction = nextMarker.translation - marker.translation
+            local rotation_matrix = rotation_matrix_from_direction(direction)
+            marker.rotation = rotation_matrix
 
         end
     end
@@ -315,38 +387,41 @@ local function getClosestMarkerIdx()
     -- get closest marker
     local pp = tes3.player.position
 
-    local finali = 0
-    local last_d = nil
-    for index, value in ipairs(editor_markers) do
-        local d = pp:distance(value.translation)
+    local final_idx = 1
+    local last_distance = nil
+    for index, marker in ipairs(editor_markers) do
+        local distance_to_marker = pp:distance(marker.translation)
 
         -- first
-        if last_d == nil then
-            last_d = d
-            finali = 1
+        if last_distance == nil then
+            last_distance = distance_to_marker
+            final_idx = 1
         end
 
-        if d < last_d then
-            finali = index
-            last_d = d
+        if distance_to_marker < last_distance then
+            final_idx = index
+            last_distance = distance_to_marker
         end
     end
 
-    editor_instance = editor_markers[finali]
+    editor_instance = editor_markers[final_idx]
 
     updateMarkers()
 
-    return finali
+    return final_idx
 end
 
 local function renderMarkers()
+    -- cleanup
+    editor_markers = {}
+    editor_instance = nil
     local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
     vfxRoot:detachAllChildren()
 
     -- add markers
     local mesh = tes3.loadMesh(editor_marker)
 
-    for idx, v in ipairs(get_current_spline()) do
+    for idx, v in ipairs(get_current_editor_spline()) do
 
         local child = mesh:clone()
         child.translation = tes3vector3.new(v.x, v.y, v.z)
@@ -383,17 +458,16 @@ local function createEditWindow()
     local input_label = menu:createLabel{text = "Editor"}
     input_label.borderBottom = 5
 
-    -- local input_block = menu:createBlock{}
-    -- input_block.width = 300
-    -- input_block.height = 600
-    -- input_block.childAlignX = 0.5 -- centre content alignment
-
     local pane = menu:createVerticalScrollPane{id = "sortedPane"}
     for _key, value in ipairs(table.keys(data.splines)) do
         local button = pane:createButton{
             id = "button_spline" .. value,
             text = value
         }
+        if current_data == value then
+            button.widget.idle = tes3ui.getPalette("active_color")
+            button.widget.over = tes3ui.getPalette("active_color")
+        end
         button:register(tes3.uiEvent.mouseClick, function()
             current_data = value
             renderMarkers()
@@ -436,8 +510,9 @@ local function createEditWindow()
         mwse.log("============================================")
         for i, value in ipairs(editor_markers) do
             local t = value.translation
-            mwse.log("X { x = " .. math.round(t.x) .. ", y = " ..
-                         math.round(t.y) .. ", z = " .. math.round(t.z) .. " },")
+            mwse.log(
+                "{ x = " .. math.round(t.x) .. ", y = " .. math.round(t.y) ..
+                    ", z = " .. math.round(t.z) .. " },")
             -- save currently edited markers back to spline
             table.insert(data.splines[current_data], i, {
                 x = math.round(t.x),
@@ -450,7 +525,7 @@ local function createEditWindow()
 
         renderMarkers()
 
-        tes3.messageBox("Printed coordinates")
+        tes3.messageBox("Printed coordinates: " .. current_data)
     end)
 
     -- Final setup
@@ -464,43 +539,20 @@ end
 --- @param e keyDownEventData
 local function keyDownCallback(e)
 
-    -- menu
+    -- editor menu
     if e.keyCode == tes3.scanCode["rCtrl"] then createEditWindow() end
 
-    -- edit mode
+    -- marker edit mode
     if e.keyCode == tes3.scanCode["lCtrl"] then
-        getClosestMarkerIdx()
-
-        -- if editmode == true then
-        --     -- leave edit mode and adjust marker
-        --     local gz = getGroundZ(editor_instance.translation)
-        --     editor_instance.translation.z = gz + 1025
-        --     updateMarkers()
-        -- end
-
+        local idx = getClosestMarkerIdx()
         editmode = not editmode
-    end
-
-    -- start travel
-    if e.keyCode == tes3.scanCode["forwardSlash"] then
-        local t = getLookedAtReference()
-        if (t) then
-
-            mwse.log("=== start === ")
-            mwse.log("baseObject: " .. t.baseObject.id)
-            mwse.log("mesh: " .. t.baseObject.mesh)
-            mwse.log("position: " .. t.position:__tostring())
-            mwse.log("boundingBox: " .. t.baseObject.boundingBox:__tostring())
-            mwse.log("height: " .. t.baseObject.boundingBox.max.z)
-            mwse.log("=== end === ")
-
-            mount = t
-            createTestWindow()
-        end
+        tes3.messageBox("Marker index: " .. idx)
     end
 
     -- raytest
-    if e.keyCode == tes3.scanCode["o"] then raytest() end
+    if e.keyCode == tes3.scanCode["o"] then
+        tes3.messageBox("Cell: " .. tes3.player.cell.id)
+    end
 
     -- delete
     if e.keyCode == tes3.scanCode["delete"] then
@@ -514,7 +566,8 @@ local function keyDownCallback(e)
     end
 
     -- insert
-    if e.keyCode == tes3.scanCode["keyLeft"] then
+    if e.keyCode == tes3.scanCode["keyRight"] or e.keyCode ==
+        tes3.scanCode["leftAlt"] then
         local idx = getClosestMarkerIdx()
         -- insert new instance
 
@@ -525,7 +578,6 @@ local function keyDownCallback(e)
                          256
 
         child.translation = tes3vector3.new(from.x, from.y, from.z)
-        -- TODO heading to next node
         child.appCulled = false
 
         local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
@@ -537,6 +589,15 @@ local function keyDownCallback(e)
 
         editor_instance = child
         editmode = true
+    end
+
+    -- start travel
+    if e.keyCode == tes3.scanCode["keyLeft"] then
+        local t = getLookedAtReference()
+        if (t) then
+            mount = t
+            createTestWindow()
+        end
     end
 
 end
