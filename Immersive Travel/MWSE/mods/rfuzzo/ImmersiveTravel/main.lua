@@ -7,17 +7,28 @@ mwse real-time travel mod
 
 ---
 Current Usage (Debug)
-- render current route 						... p key
-- move a marker 									... L-Ctrl
-- delete a marker 								... Del
-- exit edit mode 									... L-Ctrl
-- add a marker										... <
-- log the current marker list 		... >
-- display distance to ground 			... o
-- 
+- Open route editor 						... R-Ctrl
+- move a marker 							... L-Ctrl
+- delete a marker 							... Del
+- exit edit mode 							... L-Ctrl
+- add a marker								... >
+- start traveling            		        ... <
 
-to refactor:
-- to start traveling	... / on the silt strider in Seyda Neen --]] -- 
+to do
+- sway, walking animation
+- move player forward
+- complex routes
+---
+--]] -- 
+-- /////////////////////////////////////////////////////////////////////////////////////////
+-- ////////////// CONFIGURATION
+local speed = 4 -- the speed of the object in units per timertick
+local angle = 0.002 -- the angle of rotation in radians per timertick
+local timertick = 0.01
+local frequency = 0.16
+local amplitude = 0.02
+local mountOffset = tes3vector3.new(0, 0, -1220)
+
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// VARIABLES
 local edit_menu = tes3ui.registerID("it:MenuEdit")
@@ -28,21 +39,17 @@ local test_menu = tes3ui.registerID("it:test_menu")
 local test_menu_ok = tes3ui.registerID("it:test_menu_ok")
 local test_menu_cancel = tes3ui.registerID("it:test_menu_cancel")
 
+local data = require("rfuzzo.ImmersiveTravel.data.data")
+
 ---@type mwseTimer | nil
 local myTimer = nil
 local spline_index = 1
-local speed = 4 -- the speed of the object in units per timertick
-local angle = 0.002 -- the angle of rotation in radians per timertick
-local timertick = 0.01
-
 local current_travel_target = ""
-
-local data = require("rfuzzo.ImmersiveTravel.data.data")
 local current_data = "sb_bm"
-
 ---@type tes3reference | nil
 local mount = nil
-local mountOffset = tes3vector3.new(0, 0, -1100)
+local sway_time = 0
+local mount_scale = 1.0
 
 -- editor
 local editmode = false
@@ -147,46 +154,75 @@ local function getGroundZ(from)
     return nil
 end
 
+-- This function loops over the references inside the
+-- tes3referenceList and adds them to an array-style table
+---@param list tes3referenceList
+---@return tes3reference[]
+local function referenceListToTable(list)
+    local references = {} ---@type tes3reference[]
+    local i = 1
+    if list.size == 0 then return {} end
+    local ref = list.head
+
+    while ref.nextNode do
+        references[i] = ref
+        i = i + 1
+        ref = ref.nextNode
+    end
+
+    -- Add the last reference
+    references[i] = ref
+    return references
+end
+
+local function teleport_to_closest_marker()
+    local list = tes3.player.cell.statics
+    local references = referenceListToTable(list)
+    -- just get the first one idc
+    local marker = nil
+    for _, r in ipairs(references) do
+        -- Do something with the reference
+        mwse.log(r.baseObject.id)
+        if r.baseObject.isLocationMarker then
+            mwse.log("found a marker!")
+            marker = r
+        end
+    end
+    if marker ~= nil then
+        tes3.positionCell({
+            reference = tes3.mobilePlayer,
+            cell = tes3.player.cell,
+            position = marker.position
+        })
+    end
+end
+
 local function onTimerTick()
     if mount == nil then return; end
     if myTimer == nil then return; end
 
     if spline_index <= #get_current_spline() then -- if i is not at the end of the list
-        local s = get_current_spline()[spline_index]
-        local next_pos = tes3vector3.new(s.x, s.y, s.z)
-
+        -- set position
+        local point = get_current_spline()[spline_index]
+        local next_pos = tes3vector3.new(point.x, point.y, point.z)
         local d = next_pos - tes3.player.position -- get the direction vector from the object to the coordinate
         local dist = d:length() -- get the distance from the object to the coordinate
         d:normalize()
         local d_n = d
 
-        -- position of player and mount
-        -- local result = tes3.rayTest {
-        -- 	position = { tes3.player.position.x, tes3.player.position.y, tes3.player.position.z },
-        -- 	direction = { 0, 0, -1 },
-        -- 	-- ignore = ignoreList,
-        -- 	returnNormal = true,
-        -- 	useBackTriangles = false,
-        -- 	root = tes3.game.worldLandscapeRoot,
-        -- }
-
-        -- if result then
-
-        -- end
-
         if dist > speed then
             local p = tes3.player.position + (d_n * speed) -- move the object by speed units along the direction vector 
 
-            mount.position = p + mountOffset
+            mount.position = p + (mountOffset * mount_scale)
             tes3.player.position = p
         else
-            mount.position = next_pos + mountOffset
+            mount.position = next_pos + (mountOffset * mount_scale)
             tes3.player.position = next_pos
 
             spline_index = spline_index + 1
         end
 
-        -- heading for mount
+        -- set heading
         local current_facing = mount.facing
         local new_facing = math.atan2(d_n.x, d_n.y)
         local facing = new_facing
@@ -203,12 +239,28 @@ local function onTimerTick()
         end
         mount.facing = facing
 
+        -- set sway
+        sway_time = sway_time + timertick
+        if sway_time > (2000 * frequency) then sway_time = timertick end
+        local sway = amplitude * math.sin(2 * math.pi * frequency * sway_time)
+        mount.orientation = tes3vector3.new(sway, -sway, mount.orientation.z)
+
     else -- if i is at the end of the list
-        -- cleanup all
-        mount = nil
+        -- cleanup all]
         myTimer:cancel()
         spline_index = 1
-        tes3.messageBox("ended")
+        tes3.messageBox("Arrived")
+
+        -- teleport player to travel marker
+        teleport_to_closest_marker();
+
+        -- remove tcl
+        tes3.mobilePlayer.movementCollision = true;
+
+        -- delete the mount
+        mount:delete()
+        mount = nil
+        mount_scale = 1.0
     end
 end
 
@@ -224,28 +276,18 @@ end
 
 --- @param cell_name string
 local function get_destinations(cell_name)
-    local id = table.get(data.cell_mapping, sanitize(cell_name), "None")
-    mwse.log("cell_name: " .. cell_name .. ", sanitized: " ..
-                 sanitize(cell_name) .. ", id: " .. id)
+    local id = sanitize(cell_name)
+    -- mwse.log("cell_name: " .. cell_name .. ", sanitized: " .. id)
 
     local ids = {}
     for _index, key in ipairs(table.keys(data.splines)) do
-        -- mwse.log(key)
-        -- TODO additional legs
         if string.startswith(key, id .. "_") then
             table.insert(ids, {name = key, invert = false})
-            -- mwse.log("Added " .. key)
         end
         if string.endswith(key, "_" .. id) then
-            -- invert
             table.insert(ids, {name = key, invert = true})
-            -- mwse.log("Added " .. key .. ".inv")
         end
     end
-
-    -- dbg
-    mwse.log("ids: ")
-    for index, value in ipairs(ids) do mwse.log(value.name) end
 
     return ids
 end
@@ -263,7 +305,6 @@ local function createTestWindow()
     }
     menu.width = 300
     menu.height = 300
-    -- To avoid low contrast, text input windows should not use menu transparency settings
     menu.alpha = 1.0
 
     -- Create layout
@@ -274,7 +315,7 @@ local function createTestWindow()
     local destination_ids = get_destinations(tes3.player.cell.id)
     for _key, value in ipairs(destination_ids) do
         local name = value.name
-        if value.inverted then name = name .. ".inv" end
+        if value.invert then name = name .. ".inv" end
 
         local button = pane:createButton{
             id = "button_spline_" .. name,
@@ -310,6 +351,7 @@ local function createTestWindow()
         local m = tes3ui.findMenu(test_menu)
         if (m) then
             mount = nil
+            mount_scale = 1.0
             tes3ui.leaveMenuMode()
             m:destroy()
         end
@@ -328,6 +370,7 @@ local function createTestWindow()
 
             tes3ui.leaveMenuMode()
             m:destroy()
+            tes3.mobilePlayer.movementCollision = false;
         end
     end)
 
@@ -344,7 +387,11 @@ event.register("simulate", function(e)
 
     local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
     local groundZ = getGroundZ(from)
-    from.z = groundZ + 1025
+    if groundZ == nil then
+        from.z = 1025
+    else
+        from.z = groundZ + 1025
+    end
 
     editor_instance.translation = from
     editor_instance:update()
@@ -387,7 +434,7 @@ local function getClosestMarkerIdx()
     -- get closest marker
     local pp = tes3.player.position
 
-    local final_idx = 1
+    local final_idx = 0
     local last_distance = nil
     for index, marker in ipairs(editor_markers) do
         local distance_to_marker = pp:distance(marker.translation)
@@ -496,6 +543,7 @@ local function createEditWindow()
         local m = tes3ui.findMenu(edit_menu)
         if (m) then
             mount = nil
+            mount_scale = 1.0
             tes3ui.leaveMenuMode()
             m:destroy()
         end
@@ -551,7 +599,23 @@ local function keyDownCallback(e)
 
     -- raytest
     if e.keyCode == tes3.scanCode["o"] then
-        tes3.messageBox("Cell: " .. tes3.player.cell.id)
+        tes3.messageBox(tes3.player.cell.id)
+        teleport_to_closest_marker()
+        -- local t = getLookedAtReference()
+        -- if (t) then
+        --     tes3.messageBox("Cell: " .. tes3.player.cell.id .. ", Scale: " ..
+        --                         tostring(t.scale))
+
+        --     mwse.log("=== start === ")
+        --     mwse.log("baseObject: " .. t.baseObject.id)
+        --     mwse.log("mesh: " .. t.baseObject.mesh)
+        --     mwse.log("scale: " .. tostring(t.scale))
+        --     mwse.log("position: " .. t.position:__tostring())
+        --     mwse.log("orientation: " .. t.orientation:__tostring())
+        --     mwse.log("boundingBox: " .. t.baseObject.boundingBox:__tostring())
+        --     mwse.log("height: " .. t.baseObject.boundingBox.max.z)
+        --     mwse.log("=== end === ")
+        -- end
     end
 
     -- delete
@@ -566,8 +630,7 @@ local function keyDownCallback(e)
     end
 
     -- insert
-    if e.keyCode == tes3.scanCode["keyRight"] or e.keyCode ==
-        tes3.scanCode["leftAlt"] then
+    if e.keyCode == tes3.scanCode["keyRight"] then
         local idx = getClosestMarkerIdx()
         -- insert new instance
 
@@ -594,8 +657,11 @@ local function keyDownCallback(e)
     -- start travel
     if e.keyCode == tes3.scanCode["keyLeft"] then
         local t = getLookedAtReference()
+
         if (t) then
             mount = t
+            mount_scale = math.round(t.scale, 2)
+
             createTestWindow()
         end
     end
