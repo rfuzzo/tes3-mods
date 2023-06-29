@@ -5,6 +5,7 @@ local defaultConfig = {
     author = "rfuzzo",
     -- configs
     speed = 3,
+    logLevel = "INFO",
     enableeditor = false
 }
 

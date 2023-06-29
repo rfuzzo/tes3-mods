@@ -66,6 +66,14 @@ local destination_map = {} ---@type table<string, table>
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// LOGIC
 
+local logger = require("logging.logger")
+local log = logger.new {
+    name = config.mod,
+    logLevel = config.logLevel,
+    logToConsole = true,
+    includeTimestamp = true
+}
+
 local function getLookedAtReference()
     -- Get the player's eye position and direction.
     local eyePos = tes3.getPlayerEyePosition()
@@ -204,7 +212,7 @@ local function onTimerTick()
         if sway_time > (2000 * sway_frequency) then sway_time = timertick end
         local sway = sway_amplitude *
                          math.sin(2 * math.pi * sway_frequency * sway_time)
-        mount.orientation = tes3vector3.new(sway, -sway, mount.orientation.z)
+        mount.orientation = tes3vector3.new(0.0, sway, mount.orientation.z)
 
         -- fade close to end
         if is_fade_out == false and spline_index == len then
@@ -252,10 +260,10 @@ local function load_spline(start, destination)
     local filePath = "mods\\rfuzzo\\ImmersiveTravel\\data\\" .. fileName
     local result = json.loadfile(filePath)
     if result ~= nil then
-        mwse.log("loaded spline: " .. filePath)
+        log:debug("loaded spline: " .. filePath)
         current_spline = result.data
     else
-        mwse.log("!!! failed to load spline: " .. filePath)
+        log:debug("!!! failed to load spline: " .. filePath)
         result = nil
     end
 end
@@ -285,16 +293,17 @@ local function start_travel(start, destination)
             callback = (function()
                 tes3.fadeIn({duration = 1})
                 is_fade_out = false
+
+                -- start timer
+                myTimer = timer.start({
+                    duration = timertick,
+                    type = timer.real,
+                    iterations = -1,
+                    callback = onTimerTick
+                })
             end)
         })
 
-        -- start timer
-        myTimer = timer.start({
-            duration = timertick,
-            type = timer.real,
-            iterations = -1,
-            callback = onTimerTick
-        })
     end
 end
 
@@ -304,7 +313,7 @@ local function createTravelWindow()
     if (tes3ui.findMenu(test_menu) ~= nil) then return end
     -- Return if no destinations
     local destinations = destination_map[tes3.player.cell.id]
-    -- debug.log(json.encode(destinations))
+    -- log:debug(json.encode(destinations))
     if destinations == nil then return end
 
     -- Create window and frame
@@ -604,25 +613,25 @@ local function keyDownCallback(e)
         tes3.messageBox("Marker index: " .. idx)
     end
 
-    if e.keyCode == tes3.scanCode["o"] then
-        tes3.messageBox(tes3.player.cell.id)
-        mwse.log("cell: " .. tes3.player.cell.id)
+    -- if e.keyCode == tes3.scanCode["o"] then
+    --     tes3.messageBox(tes3.player.cell.id)
+    --     mwse.log("cell: " .. tes3.player.cell.id)
 
-        local t = getLookedAtReference()
-        if (t) then
-            mwse.log("=== start === ")
-            mwse.log("baseObject: " .. t.baseObject.id)
-            mwse.log("mesh: " .. t.baseObject.mesh)
-            mwse.log("scale: " .. tostring(t.scale))
-            mwse.log("position: " .. t.position:__tostring())
-            mwse.log("orientation: " .. t.orientation:__tostring())
-            mwse.log("boundingBox: " .. t.baseObject.boundingBox:__tostring())
-            mwse.log("height: " .. t.baseObject.boundingBox.max.z)
-            mwse.log("=== end === ")
-        end
+    --     local t = getLookedAtReference()
+    --     if (t) then
+    --         mwse.log("=== start === ")
+    --         mwse.log("baseObject: " .. t.baseObject.id)
+    --         mwse.log("mesh: " .. t.baseObject.mesh)
+    --         mwse.log("scale: " .. tostring(t.scale))
+    --         mwse.log("position: " .. t.position:__tostring())
+    --         mwse.log("orientation: " .. t.orientation:__tostring())
+    --         mwse.log("boundingBox: " .. t.baseObject.boundingBox:__tostring())
+    --         mwse.log("height: " .. t.baseObject.boundingBox.max.z)
+    --         mwse.log("=== end === ")
+    --     end
 
-        teleport_to_closest_marker()
-    end
+    --     teleport_to_closest_marker()
+    -- end
 
     -- delete
     if e.keyCode == tes3.scanCode["delete"] then
@@ -668,7 +677,8 @@ require("rfuzzo.ImmersiveTravel.mcm")
 --- init mod
 local function init()
     local map = {} ---@type table<string, table>
-    -- mwse.log("[Immersive Travel] Loaded successfully.")
+    log:info("[Immersive Travel] Loaded successfully.")
+    log:debug("Registered destinations: ")
     for file in lfs.dir("Data Files\\MWSE\\mods\\rfuzzo\\ImmersiveTravel\\data") do
         if (string.endswith(file, ".json")) then
             local split = string.split(file:sub(0, -6), "_")
@@ -683,7 +693,7 @@ local function init()
                     end
                 end
 
-                mwse.log(start .. " - " .. destination)
+                log:debug("  " .. start .. " - " .. destination)
                 local result = table.get(map, start, nil)
                 if result == nil then
                     local vec = {}
@@ -699,6 +709,5 @@ local function init()
     end
 
     destination_map = map
-    -- debug.log(json.encode(destination_map))
 end
 event.register(tes3.event.initialized, init)

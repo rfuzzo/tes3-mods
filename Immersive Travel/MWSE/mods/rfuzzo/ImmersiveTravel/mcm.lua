@@ -1,3 +1,6 @@
+local logger = require("logging.logger")
+local log = logger.getLogger("Immersive Travel")
+
 --- Setup MCM.
 local function registerModConfig()
     local config = require("rfuzzo.ImmersiveTravel.config")
@@ -31,6 +34,24 @@ local function registerModConfig()
             table = config
         }
     })
+
+    generalCategory:createDropdown{
+        label = "Logging Level",
+        description = "Set the log level.",
+        options = {
+            {label = "TRACE", value = "TRACE"},
+            {label = "DEBUG", value = "DEBUG"},
+            {label = "INFO", value = "INFO"}, {label = "WARN", value = "WARN"},
+            {label = "ERROR", value = "ERROR"}, {label = "NONE", value = "NONE"}
+        },
+        variable = mwse.mcm.createTableVariable {
+            id = "logLevel",
+            table = config
+        },
+        callback = function(self)
+            if log ~= nil then log:setLogLevel(self.variable.value) end
+        end
+    }
 
     template:register()
 
