@@ -48,8 +48,6 @@ local spline_index = 1
 local sway_time = 0
 local mount_scale = 1.0
 
-local is_fade_out = false;
-
 -- editor
 local editmode = false
 local editor_marker = "marker_arrow.nif"
@@ -211,26 +209,18 @@ local function onTimerTick()
                          math.sin(2 * math.pi * sway_frequency * sway_time)
         mount.orientation = tes3vector3.new(0.0, sway, mount.orientation.z)
 
-        -- fade close to end
-        if is_fade_out == false and spline_index == len then
-            tes3.fadeOut({duration = 1.0})
-            is_fade_out = true
-        end
-
     else -- if i is at the end of the list
         -- cleanup
         myTimer:cancel()
         spline_index = 1
 
         -- fade back in
+        tes3.fadeOut({duration = 1.0})
         timer.start({
             type = timer.real,
             iterations = 1,
             duration = 1,
-            callback = (function()
-                tes3.fadeIn({duration = 1})
-                is_fade_out = false
-            end)
+            callback = (function() tes3.fadeIn({duration = 1}) end)
         })
 
         -- teleport player to travel marker
@@ -248,6 +238,12 @@ end
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// TRAVEL
+
+--- @param e combatStartEventData
+local function forcedPacifism(e)
+    if (e.target == tes3.player and mount ~= nil) then return false end
+end
+event.register(tes3.event.combatStart, forcedPacifism)
 
 ---comment
 ---@param start string
@@ -289,7 +285,6 @@ local function start_travel(start, destination)
             duration = 1,
             callback = (function()
                 tes3.fadeIn({duration = 1})
-                is_fade_out = false
 
                 -- start timer
                 myTimer = timer.start({
@@ -306,6 +301,7 @@ end
 
 -- Create window and layout. Called by onCommand.
 local function createTravelWindow()
+    log:debug("travel from: " .. tes3.player.cell.id)
     -- Return if window is already open
     if (tes3ui.findMenu(test_menu) ~= nil) then return end
     -- Return if no destinations
@@ -567,6 +563,7 @@ local function createEditWindow()
         mwse.log("============================================")
         mwse.log(current_editor_route)
         mwse.log("============================================")
+        current_spline = {}
         for i, value in ipairs(editor_markers) do
             local t = value.translation
             mwse.log(
