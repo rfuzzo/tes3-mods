@@ -53,6 +53,8 @@ local spline_index = 1
 local sway_time = 0
 local mount_scale = 1.0
 
+local is_fade_out = false;
+
 -- editor
 local editmode = false
 local editor_marker = "marker_arrow.nif"
@@ -90,50 +92,6 @@ local function getLookedAtReference()
     if (result) then return result.reference end
 
     -- Otherwise, return nil.
-    return nil
-end
-
----@param a number
----@return tes3matrix33
-local function rotation_matrix_z(a)
-    local c = math.cos(a)
-    local s = math.sin(a)
-    return tes3matrix33.new(c, -s, 0, s, c, 0, 0, 0, 1)
-end
-
-local function raytest()
-    local from = tes3.player.position
-    local rayhit = tes3.rayTest {
-        position = from,
-        direction = tes3vector3.new(0, 0, -1),
-        returnNormal = true
-    }
-
-    if (rayhit) then
-        local to = rayhit.intersection
-        local dist = to.z - from.z
-        tes3.messageBox("DIST( " .. dist .. " ) - FROM (" .. from.z .. ")" ..
-                            "TO (" .. to.z .. ")")
-
-    end
-
-end
-
---- @param from tes3vector3
---- @return number|nil
-local function getDistToGround(from)
-    local rayhit = tes3.rayTest {
-        position = from,
-        direction = tes3vector3.new(0, 0, -1),
-        returnNormal = true
-    }
-
-    if (rayhit) then
-        local to = rayhit.intersection
-        local dist = to.z - from.z
-        return dist
-    end
-
     return nil
 end
 
@@ -181,39 +139,30 @@ local function teleport_to_closest_marker()
     local cells = tes3.getActiveCells()
     for _index, cell in ipairs(cells) do
         local references = referenceListToTable(cell.activators)
-        -- just get the first one idc
         for _, r in ipairs(references) do
             if r.baseObject.isLocationMarker and r.baseObject.id ==
                 "TravelMarker" then
                 table.insert(results, {cell = cell, position = r.position})
             end
         end
-
-        -- local references = referenceListToTable(cell.statics)
-        -- -- just get the first one idc
-        -- for _, r in ipairs(references) do
-        --     if r.baseObject.id == "a_siltstrider" then strider = r end
-        -- end
     end
 
-    local final_distance = 9999
-    local final_index = 1
+    local last_distance = 9999
+    local last_index = 1
     for index, marker in ipairs(results) do
         local dist = tes3.mobilePlayer.position:distance(marker.position)
-        if dist < final_distance then
-            final_index = index
-            final_distance = dist
+        if dist < last_distance then
+            last_index = index
+            last_distance = dist
         end
     end
 
     tes3.positionCell({
         reference = tes3.mobilePlayer,
-        cell = results[final_index].cell,
-        position = results[final_index].position
+        cell = results[last_index].cell,
+        position = results[last_index].position
     })
 end
-
-local is_fade_out = false;
 
 local function onTimerTick()
     if mount == nil then return; end
@@ -268,7 +217,7 @@ local function onTimerTick()
         mount.orientation = tes3vector3.new(sway, -sway, mount.orientation.z)
 
         -- fade close to end
-        if is_fade_out == false and spline_index == len - 1 then
+        if is_fade_out == false and spline_index == len then
             tes3.fadeOut({duration = 1.0})
             is_fade_out = true
         end
@@ -303,11 +252,11 @@ local function onTimerTick()
 end
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
--- ////////////// TEST WINDOW
+-- ////////////// TRAVEL
 
 --- @param s string
 --- @return string
-local function sanitize(s)
+local function sanitize_name(s)
     local result = string.gsub(s, "%s+", "")
     result = re.gsub(result, "[.,-]", "")
     return result
@@ -315,15 +264,44 @@ end
 
 --- @param cell_name string
 local function get_destinations(cell_name)
-    local id = sanitize(cell_name)
-    -- mwse.log("cell_name: " .. cell_name .. ", sanitized: " .. id)
-
+    local id = sanitize_name(cell_name)
     local ids = {}
     for _index, key in ipairs(table.keys(data.splines)) do
         if string.startswith(key, id .. "_") then table.insert(ids, key) end
     end
 
     return ids
+end
+
+local function start_travel()
+    if mount == nil then return end
+
+    local m = tes3ui.findMenu(test_menu)
+    if (m) then
+        myTimer = timer.start({
+            duration = timertick,
+            type = timer.real,
+            iterations = -1,
+            callback = onTimerTick
+        })
+
+        tes3ui.leaveMenuMode()
+        m:destroy()
+        tes3.mobilePlayer.movementCollision = false;
+
+        tes3.fadeOut({duration = 1.0})
+
+        -- fade back in
+        timer.start({
+            type = timer.real,
+            iterations = 1,
+            duration = 1,
+            callback = (function()
+                tes3.fadeIn({duration = 1})
+                is_fade_out = false
+            end)
+        })
+    end
 end
 
 -- Create window and layout. Called by onCommand.
@@ -337,17 +315,17 @@ local function createTravelWindow()
         fixedFrame = false,
         dragFrame = true
     }
-    menu.width = 300
-    menu.height = 300
     menu.alpha = 1.0
+    menu.text = tes3.player.cell.id
+    menu.width = 350
+    menu.height = 350
 
     -- Create layout
-    local input_label = menu:createLabel{text = tes3.player.cell.id}
-    input_label.borderBottom = 5
+    local label = menu:createLabel{text = "Destinations"}
+    label.borderBottom = 5
 
     local pane = menu:createVerticalScrollPane{id = "sortedPane"}
-    local destination_ids = get_destinations(tes3.player.cell.id)
-    for _key, value in ipairs(destination_ids) do
+    for _key, value in ipairs(get_destinations(tes3.player.cell.id)) do
         local name = value
         local button = pane:createButton{
             id = "button_spline_" .. name,
@@ -357,22 +335,21 @@ local function createTravelWindow()
             button.widget.idle = tes3ui.getPalette("active_color")
             button.widget.over = tes3ui.getPalette("active_color")
         end
-        button:register(tes3.uiEvent.mouseClick,
-                        function() current_travel_target = name end)
+        button:register(tes3.uiEvent.mouseClick, function()
+            current_travel_target = name
+            start_travel()
+        end)
     end
     pane:getContentElement():sortChildren(function(a, b)
         return a.text < b.text
     end)
+    pane.height = 400
 
     local button_block = menu:createBlock{}
     button_block.widthProportional = 1.0 -- width is 100% parent width
     button_block.autoHeight = true
     button_block.childAlignX = 1.0 -- right content alignment
 
-    local button_start = button_block:createButton{
-        id = test_menu_ok,
-        text = "Start"
-    }
     local button_cancel = button_block:createButton{
         id = test_menu_cancel,
         text = "Cancel"
@@ -388,28 +365,37 @@ local function createTravelWindow()
             m:destroy()
         end
     end)
-    button_start:register(tes3.uiEvent.mouseClick, function()
-        if mount == nil then return end
-
-        local m = tes3ui.findMenu(test_menu)
-        if (m) then
-            myTimer = timer.start({
-                duration = timertick,
-                type = timer.real,
-                iterations = -1,
-                callback = onTimerTick
-            })
-
-            tes3ui.leaveMenuMode()
-            m:destroy()
-            tes3.mobilePlayer.movementCollision = false;
-        end
-    end)
 
     -- Final setup
     menu:updateLayout()
     tes3ui.enterMenuMode(test_menu)
 end
+
+-- Start Travel window
+--- @param e activateEventData
+local function activateCallback(e)
+    if (e.activator ~= tes3.player) then return end
+    if mount ~= nil then return; end
+
+    if e.target.baseObject.id == "a_siltstrider" then
+        mount = e.target
+        mount_scale = e.target.scale
+        createTravelWindow()
+    end
+end
+event.register(tes3.event.activate, activateCallback)
+
+--- init mod
+local ids = {}
+local function init()
+    for file in lfs.dir("Data Files\\MWSE\\mods\\rfuzzo\\ImmersiveTravel\\data") do
+        if (string.endswith(file, ".json")) then
+            local id = file:sub(0, -6)
+            table.insert(ids, id)
+        end
+    end
+end
+event.register(tes3.event.initialized, init)
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// EDITOR
@@ -535,8 +521,8 @@ local function createEditWindow()
     menu.height = 400
 
     -- Create layout
-    local input_label = menu:createLabel{text = "Editor"}
-    input_label.borderBottom = 5
+    local label = menu:createLabel{text = "Editor"}
+    label.borderBottom = 5
 
     local pane = menu:createVerticalScrollPane{id = "sortedPane"}
     for _key, value in ipairs(table.keys(data.splines)) do
@@ -615,11 +601,10 @@ local function createEditWindow()
     tes3ui.enterMenuMode(edit_menu)
 end
 
--- /////////////////////////////////////////////////////////////////////////////////////////
--- ////////////// INPUT
-
 --- @param e keyDownEventData
 local function keyDownCallback(e)
+
+    if config.enableeditor == false then return end
 
     -- editor menu
     if e.keyCode == tes3.scanCode["rCtrl"] then createEditWindow() end
@@ -631,11 +616,19 @@ local function keyDownCallback(e)
         tes3.messageBox("Marker index: " .. idx)
     end
 
-    -- raytest
+    -- debug
+    if e.keyCode == tes3.scanCode["forwardSlash"] then
+        -- mwse.log(ids:__tostring())
+        -- tes3.messageBox(ids:__tostring())
+
+        -- Saves a serializable table to Data Files\MWSE\{fileName}.json, using json.encode
+        json.savefile("mods\\rfuzzo\\ImmersiveTravel\\data\\dbg", data)
+
+    end
     if e.keyCode == tes3.scanCode["o"] then
         tes3.messageBox(tes3.player.cell.id)
         mwse.log("cell: " .. tes3.player.cell.id)
-        mwse.log("cell sanitized: " .. sanitize(tes3.player.cell.id))
+        mwse.log("cell sanitized: " .. sanitize_name(tes3.player.cell.id))
 
         local t = getLookedAtReference()
         if (t) then
@@ -690,23 +683,53 @@ local function keyDownCallback(e)
 end
 event.register(tes3.event.keyDown, keyDownCallback)
 
---- @param e activateEventData
-local function activateCallback(e)
-    -- We only care if the PC is activating something.
-    if (e.activator ~= tes3.player) then return end
-    -- during travel
-    if mount ~= nil then return; end
+-- /////////////////////////////////////////////////////////////////////////////////////////
+-- ////////////// CONFIG
+require("rfuzzo.ImmersiveTravel.mcm")
 
-    if e.target.baseObject.id == "a_siltstrider" then
-        mount = e.target
-        mount_scale = e.target.scale
-        createTravelWindow()
-    end
-end
-event.register(tes3.event.activate, activateCallback)
+-- -- /////////////////////////////////////////////////////////////////////////////////////////
+-- -- ////////////// UNUSED
 
---[[
-	Handle mod config menu.
-]]
-local function registerModConfig() require("rfuzzo.ImmersiveTravel.mcm") end
-event.register("modConfigReady", registerModConfig)
+-- ---@param a number
+-- ---@return tes3matrix33
+-- local function rotation_matrix_z(a)
+--     local c = math.cos(a)
+--     local s = math.sin(a)
+--     return tes3matrix33.new(c, -s, 0, s, c, 0, 0, 0, 1)
+-- end
+
+-- local function raytest()
+--     local from = tes3.player.position
+--     local rayhit = tes3.rayTest {
+--         position = from,
+--         direction = tes3vector3.new(0, 0, -1),
+--         returnNormal = true
+--     }
+
+--     if (rayhit) then
+--         local to = rayhit.intersection
+--         local dist = to.z - from.z
+--         tes3.messageBox("DIST( " .. dist .. " ) - FROM (" .. from.z .. ")" ..
+--                             "TO (" .. to.z .. ")")
+
+--     end
+
+-- end
+
+-- --- @param from tes3vector3
+-- --- @return number|nil
+-- local function getDistToGround(from)
+--     local rayhit = tes3.rayTest {
+--         position = from,
+--         direction = tes3vector3.new(0, 0, -1),
+--         returnNormal = true
+--     }
+
+--     if (rayhit) then
+--         local to = rayhit.intersection
+--         local dist = to.z - from.z
+--         return dist
+--     end
+
+--     return nil
+-- end

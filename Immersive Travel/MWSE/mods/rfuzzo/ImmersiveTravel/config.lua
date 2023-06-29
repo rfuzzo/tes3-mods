@@ -1,12 +1,11 @@
-local configPath = "immersiveTravel"
-
 local defaultConfig = {
     mod = "Immersive Travel",
     id = "IT",
     version = 1.0,
     author = "rfuzzo",
     -- configs
-    speed = 3
+    speed = 3,
+    enableeditor = false
 }
 
-return mwse.loadConfig(configPath, defaultConfig)
+return mwse.loadConfig("ImmersiveTravel", defaultConfig)

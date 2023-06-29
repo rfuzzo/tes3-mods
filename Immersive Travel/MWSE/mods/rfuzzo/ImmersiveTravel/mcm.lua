@@ -2,8 +2,7 @@
 local function registerModConfig()
     local config = require("rfuzzo.ImmersiveTravel.config")
     local template = mwse.mcm.createTemplate(config.mod)
-    template:saveOnClose("immersiveTravel", config)
-    template:register()
+    template:saveOnClose("ImmersiveTravel", config)
 
     local page = template:createSideBarPage({label = "Settings"})
     page.sidebar:createInfo{
@@ -23,6 +22,17 @@ local function registerModConfig()
         jump = 10,
         variable = mwse.mcm.createTableVariable {id = "speed", table = config}
     })
+
+    generalCategory:createOnOffButton({
+        label = "Enable Editor",
+        description = "Enable the editor.",
+        variable = mwse.mcm.createTableVariable {
+            id = "enableeditor",
+            table = config
+        }
+    })
+
+    template:register()
 
 end
 
