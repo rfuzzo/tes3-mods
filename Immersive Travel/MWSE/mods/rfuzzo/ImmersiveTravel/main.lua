@@ -38,14 +38,12 @@ local test_menu = tes3ui.registerID("it:test_menu")
 local test_menu_ok = tes3ui.registerID("it:test_menu_ok")
 local test_menu_cancel = tes3ui.registerID("it:test_menu_cancel")
 
-local data = require("rfuzzo.ImmersiveTravel.data.data")
+-- local data = require("rfuzzo.ImmersiveTravel.data.data")
 
 local timertick = 0.01
 ---@type mwseTimer | nil
 local myTimer = nil
 
-local current_travel_target = ""
-local current_data = "sb_bm"
 ---@type tes3reference | nil
 local mount = nil
 
@@ -62,19 +60,11 @@ local editor_marker = "marker_arrow.nif"
 local editor_markers = {}
 local editor_instance = nil
 
+local current_spline = {}
+local destination_map = {} ---@type table<string, table>
+
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// LOGIC
-
---- @return table<string, table>
-local function get_current_spline()
-    -- get currently selected spline
-    return data.splines[current_travel_target]
-end
-
-local function get_current_editor_spline()
-    -- get currently selected spline
-    return data.splines[current_data]
-end
 
 local function getLookedAtReference()
     -- Get the player's eye position and direction.
@@ -168,11 +158,11 @@ local function onTimerTick()
     if mount == nil then return; end
     if myTimer == nil then return; end
 
-    local len = #get_current_spline()
+    local len = #current_spline
     if spline_index <= len then -- if i is not at the end of the list
         -- set position
         local point = nil
-        point = get_current_spline()[spline_index]
+        point = current_spline[spline_index]
 
         local next_pos = tes3vector3.new(point.x, point.y, point.z)
         local d = next_pos - tes3.player.position -- get the direction vector from the object to the coordinate
@@ -254,41 +244,37 @@ end
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// TRAVEL
 
---- @param s string
---- @return string
-local function sanitize_name(s)
-    local result = string.gsub(s, "%s+", "")
-    result = re.gsub(result, "[.,-]", "")
-    return result
-end
-
---- @param cell_name string
-local function get_destinations(cell_name)
-    local id = sanitize_name(cell_name)
-    local ids = {}
-    for _index, key in ipairs(table.keys(data.splines)) do
-        if string.startswith(key, id .. "_") then table.insert(ids, key) end
+---comment
+---@param start string
+---@param destination string
+local function load_spline(start, destination)
+    local fileName = start .. "_" .. destination
+    local filePath = "mods\\rfuzzo\\ImmersiveTravel\\data\\" .. fileName
+    local result = json.loadfile(filePath)
+    if result ~= nil then
+        mwse.log("loaded spline: " .. filePath)
+        current_spline = result.data
+    else
+        mwse.log("!!! failed to load spline: " .. filePath)
+        result = nil
     end
-
-    return ids
 end
 
-local function start_travel()
+---comment
+---@param start string
+---@param destination string
+local function start_travel(start, destination)
     if mount == nil then return end
 
     local m = tes3ui.findMenu(test_menu)
     if (m) then
-        myTimer = timer.start({
-            duration = timertick,
-            type = timer.real,
-            iterations = -1,
-            callback = onTimerTick
-        })
-
         tes3ui.leaveMenuMode()
         m:destroy()
-        tes3.mobilePlayer.movementCollision = false;
 
+        -- set targets
+        load_spline(start, destination)
+        if current_spline == nil then return end
+        tes3.mobilePlayer.movementCollision = false;
         tes3.fadeOut({duration = 1.0})
 
         -- fade back in
@@ -301,6 +287,14 @@ local function start_travel()
                 is_fade_out = false
             end)
         })
+
+        -- start timer
+        myTimer = timer.start({
+            duration = timertick,
+            type = timer.real,
+            iterations = -1,
+            callback = onTimerTick
+        })
     end
 end
 
@@ -308,6 +302,10 @@ end
 local function createTravelWindow()
     -- Return if window is already open
     if (tes3ui.findMenu(test_menu) ~= nil) then return end
+    -- Return if no destinations
+    local destinations = destination_map[tes3.player.cell.id]
+    -- debug.log(json.encode(destinations))
+    if destinations == nil then return end
 
     -- Create window and frame
     local menu = tes3ui.createMenu {
@@ -325,19 +323,15 @@ local function createTravelWindow()
     label.borderBottom = 5
 
     local pane = menu:createVerticalScrollPane{id = "sortedPane"}
-    for _key, value in ipairs(get_destinations(tes3.player.cell.id)) do
-        local name = value
+    for _key, name in ipairs(destinations) do
         local button = pane:createButton{
             id = "button_spline_" .. name,
             text = name
         }
-        if current_travel_target == name then
-            button.widget.idle = tes3ui.getPalette("active_color")
-            button.widget.over = tes3ui.getPalette("active_color")
-        end
-        button:register(tes3.uiEvent.mouseClick, function()
-            current_travel_target = name
-            start_travel()
+
+        button:register(tes3.uiEvent.mouseClick,
+                        function()
+            start_travel(tes3.player.cell.id, name)
         end)
     end
     pane:getContentElement():sortChildren(function(a, b)
@@ -361,6 +355,7 @@ local function createTravelWindow()
         if (m) then
             mount = nil
             mount_scale = 1.0
+
             tes3ui.leaveMenuMode()
             m:destroy()
         end
@@ -385,20 +380,10 @@ local function activateCallback(e)
 end
 event.register(tes3.event.activate, activateCallback)
 
---- init mod
-local ids = {}
-local function init()
-    for file in lfs.dir("Data Files\\MWSE\\mods\\rfuzzo\\ImmersiveTravel\\data") do
-        if (string.endswith(file, ".json")) then
-            local id = file:sub(0, -6)
-            table.insert(ids, id)
-        end
-    end
-end
-event.register(tes3.event.initialized, init)
-
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// EDITOR
+
+local current_editor_route = ""
 
 event.register("simulate", function(e)
     if editmode == false then return end
@@ -487,7 +472,7 @@ local function renderMarkers()
     -- add markers
     local mesh = tes3.loadMesh(editor_marker)
 
-    for idx, v in ipairs(get_current_editor_spline()) do
+    for idx, v in ipairs(current_spline) do
 
         local child = mesh:clone()
         child.translation = tes3vector3.new(v.x, v.y, v.z)
@@ -525,19 +510,21 @@ local function createEditWindow()
     label.borderBottom = 5
 
     local pane = menu:createVerticalScrollPane{id = "sortedPane"}
-    for _key, value in ipairs(table.keys(data.splines)) do
-        local button = pane:createButton{
-            id = "button_spline" .. value,
-            text = value
-        }
-        if current_data == value then
-            button.widget.idle = tes3ui.getPalette("active_color")
-            button.widget.over = tes3ui.getPalette("active_color")
+
+    for _i, start in ipairs(table.keys(destination_map)) do
+        for _j, destination in ipairs(destination_map[start]) do
+            local text = start .. " - " .. destination
+            local button = pane:createButton{
+                id = "button_spline" .. text,
+                text = text
+            }
+            button:register(tes3.uiEvent.mouseClick, function()
+                -- start editor
+                current_editor_route = start .. "_" .. destination
+                load_spline(start, destination)
+                renderMarkers()
+            end)
         end
-        button:register(tes3.uiEvent.mouseClick, function()
-            current_data = value
-            renderMarkers()
-        end)
     end
     pane:getContentElement():sortChildren(function(a, b)
         return a.text < b.text
@@ -548,7 +535,7 @@ local function createEditWindow()
     button_block.autoHeight = true
     button_block.childAlignX = 1.0 -- right content alignment
 
-    local button_display = button_block:createButton{
+    local button_save = button_block:createButton{
         id = edit_menu_display,
         text = "Save"
     }
@@ -569,20 +556,19 @@ local function createEditWindow()
     end)
 
     -- log current spline
-    button_display:register(tes3.uiEvent.mouseClick, function()
-        -- reset spline
-        data.splines[current_data] = {}
-        -- print to file
+    button_save:register(tes3.uiEvent.mouseClick, function()
+        -- print to log
         mwse.log("============================================")
-        mwse.log(current_data)
+        mwse.log(current_editor_route)
         mwse.log("============================================")
         for i, value in ipairs(editor_markers) do
             local t = value.translation
             mwse.log(
                 "{ x = " .. math.round(t.x) .. ", y = " .. math.round(t.y) ..
                     ", z = " .. math.round(t.z) .. " },")
+
             -- save currently edited markers back to spline
-            table.insert(data.splines[current_data], i, {
+            table.insert(current_spline, i, {
                 x = math.round(t.x),
                 y = math.round(t.y),
                 z = math.round(t.z)
@@ -591,9 +577,11 @@ local function createEditWindow()
         end
         mwse.log("============================================")
 
-        renderMarkers()
+        -- save to file
+        json.savefile("mods\\rfuzzo\\ImmersiveTravel\\data\\" ..
+                          current_editor_route .. ".saved", current_spline)
 
-        tes3.messageBox("Printed coordinates: " .. current_data)
+        renderMarkers()
     end)
 
     -- Final setup
@@ -616,19 +604,9 @@ local function keyDownCallback(e)
         tes3.messageBox("Marker index: " .. idx)
     end
 
-    -- debug
-    if e.keyCode == tes3.scanCode["forwardSlash"] then
-        -- mwse.log(ids:__tostring())
-        -- tes3.messageBox(ids:__tostring())
-
-        -- Saves a serializable table to Data Files\MWSE\{fileName}.json, using json.encode
-        json.savefile("mods\\rfuzzo\\ImmersiveTravel\\data\\dbg", data)
-
-    end
     if e.keyCode == tes3.scanCode["o"] then
         tes3.messageBox(tes3.player.cell.id)
         mwse.log("cell: " .. tes3.player.cell.id)
-        mwse.log("cell sanitized: " .. sanitize_name(tes3.player.cell.id))
 
         local t = getLookedAtReference()
         if (t) then
@@ -687,49 +665,40 @@ event.register(tes3.event.keyDown, keyDownCallback)
 -- ////////////// CONFIG
 require("rfuzzo.ImmersiveTravel.mcm")
 
--- -- /////////////////////////////////////////////////////////////////////////////////////////
--- -- ////////////// UNUSED
+--- init mod
+local function init()
+    local map = {} ---@type table<string, table>
+    -- mwse.log("[Immersive Travel] Loaded successfully.")
+    for file in lfs.dir("Data Files\\MWSE\\mods\\rfuzzo\\ImmersiveTravel\\data") do
+        if (string.endswith(file, ".json")) then
+            local split = string.split(file:sub(0, -6), "_")
+            if #split == 2 then
+                local start = ""
+                local destination = ""
+                for i, id in ipairs(split) do
+                    if i == 1 then
+                        start = id
+                    else
+                        destination = id
+                    end
+                end
 
--- ---@param a number
--- ---@return tes3matrix33
--- local function rotation_matrix_z(a)
---     local c = math.cos(a)
---     local s = math.sin(a)
---     return tes3matrix33.new(c, -s, 0, s, c, 0, 0, 0, 1)
--- end
+                mwse.log(start .. " - " .. destination)
+                local result = table.get(map, start, nil)
+                if result == nil then
+                    local vec = {}
+                    table.insert(vec, destination)
+                    map[start] = vec
 
--- local function raytest()
---     local from = tes3.player.position
---     local rayhit = tes3.rayTest {
---         position = from,
---         direction = tes3vector3.new(0, 0, -1),
---         returnNormal = true
---     }
+                else
+                    table.insert(result, destination)
+                    map[start] = result
+                end
+            end
+        end
+    end
 
---     if (rayhit) then
---         local to = rayhit.intersection
---         local dist = to.z - from.z
---         tes3.messageBox("DIST( " .. dist .. " ) - FROM (" .. from.z .. ")" ..
---                             "TO (" .. to.z .. ")")
-
---     end
-
--- end
-
--- --- @param from tes3vector3
--- --- @return number|nil
--- local function getDistToGround(from)
---     local rayhit = tes3.rayTest {
---         position = from,
---         direction = tes3vector3.new(0, 0, -1),
---         returnNormal = true
---     }
-
---     if (rayhit) then
---         local to = rayhit.intersection
---         local dist = to.z - from.z
---         return dist
---     end
-
---     return nil
--- end
+    destination_map = map
+    -- debug.log(json.encode(destination_map))
+end
+event.register(tes3.event.initialized, init)
