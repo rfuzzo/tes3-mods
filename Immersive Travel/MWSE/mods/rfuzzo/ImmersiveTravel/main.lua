@@ -215,13 +215,7 @@ local function onTimerTick()
         spline_index = 1
 
         -- fade back in
-        tes3.fadeOut({duration = 1.0})
-        timer.start({
-            type = timer.real,
-            iterations = 1,
-            duration = 1,
-            callback = (function() tes3.fadeIn({duration = 1}) end)
-        })
+        tes3.fadeOut({duration = 0.5})
 
         -- teleport player to travel marker
         teleport_to_closest_marker();
@@ -233,6 +227,13 @@ local function onTimerTick()
         mount:delete()
         mount = nil
         mount_scale = 1.0
+
+        timer.start({
+            type = timer.real,
+            iterations = 1,
+            duration = 1,
+            callback = (function() tes3.fadeIn({duration = 1}) end)
+        })
     end
 end
 
@@ -266,6 +267,23 @@ end
 ---@param destination string
 local function start_travel(start, destination)
     if mount == nil then return end
+
+    local original_mount = mount
+    original_mount:disable()
+    -- hide original mount for a while
+    timer.start({
+        type = timer.real,
+        iterations = 1,
+        duration = 3,
+        callback = (function() original_mount:enable() end)
+    })
+
+    -- duplicate mount
+    mount = tes3.createReference {
+        object = "a_siltstrider",
+        position = mount.position,
+        orientation = mount.orientation
+    }
 
     local m = tes3ui.findMenu(test_menu)
     if (m) then
@@ -375,8 +393,9 @@ local function activateCallback(e)
     if mount ~= nil then return; end
 
     if e.target.baseObject.id == "a_siltstrider" then
+
         mount = e.target
-        mount_scale = e.target.scale
+        -- mount_scale = e.target.scale
         createTravelWindow()
     end
 end
