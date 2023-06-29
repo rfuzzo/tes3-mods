@@ -35,10 +35,7 @@ local edit_menu_display = tes3ui.registerID("it:MenuEdit_Display")
 local edit_menu_cancel = tes3ui.registerID("it:MenuEdit_Cancel")
 
 local test_menu = tes3ui.registerID("it:test_menu")
-local test_menu_ok = tes3ui.registerID("it:test_menu_ok")
 local test_menu_cancel = tes3ui.registerID("it:test_menu_cancel")
-
--- local data = require("rfuzzo.ImmersiveTravel.data.data")
 
 local timertick = 0.01
 ---@type mwseTimer | nil
