@@ -254,7 +254,7 @@ local function load_spline(start, destination)
     local result = json.loadfile(filePath)
     if result ~= nil then
         log:debug("loaded spline: " .. filePath)
-        current_spline = result.data
+        current_spline = result
     else
         log:debug("!!! failed to load spline: " .. filePath)
         result = nil
