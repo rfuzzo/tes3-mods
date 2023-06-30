@@ -619,9 +619,10 @@ local function createEditWindow()
     menu.alpha = 1.0
     menu.width = 300
     menu.height = 400
+    menu.text = "Editor"
 
     -- Create layout
-    local label = menu:createLabel{text = "Editor"}
+    local label = menu:createLabel{text = "Loaded routes"}
     label.borderBottom = 5
 
     local pane = menu:createVerticalScrollPane{id = "sortedPane"}
@@ -748,33 +749,57 @@ local function keyDownCallback(e)
         tes3.messageBox("Marker index: " .. idx)
     end
 
-    if e.keyCode == tes3.scanCode["o"] then
+    if e.keyCode == tes3.scanCode["forwardSlash"] then
         tes3.messageBox(tes3.player.cell.id)
         mwse.log("cell: " .. tes3.player.cell.id)
 
         local t = getLookedAtReference()
         if (t) then
-            mwse.log("=== start === ")
-            mwse.log("baseObject: " .. t.baseObject.id)
-            mwse.log("mesh: " .. t.baseObject.mesh)
-            mwse.log("scale: " .. tostring(t.scale))
-            mwse.log("position: " .. t.position:__tostring())
-            mwse.log("orientation: " .. t.orientation:__tostring())
-            mwse.log("boundingBox: " .. t.baseObject.boundingBox:__tostring())
-            mwse.log("height: " .. t.baseObject.boundingBox.max.z)
-            mwse.log("=== end === ")
+            -- mwse.log("=== start === ")
+            -- mwse.log("baseObject: " .. t.baseObject.id)
+            -- mwse.log("mesh: " .. t.baseObject.mesh)
+            -- mwse.log("scale: " .. tostring(t.scale))
+            -- mwse.log("position: " .. t.position:__tostring())
+            -- mwse.log("orientation: " .. t.orientation:__tostring())
+            -- mwse.log("boundingBox: " .. t.baseObject.boundingBox:__tostring())
+            -- mwse.log("height: " .. t.baseObject.boundingBox.max.z)
+            -- mwse.log("=== end === ")
 
-            -- teleport_to_closest_marker()
-            if mount ~= nil then return; end
+            -- facing
 
-            if t.baseObject.id == "Ex_longboat02" or t.baseObject.id ==
-                "ex_longboat" then
+            local mesh = tes3.loadMesh(editor_marker)
+            local child = mesh:clone()
+            child.appCulled = false
+            local pos = t.position + tes3vector3.new(0, 0, 60)
+            child.translation = pos
 
-                mount = t
-                boat_mode = true;
-                createTravelWindow()
+            local facing = t.facing
+            local orientation = t.orientation
+            local m = tes3matrix33.new()
+            -- local rotation_matrix = rotation_matrix_from_direction(direction)
+            m:fromEulerXYZ(orientation.x, orientation.y, orientation.z)
+            child.rotation = m
+
+            local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+            ---@diagnostic disable-next-line: param-type-mismatch
+            vfxRoot:attachChild(child)
+            vfxRoot:update()
+
+        end
+    end
+
+    if e.keyCode == tes3.scanCode["o"] then
+        if mount == nil then
+            local t = getLookedAtReference()
+            if (t) then
+                if t.baseObject.id == "Ex_longboat02" or t.baseObject.id ==
+                    "ex_longboat" then
+
+                    mount = t
+                    boat_mode = true;
+                    createTravelWindow()
+                end
             end
-
         end
     end
 
