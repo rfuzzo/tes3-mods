@@ -23,7 +23,6 @@ to do
 -- ////////////// CONFIGURATION
 local config = require("rfuzzo.ImmersiveTravel.config")
 
-local angle = 0.002 -- the angle of rotation in radians per timertick
 local sway_frequency = 0.12 -- how fast the mount sways
 local sway_amplitude = 0.014 -- how much the mount sways
 
@@ -62,9 +61,6 @@ local destination_boat_map = {} ---@type table<string, table>
 
 local boat_mode = false
 
--- /////////////////////////////////////////////////////////////////////////////////////////
--- ////////////// LOGIC
-
 local logger = require("logging.logger")
 local log = logger.new {
     name = config.mod,
@@ -73,10 +69,13 @@ local log = logger.new {
     includeTimestamp = true
 }
 
+-- /////////////////////////////////////////////////////////////////////////////////////////
+-- ////////////// GETTERS
+
 --- @return number
 local function get_speed()
     if boat_mode then
-        return config.speed
+        return config.boatspeed
     else
         return config.speed
     end
@@ -84,9 +83,9 @@ end
 
 local function get_angle()
     if boat_mode then
-        return angle
+        return config.boatturnspeed / 10000
     else
-        return angle
+        return config.turnspeed / 10000
     end
 end
 
@@ -110,7 +109,7 @@ local function get_mount_xy_offset()
     if boat_mode then
         return -100
     else
-        return 0
+        return 10
     end
 end
 
@@ -129,6 +128,9 @@ local function get_ground_offset()
         return 1025
     end
 end
+
+-- /////////////////////////////////////////////////////////////////////////////////////////
+-- ////////////// LOGIC
 
 local function getLookedAtReference()
     -- Get the player's eye position and direction.
