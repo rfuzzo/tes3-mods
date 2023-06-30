@@ -26,7 +26,7 @@ local config = require("rfuzzo.ImmersiveTravel.config")
 local angle = 0.002 -- the angle of rotation in radians per timertick
 local sway_frequency = 0.12
 local sway_amplitude = 0.014
-local mountOffset = tes3vector3.new(0, 0, -1220)
+local mountOffset = tes3vector3.new(0, 0, -1200)
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// VARIABLES
@@ -43,7 +43,7 @@ local myTimer = nil
 
 ---@type tes3reference | nil
 local mount = nil
-
+local is_traveling = false
 local spline_index = 1
 local sway_time = 0
 local mount_scale = 1.0
@@ -157,6 +157,24 @@ local function teleport_to_closest_marker()
     })
 end
 
+-- Function to translate local orientation around a player-centered coordinate system to world orientation around a fixed axis coordinate system
+---@param localOrientation tes3vector3
+--- @return tes3vector3
+local function toWorldOrientation(localOrientation, newOrientation)
+    -- Convert the local orientation to a rotation matrix
+    local localRotationMatrix = tes3matrix33.new()
+    localRotationMatrix:fromEulerXYZ(newOrientation.x, newOrientation.y,
+                                     newOrientation.z)
+    local playerRotationMatrix = tes3matrix33.new()
+    playerRotationMatrix:fromEulerXYZ(localOrientation.x, localOrientation.y,
+                                      localOrientation.z)
+
+    -- Combine the rotation matrices to get the world rotation matrix
+    local worldRotationMatrix = localRotationMatrix * playerRotationMatrix
+    local worldOrientation, _isUnique = worldRotationMatrix:toEulerXYZ()
+    return worldOrientation
+end
+
 local function onTimerTick()
     if mount == nil then return; end
     if myTimer == nil then return; end
@@ -207,7 +225,10 @@ local function onTimerTick()
         if sway_time > (2000 * sway_frequency) then sway_time = timertick end
         local sway = sway_amplitude *
                          math.sin(2 * math.pi * sway_frequency * sway_time)
-        mount.orientation = tes3vector3.new(0.0, sway, mount.orientation.z)
+        local worldOrientation = toWorldOrientation(
+                                     tes3vector3.new(0.0, sway, 0.0),
+                                     mount.orientation)
+        mount.orientation = worldOrientation
 
     else -- if i is at the end of the list
         -- cleanup
@@ -216,12 +237,6 @@ local function onTimerTick()
 
         -- fade back in
         tes3.fadeOut({duration = 0.5})
-
-        -- teleport player to travel marker
-        teleport_to_closest_marker();
-
-        -- remove tcl
-        tes3.mobilePlayer.movementCollision = true;
 
         -- delete the mount
         mount:delete()
@@ -232,7 +247,12 @@ local function onTimerTick()
             type = timer.real,
             iterations = 1,
             duration = 1,
-            callback = (function() tes3.fadeIn({duration = 1}) end)
+            callback = (function()
+                tes3.mobilePlayer.movementCollision = true;
+                tes3.fadeIn({duration = 1})
+                teleport_to_closest_marker();
+                is_traveling = false
+            end)
         })
     end
 end
@@ -241,9 +261,7 @@ end
 -- ////////////// TRAVEL
 
 --- @param e combatStartEventData
-local function forcedPacifism(e)
-    if (e.target == tes3.player and mount ~= nil) then return false end
-end
+local function forcedPacifism(e) if (is_traveling == true) then return false end end
 event.register(tes3.event.combatStart, forcedPacifism)
 
 ---comment
@@ -295,6 +313,7 @@ local function start_travel(start, destination)
         if current_spline == nil then return end
         tes3.mobilePlayer.movementCollision = false;
         tes3.fadeOut({duration = 1.0})
+        is_traveling = true
 
         -- fade back in
         timer.start({
