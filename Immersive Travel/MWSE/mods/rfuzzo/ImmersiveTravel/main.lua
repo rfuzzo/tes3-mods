@@ -24,14 +24,14 @@ to do
 local config = require("rfuzzo.ImmersiveTravel.config")
 
 local angle = 0.002 -- the angle of rotation in radians per timertick
-local sway_frequency = 0.12
-local sway_amplitude = 0.014
-local mountOffset = tes3vector3.new(0, 0, -1200)
+local sway_frequency = 0.12 -- how fast the mount sways
+local sway_amplitude = 0.014 -- how much the mount sways
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// VARIABLES
 local edit_menu = tes3ui.registerID("it:MenuEdit")
 local edit_menu_display = tes3ui.registerID("it:MenuEdit_Display")
+local edit_menu_mode = tes3ui.registerID("it:MenuEdit_Mode")
 local edit_menu_cancel = tes3ui.registerID("it:MenuEdit_Cancel")
 
 local test_menu = tes3ui.registerID("it:test_menu")
@@ -50,6 +50,7 @@ local mount_scale = 1.0
 
 -- editor
 local editmode = false
+
 local editor_marker = "marker_arrow.nif"
 ---@type niNode[]
 local editor_markers = {}
@@ -57,6 +58,9 @@ local editor_instance = nil
 
 local current_spline = {}
 local destination_map = {} ---@type table<string, table>
+local destination_boat_map = {} ---@type table<string, table>
+
+local boat_mode = false
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// LOGIC
@@ -68,6 +72,63 @@ local log = logger.new {
     logToConsole = true,
     includeTimestamp = true
 }
+
+--- @return number
+local function get_speed()
+    if boat_mode then
+        return config.speed
+    else
+        return config.speed
+    end
+end
+
+local function get_angle()
+    if boat_mode then
+        return angle
+    else
+        return angle
+    end
+end
+
+local function get_sway_amplitude()
+    if boat_mode then
+        return sway_amplitude * 4
+    else
+        return sway_amplitude
+    end
+end
+
+local function get_offset()
+    if boat_mode then
+        return tes3vector3.new(0, 0, 74)
+    else
+        return tes3vector3.new(0, 0, -1200)
+    end
+end
+
+local function get_mount_xy_offset()
+    if boat_mode then
+        return -100
+    else
+        return 0
+    end
+end
+
+local function get_destinations()
+    if boat_mode then
+        return destination_boat_map
+    else
+        return destination_map
+    end
+end
+
+local function get_ground_offset()
+    if boat_mode then
+        return 0
+    else
+        return 1025
+    end
+end
 
 local function getLookedAtReference()
     -- Get the player's eye position and direction.
@@ -191,18 +252,6 @@ local function onTimerTick()
         d:normalize()
         local d_n = d
 
-        if dist > config.speed then
-            local p = tes3.player.position + (d_n * config.speed) -- move the object by speed units along the direction vector 
-
-            mount.position = p + (mountOffset * mount_scale)
-            tes3.player.position = p
-        else
-            mount.position = next_pos + (mountOffset * mount_scale)
-            tes3.player.position = next_pos
-
-            spline_index = spline_index + 1
-        end
-
         -- set heading
         local current_facing = mount.facing
         local new_facing = math.atan2(d_n.x, d_n.y)
@@ -211,19 +260,32 @@ local function onTimerTick()
         if diff < -math.pi then diff = diff + 2 * math.pi end
         if diff > math.pi then diff = diff - 2 * math.pi end
 
-        if diff > 0 and diff > angle then
-            facing = current_facing + angle
-        elseif diff < 0 and diff < -angle then
-            facing = current_facing - angle
+        if diff > 0 and diff > get_angle() then
+            facing = current_facing + get_angle()
+        elseif diff < 0 and diff < -get_angle() then
+            facing = current_facing - get_angle()
         else
             facing = new_facing
         end
         mount.facing = facing
 
+        local mount_xy_offset = mount.forwardDirection * get_mount_xy_offset()
+        if dist > get_speed() then
+            local p = tes3.player.position + (d_n * get_speed()) -- move the object by speed units along the direction vector 
+
+            mount.position = p + (get_offset() + mount_xy_offset)
+            tes3.player.position = p
+        else
+            mount.position = next_pos + (get_offset() + mount_xy_offset)
+            tes3.player.position = next_pos
+
+            spline_index = spline_index + 1
+        end
+
         -- set sway
         sway_time = sway_time + timertick
         if sway_time > (2000 * sway_frequency) then sway_time = timertick end
-        local sway = sway_amplitude *
+        local sway = get_sway_amplitude() *
                          math.sin(2 * math.pi * sway_frequency * sway_time)
         local worldOrientation = toWorldOrientation(
                                      tes3vector3.new(0.0, sway, 0.0),
@@ -270,6 +332,9 @@ event.register(tes3.event.combatStart, forcedPacifism)
 local function load_spline(start, destination)
     local fileName = start .. "_" .. destination
     local filePath = "mods\\rfuzzo\\ImmersiveTravel\\data\\" .. fileName
+    if boat_mode then
+        filePath = "mods\\rfuzzo\\ImmersiveTravel\\data_boats\\" .. fileName
+    end
     local result = json.loadfile(filePath)
     if result ~= nil then
         log:debug("loaded spline: " .. filePath)
@@ -297,8 +362,10 @@ local function start_travel(start, destination)
     })
 
     -- duplicate mount
+    local object_id = "a_siltstrider"
+    if boat_mode then object_id = "a_longboat" end
     mount = tes3.createReference {
-        object = "a_siltstrider",
+        object = object_id,
         position = mount.position,
         orientation = mount.orientation
     }
@@ -342,7 +409,7 @@ local function createTravelWindow()
     -- Return if window is already open
     if (tes3ui.findMenu(test_menu) ~= nil) then return end
     -- Return if no destinations
-    local destinations = destination_map[tes3.player.cell.id]
+    local destinations = get_destinations()[tes3.player.cell.id]
     -- log:debug(json.encode(destinations))
     if destinations == nil then return end
 
@@ -412,7 +479,7 @@ local function activateCallback(e)
     if mount ~= nil then return; end
 
     if e.target.baseObject.id == "a_siltstrider" then
-
+        boat_mode = false;
         mount = e.target
         -- mount_scale = e.target.scale
         createTravelWindow()
@@ -430,11 +497,17 @@ event.register("simulate", function(e)
     if editor_instance == nil then return end
 
     local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
-    local groundZ = getGroundZ(from)
-    if groundZ == nil then
-        from.z = 1025
+
+    if boat_mode then
+        from.z = 0
     else
-        from.z = groundZ + 1025
+
+        local groundZ = getGroundZ(from)
+        if groundZ == nil then
+            from.z = get_ground_offset()
+        else
+            from.z = groundZ + get_ground_offset()
+        end
     end
 
     editor_instance.translation = from
@@ -551,8 +624,10 @@ local function createEditWindow()
 
     local pane = menu:createVerticalScrollPane{id = "sortedPane"}
 
-    for _i, start in ipairs(table.keys(destination_map)) do
-        for _j, destination in ipairs(destination_map[start]) do
+    local destinations = get_destinations()
+
+    for _i, start in ipairs(table.keys(destinations)) do
+        for _j, destination in ipairs(destinations[start]) do
             local text = start .. " - " .. destination
             local button = pane:createButton{
                 id = "button_spline" .. text,
@@ -575,6 +650,12 @@ local function createEditWindow()
     button_block.autoHeight = true
     button_block.childAlignX = 1.0 -- right content alignment
 
+    local mode_text = "Strider"
+    if boat_mode then mode_text = "Boat" end
+    local button_mode = button_block:createButton{
+        id = edit_menu_mode,
+        text = mode_text
+    }
     local button_save = button_block:createButton{
         id = edit_menu_display,
         text = "Save"
@@ -583,6 +664,21 @@ local function createEditWindow()
         id = edit_menu_cancel,
         text = "Exit"
     }
+
+    -- Switch mode
+    button_mode:register(tes3.uiEvent.mouseClick, function()
+        local m = tes3ui.findMenu(edit_menu)
+        if (m) then
+            boat_mode = not boat_mode
+
+            mount = nil
+            mount_scale = 1.0
+            -- tes3ui.leaveMenuMode()
+            m:destroy()
+
+            createEditWindow()
+        end
+    end)
 
     -- Leave Menu
     button_cancel:register(tes3.uiEvent.mouseClick, function()
@@ -619,8 +715,13 @@ local function createEditWindow()
         mwse.log("============================================")
 
         -- save to file
-        json.savefile("mods\\rfuzzo\\ImmersiveTravel\\data\\" ..
-                          current_editor_route .. ".saved", current_spline)
+        if boat_mode then
+            json.savefile("mods\\rfuzzo\\ImmersiveTravel\\data_boats\\" ..
+                              current_editor_route .. ".saved", current_spline)
+        else
+            json.savefile("mods\\rfuzzo\\ImmersiveTravel\\data\\" ..
+                              current_editor_route .. ".saved", current_spline)
+        end
 
         renderMarkers()
     end)
@@ -645,25 +746,35 @@ local function keyDownCallback(e)
         tes3.messageBox("Marker index: " .. idx)
     end
 
-    -- if e.keyCode == tes3.scanCode["o"] then
-    --     tes3.messageBox(tes3.player.cell.id)
-    --     mwse.log("cell: " .. tes3.player.cell.id)
+    if e.keyCode == tes3.scanCode["o"] then
+        tes3.messageBox(tes3.player.cell.id)
+        mwse.log("cell: " .. tes3.player.cell.id)
 
-    --     local t = getLookedAtReference()
-    --     if (t) then
-    --         mwse.log("=== start === ")
-    --         mwse.log("baseObject: " .. t.baseObject.id)
-    --         mwse.log("mesh: " .. t.baseObject.mesh)
-    --         mwse.log("scale: " .. tostring(t.scale))
-    --         mwse.log("position: " .. t.position:__tostring())
-    --         mwse.log("orientation: " .. t.orientation:__tostring())
-    --         mwse.log("boundingBox: " .. t.baseObject.boundingBox:__tostring())
-    --         mwse.log("height: " .. t.baseObject.boundingBox.max.z)
-    --         mwse.log("=== end === ")
-    --     end
+        local t = getLookedAtReference()
+        if (t) then
+            mwse.log("=== start === ")
+            mwse.log("baseObject: " .. t.baseObject.id)
+            mwse.log("mesh: " .. t.baseObject.mesh)
+            mwse.log("scale: " .. tostring(t.scale))
+            mwse.log("position: " .. t.position:__tostring())
+            mwse.log("orientation: " .. t.orientation:__tostring())
+            mwse.log("boundingBox: " .. t.baseObject.boundingBox:__tostring())
+            mwse.log("height: " .. t.baseObject.boundingBox.max.z)
+            mwse.log("=== end === ")
 
-    --     teleport_to_closest_marker()
-    -- end
+            -- teleport_to_closest_marker()
+            if mount ~= nil then return; end
+
+            if t.baseObject.id == "Ex_longboat02" or t.baseObject.id ==
+                "ex_longboat" then
+
+                mount = t
+                boat_mode = true;
+                createTravelWindow()
+            end
+
+        end
+    end
 
     -- delete
     if e.keyCode == tes3.scanCode["delete"] then
@@ -710,7 +821,8 @@ require("rfuzzo.ImmersiveTravel.mcm")
 local function init()
     local map = {} ---@type table<string, table>
     log:info("[Immersive Travel] Loaded successfully.")
-    log:debug("Registered destinations: ")
+    -- striders
+    log:debug("Registered strider destinations: ")
     for file in lfs.dir("Data Files\\MWSE\\mods\\rfuzzo\\ImmersiveTravel\\data") do
         if (string.endswith(file, ".json")) then
             local split = string.split(file:sub(0, -6), "_")
@@ -739,7 +851,40 @@ local function init()
             end
         end
     end
-
     destination_map = map
+
+    -- boats
+    map = {}
+    log:debug("Registered boat destinations: ")
+    for file in lfs.dir(
+                    "Data Files\\MWSE\\mods\\rfuzzo\\ImmersiveTravel\\data_boats") do
+        if (string.endswith(file, ".json")) then
+            local split = string.split(file:sub(0, -6), "_")
+            if #split == 2 then
+                local start = ""
+                local destination = ""
+                for i, id in ipairs(split) do
+                    if i == 1 then
+                        start = id
+                    else
+                        destination = id
+                    end
+                end
+
+                log:debug("  " .. start .. " - " .. destination)
+                local result = table.get(map, start, nil)
+                if result == nil then
+                    local vec = {}
+                    table.insert(vec, destination)
+                    map[start] = vec
+
+                else
+                    table.insert(result, destination)
+                    map[start] = result
+                end
+            end
+        end
+    end
+    destination_boat_map = map
 end
 event.register(tes3.event.initialized, init)
