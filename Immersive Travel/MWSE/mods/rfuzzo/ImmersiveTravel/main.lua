@@ -71,6 +71,7 @@ local log = logger.new {
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// GETTERS
 
+-- speed of the mount
 --- @return number
 local function get_speed()
     if boat_mode then
@@ -80,6 +81,7 @@ local function get_speed()
     end
 end
 
+-- rotation speed of the mount
 local function get_angle()
     if boat_mode then
         return config.boatturnspeed / 10000
@@ -88,6 +90,7 @@ local function get_angle()
     end
 end
 
+-- how much the mount sways
 local function get_sway_amplitude()
     if boat_mode then
         return sway_amplitude * 4
@@ -96,6 +99,7 @@ local function get_sway_amplitude()
     end
 end
 
+-- offset of the mount relative to player (since we move the player primarily)
 local function get_offset()
     if boat_mode then
         return tes3vector3.new(0, 0, 74)
@@ -104,14 +108,16 @@ local function get_offset()
     end
 end
 
+-- offset of the player relative to center mount
 local function get_mount_xy_offset()
     if boat_mode then
-        return -120
+        return -124
     else
         return 10
     end
 end
 
+-- get destination_map var for mounts
 local function get_destinations()
     if boat_mode then
         return destination_boat_map
@@ -120,6 +126,7 @@ local function get_destinations()
     end
 end
 
+-- editor: get marker offset from the ground
 local function get_ground_offset()
     if boat_mode then
         return 0
@@ -284,7 +291,11 @@ local function onTimerTick()
         end
 
         -- add guide npc
-        guide.position = tes3.player.position + (mount_xy_offset * 9)
+        if boat_mode then
+            guide.position = tes3.player.position + (mount_xy_offset * 3.2)
+        else
+            guide.position = tes3.player.position + (mount_xy_offset * 9)
+        end
         guide.facing = facing
 
         -- set sway
@@ -368,7 +379,7 @@ local function start_travel(start, destination)
     timer.start({
         type = timer.real,
         iterations = 1,
-        duration = 5,
+        duration = 7,
         callback = (function() original_mount:enable() end)
     })
 
@@ -403,6 +414,14 @@ local function start_travel(start, destination)
         -- set targets
         load_spline(start, destination)
         if current_spline == nil then return end
+
+        -- position the mount correctly
+        local point = current_spline[1]
+        local next_pos = tes3vector3.new(point.x, point.y, point.z)
+        local d = next_pos - mount.position
+        d:normalize()
+        local new_facing = math.atan2(d.x, d.y)
+        mount.facing = new_facing
 
         tes3.mobilePlayer.movementCollision = false;
         tes3.playAnimation({
@@ -975,6 +994,7 @@ local function onMenuDialog(e)
         local ref = mobileActor.reference
         local obj = ref.baseObject
         local npc = obj ---@cast obj tes3npc
+
         -- an npc that is class Caravaner AND has AI travel package AND in the same cell as a siltstrider is eligible
         if npc.class.id == "Caravaner" and offersTraveling(npc) then
             local strider = findStrider(mobileActor)
