@@ -14,10 +14,6 @@ Current Usage (Debug)
 - add a marker								... >
 - start traveling            		        ... <
 
-to do
-- move player forward
-- complex routes
----
 --]] -- 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// CONFIGURATION
@@ -772,9 +768,9 @@ local function createEditWindow()
         current_spline = {}
         for i, value in ipairs(editor_markers) do
             local t = value.translation
-            mwse.log(
-                "{ x = " .. math.round(t.x) .. ", y = " .. math.round(t.y) ..
-                    ", z = " .. math.round(t.z) .. " },")
+            mwse.log("{ \"x\": " .. math.round(t.x) .. ", \"y\": " ..
+                         math.round(t.y) .. ", \"z\": " .. math.round(t.z) ..
+                         " },")
 
             -- save currently edited markers back to spline
             table.insert(current_spline, i, {
