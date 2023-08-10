@@ -44,24 +44,3 @@ This mod adds compare tooltips for looked-at or equipped items against the equip
 > nexus link: <https://www.nexusmods.com/morrowind/mods/51076>
 This mod uses MWSE to display splash screens during cell loading instead of freezing the frame as vanilla does.
 
-## Tools
-
-### 🚧 mwscript
->
-> current version:
-> download: TBD
-A small utility command line tool to dump tes3 plugins to human readable files, with some additional options.
-
-```cmd
-Usage: mwscript <COMMAND>
-
-Commands:
-  dump         Dump scripts from a plugin
-  serialize    Serialize a plugin to a human-readable format
-  deserialize  Deserialize a plugin from a human-readable format
-  help         Print this message or the help of the given subcommand(s)
-
-Options:
-  -h, --help     Print help
-  -V, --version  Print version
-```
