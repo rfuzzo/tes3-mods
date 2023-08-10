@@ -33,8 +33,8 @@ local edit_menu_display = tes3ui.registerID("it:MenuEdit_Display")
 local edit_menu_mode = tes3ui.registerID("it:MenuEdit_Mode")
 local edit_menu_cancel = tes3ui.registerID("it:MenuEdit_Cancel")
 
-local test_menu = tes3ui.registerID("it:test_menu")
-local test_menu_cancel = tes3ui.registerID("it:test_menu_cancel")
+local travel_menu = tes3ui.registerID("it:travel_menu")
+local travel_menu_cancel = tes3ui.registerID("it:travel_menu_cancel")
 
 local timertick = 0.01
 ---@type mwseTimer | nil
@@ -46,6 +46,8 @@ local is_traveling = false
 local spline_index = 1
 local sway_time = 0
 local mount_scale = 1.0
+
+local npc_menu = nil
 
 -- editor
 local editmode = false
@@ -101,13 +103,13 @@ local function get_offset()
     if boat_mode then
         return tes3vector3.new(0, 0, 74)
     else
-        return tes3vector3.new(0, 0, -1200)
+        return tes3vector3.new(0, 0, -1220)
     end
 end
 
 local function get_mount_xy_offset()
     if boat_mode then
-        return -100
+        return -120
     else
         return 10
     end
@@ -190,7 +192,6 @@ local function referenceListToTable(list)
 end
 
 local function teleport_to_closest_marker()
-    -- local strider = nil
     local results = {}
     local cells = tes3.getActiveCells()
     for _index, cell in ipairs(cells) do
@@ -313,6 +314,11 @@ local function onTimerTick()
             duration = 1,
             callback = (function()
                 tes3.mobilePlayer.movementCollision = true;
+                tes3.playAnimation({
+                    reference = tes3.player,
+                    group = tes3.animationGroup.idle2,
+                    loopCount = 0
+                })
                 tes3.fadeIn({duration = 1})
                 teleport_to_closest_marker();
                 is_traveling = false
@@ -359,7 +365,7 @@ local function start_travel(start, destination)
     timer.start({
         type = timer.real,
         iterations = 1,
-        duration = 3,
+        duration = 5,
         callback = (function() original_mount:enable() end)
     })
 
@@ -372,15 +378,25 @@ local function start_travel(start, destination)
         orientation = mount.orientation
     }
 
-    local m = tes3ui.findMenu(test_menu)
+    local m = tes3ui.findMenu(travel_menu)
     if (m) then
         tes3ui.leaveMenuMode()
         m:destroy()
+        -- leave npc dialogue
+        local menu = tes3ui.findMenu(npc_menu)
+        if menu then
+            npc_menu = nil
+            menu:destroy()
+        end
 
         -- set targets
         load_spline(start, destination)
         if current_spline == nil then return end
         tes3.mobilePlayer.movementCollision = false;
+        tes3.playAnimation({
+            reference = tes3.player,
+            group = tes3.animationGroup.idle2
+        })
         tes3.fadeOut({duration = 1.0})
         is_traveling = true
 
@@ -391,6 +407,11 @@ local function start_travel(start, destination)
             duration = 1,
             callback = (function()
                 tes3.fadeIn({duration = 1})
+                -- teleport player to mount
+                tes3.positionCell({
+                    reference = tes3.mobilePlayer,
+                    position = mount.position - get_offset()
+                })
 
                 -- start timer
                 myTimer = timer.start({
@@ -409,7 +430,7 @@ end
 local function createTravelWindow()
     log:debug("travel from: " .. tes3.player.cell.id)
     -- Return if window is already open
-    if (tes3ui.findMenu(test_menu) ~= nil) then return end
+    if (tes3ui.findMenu(travel_menu) ~= nil) then return end
     -- Return if no destinations
     local destinations = get_destinations()[tes3.player.cell.id]
     -- log:debug(json.encode(destinations))
@@ -417,7 +438,7 @@ local function createTravelWindow()
 
     -- Create window and frame
     local menu = tes3ui.createMenu {
-        id = test_menu,
+        id = travel_menu,
         fixedFrame = false,
         dragFrame = true
     }
@@ -453,13 +474,13 @@ local function createTravelWindow()
     button_block.childAlignX = 1.0 -- right content alignment
 
     local button_cancel = button_block:createButton{
-        id = test_menu_cancel,
+        id = travel_menu_cancel,
         text = "Cancel"
     }
 
     -- Events
     button_cancel:register(tes3.uiEvent.mouseClick, function()
-        local m = tes3ui.findMenu(test_menu)
+        local m = tes3ui.findMenu(travel_menu)
         if (m) then
             mount = nil
             mount_scale = 1.0
@@ -471,23 +492,8 @@ local function createTravelWindow()
 
     -- Final setup
     menu:updateLayout()
-    tes3ui.enterMenuMode(test_menu)
+    tes3ui.enterMenuMode(travel_menu)
 end
-
--- Start Travel window
---- @param e activateEventData
-local function activateCallback(e)
-    if (e.activator ~= tes3.player) then return end
-    if mount ~= nil then return; end
-
-    if e.target.baseObject.id == "a_siltstrider" then
-        boat_mode = false;
-        mount = e.target
-        -- mount_scale = e.target.scale
-        createTravelWindow()
-    end
-end
-event.register(tes3.event.activate, activateCallback)
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// EDITOR
@@ -788,21 +794,6 @@ local function keyDownCallback(e)
         end
     end
 
-    if e.keyCode == tes3.scanCode["o"] then
-        if mount == nil then
-            local t = getLookedAtReference()
-            if (t) then
-                if t.baseObject.id == "Ex_longboat02" or t.baseObject.id ==
-                    "ex_longboat" then
-
-                    mount = t
-                    boat_mode = true;
-                    createTravelWindow()
-                end
-            end
-        end
-    end
-
     -- delete
     if e.keyCode == tes3.scanCode["delete"] then
         local idx = getClosestMarkerIdx()
@@ -839,6 +830,116 @@ local function keyDownCallback(e)
 
 end
 event.register(tes3.event.keyDown, keyDownCallback)
+
+-- lots of hot tea
+
+---@param menu tes3uiElement
+local function updateServiceButton(menu)
+    timer.frame.delayOneFrame(function()
+        if not menu then return end
+        local serviceButton = menu:findChild("rf_id_travel_button")
+        if not serviceButton then return end
+        serviceButton.visible = true
+        serviceButton.disabled = false
+    end)
+end
+
+---@param menu tes3uiElement
+---@param attached_strider tes3reference
+---@param mode boolean
+local function createTravelButton(menu, attached_strider, mode)
+    local divider = menu:findChild("MenuDialog_divider")
+    local topicsList = divider.parent
+    local button = topicsList:createTextSelect({
+        id = "rf_id_travel_button",
+        text = "Take me to..."
+    })
+    button.widthProportional = 1.0
+    button.visible = true
+    button.disabled = false
+
+    topicsList:reorderChildren(divider, button, 1)
+
+    button:register("mouseClick", function()
+        boat_mode = mode;
+        mount = attached_strider
+        npc_menu = menu.id
+        createTravelWindow()
+    end)
+    menu:registerAfter("update", function() updateServiceButton(menu) end)
+end
+
+---@param actor tes3mobileActor
+---@return tes3reference|nil
+local function findStrider(actor)
+    local cell = actor.cell
+    local references = referenceListToTable(cell.statics)
+    for _, r in ipairs(references) do
+        if r.baseObject.id == "a_siltstrider" then return r end
+    end
+end
+
+---@param actor tes3mobileActor
+---@return tes3reference|nil
+local function findBoat(actor)
+    local cell = actor.cell
+    local references = referenceListToTable(cell.statics)
+    for _, r in ipairs(references) do
+        if r.baseObject.id == "ex_longboat" or r.baseObject.id ==
+            "ex_longboat01" or r.baseObject.id == "Ex_longboat02" then
+            return r
+        end
+    end
+end
+
+--- This function returns `true` if given NPC
+--- or creature offers traveling service.
+---@param actor tes3npc|tes3npcInstance|tes3creature|tes3creatureInstance
+---@return boolean
+local function offersTraveling(actor)
+    local travelDestinations = actor.aiConfig.travelDestinations
+
+    -- Actors that can't transport the player
+    -- have travelDestinations equal to `nil`
+    return travelDestinations ~= nil
+end
+
+-- upon entering the dialog menu, create the hot tea button (thanks joseph)
+---@param e uiActivatedEventData
+local function onMenuDialog(e)
+
+    local menuDialog = e.element
+    local mobileActor = menuDialog:getPropertyObject("PartHyperText_actor") ---@cast mobileActor tes3mobileActor
+    if mobileActor.actorType == tes3.actorType.npc then
+        local ref = mobileActor.reference
+        local obj = ref.baseObject
+        local npc = obj ---@cast obj tes3npc
+        -- an npc that is class Caravaner AND has AI travel package AND in the same cell as a siltstrider is eligible
+        if npc.class.id == "Caravaner" and offersTraveling(npc) then
+            local strider = findStrider(mobileActor)
+            if strider ~= nil then
+                log:debug("Adding Hot Tea Service to %s", ref.id) -- definitely hot tea yes
+
+                createTravelButton(menuDialog, strider, false)
+                menuDialog:updateLayout()
+            end
+        end
+
+        -- an npc that is class Shipmaster AND has AI travel package AND in the same cell as a boat is eligible
+        if npc.class.id == "Shipmaster" and offersTraveling(npc) then
+            local boat = findBoat(mobileActor)
+            if boat ~= nil then
+                log:debug("Adding Hot Tea Service to %s", ref.id) -- definitely hot tea yes
+
+                createTravelButton(menuDialog, boat, true)
+                menuDialog:updateLayout()
+            end
+        end
+
+    end
+
+end
+event.register("uiActivated", onMenuDialog, {filter = "MenuDialog"})
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// CONFIG
