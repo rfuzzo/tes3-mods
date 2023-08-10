@@ -42,11 +42,12 @@ local myTimer = nil
 
 ---@type tes3reference | nil
 local mount = nil
+---@type tes3reference | nil
+local guide = nil
 local is_traveling = false
 local spline_index = 1
 local sway_time = 0
 local mount_scale = 1.0
-
 local npc_menu = nil
 
 -- editor
@@ -241,6 +242,7 @@ end
 
 local function onTimerTick()
     if mount == nil then return; end
+    if guide == nil then return; end
     if myTimer == nil then return; end
 
     local len = #current_spline
@@ -285,6 +287,10 @@ local function onTimerTick()
             spline_index = spline_index + 1
         end
 
+        -- add guide npc
+        guide.position = tes3.player.position + (mount_xy_offset * 9)
+        guide.facing = facing
+
         -- set sway
         sway_time = sway_time + timertick
         if sway_time > (2000 * sway_frequency) then sway_time = timertick end
@@ -306,6 +312,8 @@ local function onTimerTick()
         -- delete the mount
         mount:delete()
         mount = nil
+        guide:delete()
+        guide = nil
         mount_scale = 1.0
 
         timer.start({
@@ -314,11 +322,7 @@ local function onTimerTick()
             duration = 1,
             callback = (function()
                 tes3.mobilePlayer.movementCollision = true;
-                tes3.playAnimation({
-                    reference = tes3.player,
-                    group = tes3.animationGroup.idle2,
-                    loopCount = 0
-                })
+                tes3.playAnimation({reference = tes3.player, group = 0})
                 tes3.fadeIn({duration = 1})
                 teleport_to_closest_marker();
                 is_traveling = false
@@ -358,10 +362,13 @@ end
 ---@param destination string
 local function start_travel(start, destination)
     if mount == nil then return end
+    if guide == nil then return end
 
     local original_mount = mount
-    original_mount:disable()
+    local original_guide = guide
+
     -- hide original mount for a while
+    original_mount:disable()
     timer.start({
         type = timer.real,
         iterations = 1,
@@ -373,6 +380,14 @@ local function start_travel(start, destination)
     local object_id = "a_siltstrider"
     if boat_mode then object_id = "a_longboat" end
     mount = tes3.createReference {
+        object = object_id,
+        position = mount.position,
+        orientation = mount.orientation
+    }
+
+    -- duplicate guide
+    object_id = original_guide.baseObject.id
+    guide = tes3.createReference {
         object = object_id,
         position = mount.position,
         orientation = mount.orientation
@@ -392,11 +407,27 @@ local function start_travel(start, destination)
         -- set targets
         load_spline(start, destination)
         if current_spline == nil then return end
+
         tes3.mobilePlayer.movementCollision = false;
         tes3.playAnimation({
             reference = tes3.player,
             group = tes3.animationGroup.idle2
         })
+
+        -- play mount animation
+        -- tes3.playAnimation({
+        --     reference = mount,
+        --     group = tes3.animationGroup["walkForward"]
+        -- })
+
+        -- play guide animation
+        guide.mobile.movementCollision = false;
+        tes3.playAnimation({
+            reference = guide,
+            -- group = tes3.animationGroup.idle4
+            group = tes3.animationGroup.idle5
+        })
+
         tes3.fadeOut({duration = 1.0})
         is_traveling = true
 
@@ -426,6 +457,38 @@ local function start_travel(start, destination)
     end
 end
 
+--- Disable activate of mount and guide while in travel
+--- @param e activateEventData
+local function activateCallback(e)
+    if (e.activator ~= tes3.player) then return end
+    if mount == nil then return; end
+    if guide == nil then return; end
+    if myTimer == nil then return; end
+
+    if e.target.id == guide.id then return false end
+    if e.target.id == mount.id then return false end
+end
+event.register(tes3.event.activate, activateCallback)
+
+--- Disable tooltips of mount and guide while in travel
+--- @param e uiObjectTooltipEventData
+local function uiObjectTooltipCallback(e)
+    if mount == nil then return; end
+    if guide == nil then return; end
+    if myTimer == nil then return; end
+
+    if e.object.id == guide.id then
+        e.tooltip.visible = false
+        return false
+    end
+    if e.object.id == mount.id then
+        e.tooltip.visible = false
+        return false
+    end
+end
+event.register(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
+
+--- Start Travel window
 -- Create window and layout. Called by onCommand.
 local function createTravelWindow()
     log:debug("travel from: " .. tes3.player.cell.id)
@@ -845,9 +908,10 @@ local function updateServiceButton(menu)
 end
 
 ---@param menu tes3uiElement
----@param attached_strider tes3reference
+---@param attached_mount tes3reference
+---@param attached_guide tes3reference
 ---@param mode boolean
-local function createTravelButton(menu, attached_strider, mode)
+local function createTravelButton(menu, attached_mount, attached_guide, mode)
     local divider = menu:findChild("MenuDialog_divider")
     local topicsList = divider.parent
     local button = topicsList:createTextSelect({
@@ -862,7 +926,8 @@ local function createTravelButton(menu, attached_strider, mode)
 
     button:register("mouseClick", function()
         boat_mode = mode;
-        mount = attached_strider
+        mount = attached_mount
+        guide = attached_guide
         npc_menu = menu.id
         createTravelWindow()
     end)
@@ -920,7 +985,7 @@ local function onMenuDialog(e)
             if strider ~= nil then
                 log:debug("Adding Hot Tea Service to %s", ref.id) -- definitely hot tea yes
 
-                createTravelButton(menuDialog, strider, false)
+                createTravelButton(menuDialog, strider, ref, false)
                 menuDialog:updateLayout()
             end
         end
@@ -931,7 +996,7 @@ local function onMenuDialog(e)
             if boat ~= nil then
                 log:debug("Adding Hot Tea Service to %s", ref.id) -- definitely hot tea yes
 
-                createTravelButton(menuDialog, boat, true)
+                createTravelButton(menuDialog, boat, ref, true)
                 menuDialog:updateLayout()
             end
         end
