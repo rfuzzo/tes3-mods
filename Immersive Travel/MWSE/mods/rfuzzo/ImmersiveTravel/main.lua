@@ -385,7 +385,21 @@ local function start_travel(start, destination)
 
     -- duplicate mount
     local object_id = "a_siltstrider"
-    if boat_mode then object_id = "a_longboat" end
+    if boat_mode then
+        if string.startswith(start, "Dagon Fel") or
+            string.startswith(start, "Vos") or
+            string.startswith(start, "Sadrith Mora") or
+            string.startswith(start, "Ebonheart") or 
+            string.startswith(destination, "Dagon Fel") or
+            string.startswith(destination, "Vos") or
+            string.startswith(destination, "Sadrith Mora") or
+            string.startswith(destination, "Ebonheart") then
+            object_id = "a_DE_ship"
+        else
+            object_id = "a_longboat"
+        end
+
+    end
     mount = tes3.createReference {
         object = object_id,
         position = mount.position,
@@ -966,9 +980,8 @@ local function findBoat(actor)
     local references = referenceListToTable(cell.statics)
     for _, r in ipairs(references) do
         if r.baseObject.id == "ex_longboat" or r.baseObject.id ==
-            "ex_longboat01" or r.baseObject.id == "Ex_longboat02" then
-            return r
-        end
+            "ex_longboat01" or r.baseObject.id == "Ex_longboat02" or
+            r.baseObject.id == "Ex_DE_ship" then return r end
     end
 end
 
