@@ -1,0 +1,23 @@
+{
+  "a_siltstrider": {
+    "offset": -1220,
+    "sway": 1,
+    "mountpoint1": 10,
+    "mountpoint1_z": 0,
+    "mountpoint2": 90
+  },
+  "a_longboat": {
+    "offset": 74,
+    "sway": 4,
+    "mountpoint1": -124,
+    "mountpoint1_z": 0,
+    "mountpoint2": -400
+  },
+  "a_DE_ship": {
+    "offset": 74,
+    "sway": 4,
+    "mountpoint1": -224,
+    "mountpoint1_z": 285,
+    "mountpoint2": -400
+  }
+}

@@ -54,7 +54,21 @@ local editor_marker = "marker_arrow.nif"
 local editor_markers = {}
 local editor_instance = nil
 
-local current_spline = {}
+---@class PositionRecord
+---@field x number The x position
+---@field y number The y position
+---@field z number The z position
+
+---@class MountData
+---@field offset number? The mount offset to ground
+---@field sway number The sway intensity
+---@field mountpoint1 number A mountpoint relative to player position and facing
+---@field mountpoint1_z number hack
+---@field mountpoint2 number A mountpoint relative to player position and facing
+
+local current_spline = {} ---@type PositionRecord[]
+local mount_data = nil ---@type MountData|nil
+
 local destination_map = {} ---@type table<string, table>
 local destination_boat_map = {} ---@type table<string, table>
 
@@ -87,33 +101,6 @@ local function get_angle()
         return config.boatturnspeed / 10000
     else
         return config.turnspeed / 10000
-    end
-end
-
--- how much the mount sways
-local function get_sway_amplitude()
-    if boat_mode then
-        return sway_amplitude * 4
-    else
-        return sway_amplitude
-    end
-end
-
--- offset of the mount relative to player (since we move the player primarily)
-local function get_offset()
-    if boat_mode then
-        return tes3vector3.new(0, 0, 74)
-    else
-        return tes3vector3.new(0, 0, -1220)
-    end
-end
-
--- offset of the player relative to center mount
-local function get_mount_xy_offset()
-    if boat_mode then
-        return -124
-    else
-        return 10
     end
 end
 
@@ -195,7 +182,13 @@ local function referenceListToTable(list)
     return references
 end
 
-local function teleport_to_closest_marker()
+---@class ReferenceRecord
+---@field cell tes3cell The cell
+---@field position tes3vector3 The reference position
+
+---@return ReferenceRecord|nil
+local function findClosestTravelMarker()
+    ---@type table<ReferenceRecord>
     local results = {}
     local cells = tes3.getActiveCells()
     for _index, cell in ipairs(cells) do
@@ -218,11 +211,42 @@ local function teleport_to_closest_marker()
         end
     end
 
-    tes3.positionCell({
-        reference = tes3.mobilePlayer,
-        cell = results[last_index].cell,
-        position = results[last_index].position
-    })
+    return results[last_index]
+end
+
+local function teleport_to_closest_marker()
+    local marker = findClosestTravelMarker()
+    if marker ~= nil then
+        tes3.positionCell({
+            reference = tes3.mobilePlayer,
+            cell = marker.cell,
+            position = marker.position
+        })
+    end
+end
+
+--- find the first a_siltstrider in the actors cell
+---@param actor tes3mobileActor
+---@return tes3reference|nil
+local function findStrider(actor)
+    local cell = actor.cell
+    local references = referenceListToTable(cell.statics)
+    for _, r in ipairs(references) do
+        if r.baseObject.id == "a_siltstrider" then return r end
+    end
+end
+
+--- find the first boat in the actors cell
+---@param actor tes3mobileActor
+---@return tes3reference|nil
+local function findBoat(actor)
+    local cell = actor.cell
+    local references = referenceListToTable(cell.statics)
+    for _, r in ipairs(references) do
+        if r.baseObject.id == "ex_longboat" or r.baseObject.id ==
+            "ex_longboat01" or r.baseObject.id == "Ex_longboat02" or
+            r.baseObject.id == "Ex_DE_ship" then return r end
+    end
 end
 
 -- Function to translate local orientation around a player-centered coordinate system to world orientation around a fixed axis coordinate system
@@ -243,8 +267,24 @@ local function toWorldOrientation(localOrientation, newOrientation)
     return worldOrientation
 end
 
+local function cleanup()
+    -- cleanup
+    if myTimer ~= nil then myTimer:cancel() end
+    spline_index = 1
+
+    -- delete the mount
+    if mount ~= nil then mount:delete() end
+    mount = nil
+    if guide ~= nil then guide:delete() end
+    guide = nil
+    mount_scale = 1.0
+
+    is_traveling = false
+end
+
 local function onTimerTick()
     if mount == nil then return; end
+    if mount_data == nil then return; end
     if guide == nil then return; end
     if myTimer == nil then return; end
 
@@ -255,7 +295,10 @@ local function onTimerTick()
         point = current_spline[spline_index]
 
         local next_pos = tes3vector3.new(point.x, point.y, point.z)
-        local d = next_pos - tes3.player.position -- get the direction vector from the object to the coordinate
+        local local_pos = tes3.player.position -
+                              tes3vector3.new(0, 0, mount_data.mountpoint1_z)
+
+        local d = next_pos - local_pos -- get the direction vector from the object to the coordinate
         local dist = d:length() -- get the distance from the object to the coordinate
         d:normalize()
         local d_n = d
@@ -277,31 +320,42 @@ local function onTimerTick()
         end
         mount.facing = facing
 
-        local mount_xy_offset = mount.forwardDirection * get_mount_xy_offset()
-        if dist > get_speed() then
-            local p = tes3.player.position + (d_n * get_speed()) -- move the object by speed units along the direction vector 
+        -- positions
+        local player_offset = mount.forwardDirection * mount_data.mountpoint1
+        local mount_offset = mount_data.offset
 
-            mount.position = p + (get_offset() + mount_xy_offset)
-            tes3.player.position = p
+        if dist > get_speed() then
+            local p = local_pos + (d_n * get_speed()) -- move the object by speed units along the direction vector 
+
+            mount.position = p +
+                                 (tes3vector3.new(0, 0, mount_offset) +
+                                     player_offset)
+
+            tes3.player.position = p +
+                                       tes3vector3.new(0, 0,
+                                                       mount_data.mountpoint1_z)
         else
-            mount.position = next_pos + (get_offset() + mount_xy_offset)
-            tes3.player.position = next_pos
+            mount.position = next_pos +
+                                 (tes3vector3.new(0, 0, mount_offset) +
+                                     player_offset)
+
+            tes3.player.position = next_pos +
+                                       tes3vector3.new(0, 0,
+                                                       mount_data.mountpoint1_z)
 
             spline_index = spline_index + 1
         end
 
         -- add guide npc
-        if boat_mode then
-            guide.position = tes3.player.position + (mount_xy_offset * 3.2)
-        else
-            guide.position = tes3.player.position + (mount_xy_offset * 9)
-        end
+        guide.position = local_pos +
+                             tes3vector3.new(0, 0, mount_data.mountpoint1_z) +
+                             (mount.forwardDirection * mount_data.mountpoint2)
         guide.facing = facing
 
         -- set sway
         sway_time = sway_time + timertick
         if sway_time > (2000 * sway_frequency) then sway_time = timertick end
-        local sway = get_sway_amplitude() *
+        local sway = (sway_amplitude * mount_data.sway) *
                          math.sin(2 * math.pi * sway_frequency * sway_time)
         local worldOrientation = toWorldOrientation(
                                      tes3vector3.new(0.0, sway, 0.0),
@@ -309,19 +363,9 @@ local function onTimerTick()
         mount.orientation = worldOrientation
 
     else -- if i is at the end of the list
-        -- cleanup
-        myTimer:cancel()
-        spline_index = 1
 
-        -- fade back in
         tes3.fadeOut({duration = 0.5})
-
-        -- delete the mount
-        mount:delete()
-        mount = nil
-        guide:delete()
-        guide = nil
-        mount_scale = 1.0
+        cleanup()
 
         timer.start({
             type = timer.real,
@@ -345,7 +389,7 @@ end
 local function forcedPacifism(e) if (is_traveling == true) then return false end end
 event.register(tes3.event.combatStart, forcedPacifism)
 
----comment
+--- load json spline from file
 ---@param start string
 ---@param destination string
 local function load_spline(start, destination)
@@ -364,60 +408,94 @@ local function load_spline(start, destination)
     end
 end
 
----comment
+--- load json static mount data
+---@param id string
+local function load_mount_data(id)
+    local filePath = "mods\\rfuzzo\\ImmersiveTravel\\mounts.json"
+    local result = {} ---@type table<string, MountData>
+    result = json.loadfile(filePath)
+
+    if result ~= nil then
+        log:debug("loaded mount " .. id .. ": " .. filePath)
+        mount_data = result[id]
+    else
+        log:debug("!!! failed to load mount: " .. filePath)
+        mount_data = nil
+    end
+
+end
+
+--- set up everything
 ---@param start string
 ---@param destination string
 local function start_travel(start, destination)
     if mount == nil then return end
     if guide == nil then return end
 
-    local original_mount = mount
-    local original_guide = guide
-
-    -- hide original mount for a while
-    original_mount:disable()
-    timer.start({
-        type = timer.real,
-        iterations = 1,
-        duration = 7,
-        callback = (function() original_mount:enable() end)
-    })
-
-    -- duplicate mount
-    local object_id = "a_siltstrider"
-    if boat_mode then
-        if string.startswith(start, "Dagon Fel") or
-            string.startswith(start, "Vos") or
-            string.startswith(start, "Sadrith Mora") or
-            string.startswith(start, "Ebonheart") or 
-            string.startswith(destination, "Dagon Fel") or
-            string.startswith(destination, "Vos") or
-            string.startswith(destination, "Sadrith Mora") or
-            string.startswith(destination, "Ebonheart") then
-            object_id = "a_DE_ship"
-        else
-            object_id = "a_longboat"
-        end
-
-    end
-    mount = tes3.createReference {
-        object = object_id,
-        position = mount.position,
-        orientation = mount.orientation
-    }
-
-    -- duplicate guide
-    object_id = original_guide.baseObject.id
-    guide = tes3.createReference {
-        object = object_id,
-        position = mount.position,
-        orientation = mount.orientation
-    }
-
     local m = tes3ui.findMenu(travel_menu)
     if (m) then
+
         tes3ui.leaveMenuMode()
         m:destroy()
+
+        -- set targets
+        load_spline(start, destination)
+        if current_spline == nil then return end
+
+        local original_mount = mount
+        local original_guide = guide
+
+        -- hide original mount for a while
+        original_mount:disable()
+        timer.start({
+            type = timer.real,
+            iterations = 1,
+            duration = 7,
+            callback = (function() original_mount:enable() end)
+        })
+
+        -- duplicate mount
+        local object_id = "a_siltstrider"
+        if boat_mode then
+            if (string.startswith(start, "Dagon Fel") or
+                string.startswith(start, "Vos") or
+                string.startswith(start, "Sadrith Mora") or
+                string.startswith(start, "Ebonheart")) and
+                (string.startswith(destination, "Dagon Fel") or
+                    string.startswith(destination, "Vos") or
+                    string.startswith(destination, "Sadrith Mora") or
+                    string.startswith(destination, "Ebonheart")) then
+                object_id = "a_DE_ship"
+            else
+                object_id = "a_longboat"
+            end
+        end
+
+        -- load mount data
+        load_mount_data(object_id)
+        if mount_data == nil then return end
+
+        -- fade out
+        tes3.fadeOut({duration = 1.0})
+        is_traveling = true
+
+        local start_point = current_spline[1]
+        local start_pos = tes3vector3.new(start_point.x, start_point.y,
+                                          start_point.z)
+        mount = tes3.createReference {
+            object = object_id,
+            position = start_pos,
+            orientation = mount.orientation
+        }
+
+        -- duplicate guide
+        object_id = original_guide.baseObject.id
+        guide = tes3.createReference {
+            object = object_id,
+            position = mount.position,
+            orientation = mount.orientation
+        }
+
         -- leave npc dialogue
         local menu = tes3ui.findMenu(npc_menu)
         if menu then
@@ -425,13 +503,10 @@ local function start_travel(start, destination)
             menu:destroy()
         end
 
-        -- set targets
-        load_spline(start, destination)
-        if current_spline == nil then return end
-
-        -- position the mount correctly
-        local point = current_spline[1]
-        local next_pos = tes3vector3.new(point.x, point.y, point.z)
+        -- facing
+        local next_point = current_spline[2]
+        local next_pos = tes3vector3.new(next_point.x, next_point.y,
+                                         next_point.z)
         local d = next_pos - mount.position
         d:normalize()
         local new_facing = math.atan2(d.x, d.y)
@@ -453,12 +528,8 @@ local function start_travel(start, destination)
         guide.mobile.movementCollision = false;
         tes3.playAnimation({
             reference = guide,
-            -- group = tes3.animationGroup.idle4
             group = tes3.animationGroup.idle5
         })
-
-        tes3.fadeOut({duration = 1.0})
-        is_traveling = true
 
         -- fade back in
         timer.start({
@@ -466,12 +537,13 @@ local function start_travel(start, destination)
             iterations = 1,
             duration = 1,
             callback = (function()
+
                 tes3.fadeIn({duration = 1})
+
                 -- teleport player to mount
-                tes3.positionCell({
-                    reference = tes3.mobilePlayer,
-                    position = mount.position - get_offset()
-                })
+                local p = mount.position -
+                              tes3vector3.new(0, 0, mount_data.offset)
+                tes3.positionCell({reference = tes3.mobilePlayer, position = p})
 
                 -- start timer
                 myTimer = timer.start({
@@ -963,28 +1035,6 @@ local function createTravelButton(menu, attached_mount, attached_guide, mode)
     menu:registerAfter("update", function() updateServiceButton(menu) end)
 end
 
----@param actor tes3mobileActor
----@return tes3reference|nil
-local function findStrider(actor)
-    local cell = actor.cell
-    local references = referenceListToTable(cell.statics)
-    for _, r in ipairs(references) do
-        if r.baseObject.id == "a_siltstrider" then return r end
-    end
-end
-
----@param actor tes3mobileActor
----@return tes3reference|nil
-local function findBoat(actor)
-    local cell = actor.cell
-    local references = referenceListToTable(cell.statics)
-    for _, r in ipairs(references) do
-        if r.baseObject.id == "ex_longboat" or r.baseObject.id ==
-            "ex_longboat01" or r.baseObject.id == "Ex_longboat02" or
-            r.baseObject.id == "Ex_DE_ship" then return r end
-    end
-end
-
 --- This function returns `true` if given NPC
 --- or creature offers traveling service.
 ---@param actor tes3npc|tes3npcInstance|tes3creature|tes3creatureInstance
@@ -1000,7 +1050,6 @@ end
 -- upon entering the dialog menu, create the hot tea button (thanks joseph)
 ---@param e uiActivatedEventData
 local function onMenuDialog(e)
-
     local menuDialog = e.element
     local mobileActor = menuDialog:getPropertyObject("PartHyperText_actor") ---@cast mobileActor tes3mobileActor
     if mobileActor.actorType == tes3.actorType.npc then
@@ -1012,7 +1061,7 @@ local function onMenuDialog(e)
         if npc.class.id == "Caravaner" and offersTraveling(npc) then
             local strider = findStrider(mobileActor)
             if strider ~= nil then
-                log:debug("Adding Hot Tea Service to %s", ref.id) -- definitely hot tea yes
+                log:debug("Adding Hot Tea Service to %s", ref.id)
 
                 createTravelButton(menuDialog, strider, ref, false)
                 menuDialog:updateLayout()
@@ -1023,7 +1072,7 @@ local function onMenuDialog(e)
         if npc.class.id == "Shipmaster" and offersTraveling(npc) then
             local boat = findBoat(mobileActor)
             if boat ~= nil then
-                log:debug("Adding Hot Tea Service to %s", ref.id) -- definitely hot tea yes
+                log:debug("Adding Hot Tea Service to %s", ref.id)
 
                 createTravelButton(menuDialog, boat, ref, true)
                 menuDialog:updateLayout()
@@ -1034,6 +1083,10 @@ local function onMenuDialog(e)
 
 end
 event.register("uiActivated", onMenuDialog, {filter = "MenuDialog"})
+
+--- @param e loadEventData
+local function loadCallback(e) cleanup() end
+event.register(tes3.event.load, loadCallback)
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// CONFIG
@@ -1108,5 +1161,8 @@ local function init()
         end
     end
     destination_boat_map = map
+
+    -- mounts
+
 end
 event.register(tes3.event.initialized, init)
