@@ -23,6 +23,25 @@ local sway_frequency = 0.12 -- how fast the mount sways
 local sway_amplitude = 0.014 -- how much the mount sways
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
+-- ////////////// CLASSES
+
+---@class PositionRecord
+---@field x number The x position
+---@field y number The y position
+---@field z number The z position
+
+---@class MountData
+---@field offset number? The mount offset to ground
+---@field sway number The sway intensity
+---@field player_mount number inital player mountpoint
+---@field mountpoint1 PositionRecord guide mount
+---@field mountpoint2 PositionRecord front
+---@field mountpoint3 PositionRecord middle
+---@field mountpoint4 PositionRecord left
+---@field mountpoint5 PositionRecord right
+---@field mountpoint6 PositionRecord back
+
+-- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// VARIABLES
 local edit_menu = tes3ui.registerID("it:MenuEdit")
 local edit_menu_display = tes3ui.registerID("it:MenuEdit_Display")
@@ -53,22 +72,6 @@ local editor_marker = "marker_arrow.nif"
 local editor_markers = {}
 local editor_instance = nil
 
----@class PositionRecord
----@field x number The x position
----@field y number The y position
----@field z number The z position
-
----@class MountData
----@field offset number? The mount offset to ground
----@field sway number The sway intensity
----@field player_mount number inital player mountpoint
----@field mountpoint1 PositionRecord guide mount
----@field mountpoint2 PositionRecord front
----@field mountpoint3 PositionRecord middle
----@field mountpoint4 PositionRecord left
----@field mountpoint5 PositionRecord right
----@field mountpoint6 PositionRecord back
-
 local current_spline = {} ---@type PositionRecord[]
 local mount_data = nil ---@type MountData|nil
 
@@ -76,6 +79,7 @@ local destination_map = {} ---@type table<string, table>
 local destination_boat_map = {} ---@type table<string, table>
 
 local boat_mode = false
+local current_mountpoint = 2
 
 local logger = require("logging.logger")
 local log = logger.new {
@@ -289,9 +293,7 @@ local function vec(pos) return tes3vector3.new(pos.x, pos.y, pos.z) end
 ---@param data MountData
 --- @return PositionRecord
 local function get_mount_point(data, idx)
-    if idx == 1 then
-        return data.mountpoint1
-    elseif idx == 2 then
+    if idx == 2 then
         return data.mountpoint2
     elseif idx == 3 then
         return data.mountpoint3
@@ -299,9 +301,19 @@ local function get_mount_point(data, idx)
         return data.mountpoint4
     elseif idx == 5 then
         return data.mountpoint5
-    else
+    elseif idx == 6 then
         return data.mountpoint6
+    else
+        return data.mountpoint2
     end
+end
+
+local function increment_mountpoint()
+    current_mountpoint = current_mountpoint + 1
+    if current_mountpoint > 6 then current_mountpoint = 2 end
+
+    local v = get_mount_point(mount_data, current_mountpoint)
+    if v.x + v.y + v.z == 0 then increment_mountpoint() end
 end
 
 local function onTimerTick()
@@ -360,10 +372,12 @@ local function onTimerTick()
                                      mount.orientation)
         guide.facing = facing
         -- todo randomize position
-        local player_mount = mount_data.player_mount
         tes3.player.position = mount.position +
-                                   toWorld(vec(get_mount_point(mount_data, player_mount)),
-                                           mount.orientation)
+                                   toWorld(
+                                       vec(
+                                           get_mount_point(mount_data,
+                                                           current_mountpoint)),
+                                       mount.orientation)
 
         -- set sway
         sway_time = sway_time + timertick
@@ -961,6 +975,11 @@ local function keyDownCallback(e)
 
         editor_instance = child
         editmode = true
+    end
+
+    -- move
+    if e.keyCode == tes3.scanCode["w"] then
+        if is_traveling then increment_mountpoint() end
     end
 
 end
