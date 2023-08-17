@@ -43,7 +43,6 @@ local guide = nil
 local is_traveling = false
 local spline_index = 1
 local sway_time = 0
-local mount_scale = 1.0
 local npc_menu = nil
 
 -- editor
@@ -62,9 +61,13 @@ local editor_instance = nil
 ---@class MountData
 ---@field offset number? The mount offset to ground
 ---@field sway number The sway intensity
----@field mountpoint1 number A mountpoint relative to player position and facing
----@field mountpoint1_z number hack
----@field mountpoint2 number A mountpoint relative to player position and facing
+---@field player_mount number inital player mountpoint
+---@field mountpoint1 PositionRecord guide mount
+---@field mountpoint2 PositionRecord front
+---@field mountpoint3 PositionRecord middle
+---@field mountpoint4 PositionRecord left
+---@field mountpoint5 PositionRecord right
+---@field mountpoint6 PositionRecord back
 
 local current_spline = {} ---@type PositionRecord[]
 local mount_data = nil ---@type MountData|nil
@@ -124,25 +127,6 @@ end
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// LOGIC
-
-local function getLookedAtReference()
-    -- Get the player's eye position and direction.
-    local eyePos = tes3.getPlayerEyePosition()
-    local eyeDir = tes3.getPlayerEyeVector()
-
-    -- Perform a ray test from the eye position along the eye direction.
-    local result = tes3.rayTest({
-        position = eyePos,
-        direction = eyeDir,
-        ignore = {tes3.player}
-    })
-
-    -- If the ray hit something, return the reference of the object.
-    if (result) then return result.reference end
-
-    -- Otherwise, return nil.
-    return nil
-end
 
 --- @param from tes3vector3
 --- @return number|nil
@@ -249,22 +233,38 @@ local function findBoat(actor)
     end
 end
 
--- Function to translate local orientation around a player-centered coordinate system to world orientation around a fixed axis coordinate system
+-- Translate local orientation around a base-centered coordinate system to world orientation
 ---@param localOrientation tes3vector3
+---@param baseOrientation tes3vector3
 --- @return tes3vector3
-local function toWorldOrientation(localOrientation, newOrientation)
+local function toWorldOrientation(localOrientation, baseOrientation)
     -- Convert the local orientation to a rotation matrix
+    local baseRotationMatrix = tes3matrix33.new()
+    baseRotationMatrix:fromEulerXYZ(baseOrientation.x, baseOrientation.y,
+                                    baseOrientation.z)
+
     local localRotationMatrix = tes3matrix33.new()
-    localRotationMatrix:fromEulerXYZ(newOrientation.x, newOrientation.y,
-                                     newOrientation.z)
-    local playerRotationMatrix = tes3matrix33.new()
-    playerRotationMatrix:fromEulerXYZ(localOrientation.x, localOrientation.y,
-                                      localOrientation.z)
+    localRotationMatrix:fromEulerXYZ(localOrientation.x, localOrientation.y,
+                                     localOrientation.z)
 
     -- Combine the rotation matrices to get the world rotation matrix
-    local worldRotationMatrix = localRotationMatrix * playerRotationMatrix
+    local worldRotationMatrix = baseRotationMatrix * localRotationMatrix
     local worldOrientation, _isUnique = worldRotationMatrix:toEulerXYZ()
     return worldOrientation
+end
+
+-- Transform a local offset to world coordinates given a fixed orientation
+---@param localVector tes3vector3
+---@param worldOrientation tes3vector3
+--- @return tes3vector3
+local function toWorld(localVector, worldOrientation)
+    -- Convert the local orientation to a rotation matrix
+    local baseRotationMatrix = tes3matrix33.new()
+    baseRotationMatrix:fromEulerXYZ(worldOrientation.x, worldOrientation.y,
+                                    worldOrientation.z)
+
+    -- Combine the rotation matrices to get the world rotation matrix
+    return baseRotationMatrix * localVector
 end
 
 local function cleanup()
@@ -277,9 +277,31 @@ local function cleanup()
     mount = nil
     if guide ~= nil then guide:delete() end
     guide = nil
-    mount_scale = 1.0
 
     is_traveling = false
+end
+
+---@param pos PositionRecord
+--- @return tes3vector3
+local function vec(pos) return tes3vector3.new(pos.x, pos.y, pos.z) end
+
+---@param idx number
+---@param data MountData
+--- @return PositionRecord
+local function get_mount_point(data, idx)
+    if idx == 1 then
+        return data.mountpoint1
+    elseif idx == 2 then
+        return data.mountpoint2
+    elseif idx == 3 then
+        return data.mountpoint3
+    elseif idx == 4 then
+        return data.mountpoint4
+    elseif idx == 5 then
+        return data.mountpoint5
+    else
+        return data.mountpoint6
+    end
 end
 
 local function onTimerTick()
@@ -290,20 +312,20 @@ local function onTimerTick()
 
     local len = #current_spline
     if spline_index <= len then -- if i is not at the end of the list
-        -- set position
-        local point = nil
-        point = current_spline[spline_index]
 
+        local point = current_spline[spline_index]
         local next_pos = tes3vector3.new(point.x, point.y, point.z)
-        local local_pos = tes3.player.position -
-                              tes3vector3.new(0, 0, mount_data.mountpoint1_z)
+        local mount_offset = tes3vector3.new(0, 0, mount_data.offset)
 
+        local local_pos = mount.position - mount_offset
+
+        -- calculate next position
         local d = next_pos - local_pos -- get the direction vector from the object to the coordinate
         local dist = d:length() -- get the distance from the object to the coordinate
         d:normalize()
         local d_n = d
 
-        -- set heading
+        -- calculate heading
         local current_facing = mount.facing
         local new_facing = math.atan2(d_n.x, d_n.y)
         local facing = new_facing
@@ -320,37 +342,28 @@ local function onTimerTick()
         end
         mount.facing = facing
 
-        -- positions
-        local player_offset = mount.forwardDirection * mount_data.mountpoint1
-        local mount_offset = mount_data.offset
+        -- set positions
 
+        local position = next_pos + mount_offset
         if dist > get_speed() then
             local p = local_pos + (d_n * get_speed()) -- move the object by speed units along the direction vector 
-
-            mount.position = p +
-                                 (tes3vector3.new(0, 0, mount_offset) +
-                                     player_offset)
-
-            tes3.player.position = p +
-                                       tes3vector3.new(0, 0,
-                                                       mount_data.mountpoint1_z)
+            position = p + mount_offset
         else
-            mount.position = next_pos +
-                                 (tes3vector3.new(0, 0, mount_offset) +
-                                     player_offset)
-
-            tes3.player.position = next_pos +
-                                       tes3vector3.new(0, 0,
-                                                       mount_data.mountpoint1_z)
-
             spline_index = spline_index + 1
         end
 
-        -- add guide npc
-        guide.position = local_pos +
-                             tes3vector3.new(0, 0, mount_data.mountpoint1_z) +
-                             (mount.forwardDirection * mount_data.mountpoint2)
+        mount.position = position
+
+        -- place npc and player
+        guide.position = mount.position +
+                             toWorld(vec(mount_data.mountpoint1),
+                                     mount.orientation)
         guide.facing = facing
+        -- todo randomize position
+        local player_mount = mount_data.player_mount
+        tes3.player.position = mount.position +
+                                   toWorld(vec(get_mount_point(mount_data, player_mount)),
+                                           mount.orientation)
 
         -- set sway
         sway_time = sway_time + timertick
@@ -647,7 +660,6 @@ local function createTravelWindow()
         local m = tes3ui.findMenu(travel_menu)
         if (m) then
             mount = nil
-            mount_scale = 1.0
 
             tes3ui.leaveMenuMode()
             m:destroy()
@@ -845,7 +857,6 @@ local function createEditWindow()
             boat_mode = not boat_mode
 
             mount = nil
-            mount_scale = 1.0
             -- tes3ui.leaveMenuMode()
             m:destroy()
 
@@ -858,7 +869,6 @@ local function createEditWindow()
         local m = tes3ui.findMenu(edit_menu)
         if (m) then
             mount = nil
-            mount_scale = 1.0
             tes3ui.leaveMenuMode()
             m:destroy()
         end
@@ -917,45 +927,6 @@ local function keyDownCallback(e)
         local idx = getClosestMarkerIdx()
         editmode = not editmode
         tes3.messageBox("Marker index: " .. idx)
-    end
-
-    if e.keyCode == tes3.scanCode["forwardSlash"] then
-        tes3.messageBox(tes3.player.cell.id)
-        mwse.log("cell: " .. tes3.player.cell.id)
-
-        local t = getLookedAtReference()
-        if (t) then
-            -- mwse.log("=== start === ")
-            -- mwse.log("baseObject: " .. t.baseObject.id)
-            -- mwse.log("mesh: " .. t.baseObject.mesh)
-            -- mwse.log("scale: " .. tostring(t.scale))
-            -- mwse.log("position: " .. t.position:__tostring())
-            -- mwse.log("orientation: " .. t.orientation:__tostring())
-            -- mwse.log("boundingBox: " .. t.baseObject.boundingBox:__tostring())
-            -- mwse.log("height: " .. t.baseObject.boundingBox.max.z)
-            -- mwse.log("=== end === ")
-
-            -- facing
-
-            local mesh = tes3.loadMesh(editor_marker)
-            local child = mesh:clone()
-            child.appCulled = false
-            local pos = t.position + tes3vector3.new(0, 0, 60)
-            child.translation = pos
-
-            local facing = t.facing
-            local orientation = t.orientation
-            local m = tes3matrix33.new()
-            -- local rotation_matrix = rotation_matrix_from_direction(direction)
-            m:fromEulerXYZ(orientation.x, orientation.y, orientation.z)
-            child.rotation = m
-
-            local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-            ---@diagnostic disable-next-line: param-type-mismatch
-            vfxRoot:attachChild(child)
-            vfxRoot:update()
-
-        end
     end
 
     -- delete

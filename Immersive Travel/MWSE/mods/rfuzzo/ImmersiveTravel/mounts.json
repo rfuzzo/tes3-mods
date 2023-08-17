@@ -2,22 +2,106 @@
   "a_siltstrider": {
     "offset": -1220,
     "sway": 1,
-    "mountpoint1": 10,
-    "mountpoint1_z": 0,
-    "mountpoint2": 90
+    "player_mount": 2,
+    "mountpoint1": {
+      "x": -4,
+      "y": 52,
+      "z": 1223
+    },
+    "mountpoint2": {
+      "x": 2,
+      "y": -34,
+      "z": 1223
+    },
+    "mountpoint3": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "mountpoint4": {
+      "x": -81,
+      "y": 3,
+      "z": 1230
+    },
+    "mountpoint5": {
+      "x": 81,
+      "y": -3,
+      "z": 1230
+    },
+    "mountpoint6": {
+      "x": 15,
+      "y": -86,
+      "z": 1227
+    }
   },
   "a_longboat": {
     "offset": 74,
     "sway": 4,
-    "mountpoint1": -124,
-    "mountpoint1_z": 0,
-    "mountpoint2": -400
+    "player_mount": 2,
+    "mountpoint1": {
+      "x": 67,
+      "y": -457,
+      "z": -65
+    },
+    "mountpoint2": {
+      "x": 6,
+      "y": 324,
+      "z": -63
+    },
+    "mountpoint3": {
+      "x": 15,
+      "y": 90,
+      "z": -63
+    },
+    "mountpoint4": {
+      "x": -111,
+      "y": 0,
+      "z": -63
+    },
+    "mountpoint5": {
+      "x": 111,
+      "y": 0,
+      "z": -63
+    },
+    "mountpoint6": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    }
   },
   "a_DE_ship": {
-    "offset": 74,
+    "offset": -20,
     "sway": 4,
-    "mountpoint1": -224,
-    "mountpoint1_z": 285,
-    "mountpoint2": -400
+    "player_mount": 2,
+    "mountpoint1": {
+      "x": -25,
+      "y": -823,
+      "z": 360
+    },
+    "mountpoint2": {
+      "x": -33,
+      "y": 438,
+      "z": 257
+    },
+    "mountpoint3": {
+      "x": -9,
+      "y": 29,
+      "z": 209
+    },
+    "mountpoint4": {
+      "x": -181,
+      "y": 139,
+      "z": 209
+    },
+    "mountpoint5": {
+      "x": 181,
+      "y": -139,
+      "z": 209
+    },
+    "mountpoint6": {
+      "x": 115,
+      "y": -466,
+      "z": 208
+    }
   }
 }
