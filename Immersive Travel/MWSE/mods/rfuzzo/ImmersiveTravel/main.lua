@@ -22,6 +22,8 @@ local config = require("rfuzzo.ImmersiveTravel.config")
 local sway_frequency = 0.12 -- how fast the mount sways
 local sway_amplitude = 0.014 -- how much the mount sways
 
+local ENABLE_MOVEMENT = false
+
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// CLASSES
 
@@ -313,6 +315,8 @@ local function cleanup()
     if myTimer ~= nil then myTimer:cancel() end
     spline_index = 1
 
+    tes3.removeSound({sound = "Boat Hull", reference = mount})
+
     -- delete the mount
     if mount ~= nil then mount:delete() end
     mount = nil
@@ -320,9 +324,6 @@ local function cleanup()
     guide = nil
 
     is_traveling = false
-    -- if tes3.mobilePlayer ~= nil then
-    --     tes3.mobilePlayer.jumpingDisabled = false
-    -- end
 end
 
 ---@param pos PositionRecord
@@ -408,12 +409,8 @@ local function onTimerTick()
 
         -- set mount position
         local mount_pos = local_pos + delta + mount_offset
-        -- mount.position = position
-        tes3.positionCell({
-            reference = mount,
-            position = mount_pos,
-            cell = mount.cell
-        })
+        mount.position = mount_pos
+
         -- set sway
         sway_time = sway_time + timertick
         if sway_time > (2000 * sway_frequency) then sway_time = timertick end
@@ -428,28 +425,34 @@ local function onTimerTick()
         local guide_pos = mount.position +
                               toWorld(vec(mount_data.mountpoint1),
                                       mount.orientation)
-        -- guide.position = guide_pos
-        tes3.positionCell({
-            reference = guide,
-            position = guide_pos,
-            cell = guide.cell
-        })
+        guide.position = guide_pos
         guide.facing = facing
 
-        -- if doOnce then
-        local player_pos = mount.position +
-                               toWorld(
-                                   vec(
-                                       get_mount_point(mount_data,
-                                                       current_mountpoint)),
-                                   mount.orientation)
-        tes3.player.position = player_pos
-        tes3.mobilePlayer.movementCollision = true
-        -- doOnce = false
-        -- else
-        --     local p = tes3.player.position + delta
-        --     tes3.player.position = tes3vector3.new(p.x, p.y, p.z)
-        -- end
+        if ENABLE_MOVEMENT then
+
+            if doOnce then
+                local player_pos = mount.position +
+                                       toWorld(
+                                           vec(
+                                               get_mount_point(mount_data,
+                                                               current_mountpoint)),
+                                           mount.orientation)
+                tes3.player.position = player_pos
+                doOnce = false
+            else
+                local p = tes3.player.position + delta
+                tes3.player.position = tes3vector3.new(p.x, p.y, p.z)
+            end
+        else
+            local player_pos = mount.position +
+                                   toWorld(
+                                       vec(
+                                           get_mount_point(mount_data,
+                                                           current_mountpoint)),
+                                       mount.orientation)
+            tes3.player.position = player_pos
+        end
+
     else -- if i is at the end of the list
 
         tes3.fadeOut({duration = 0.5})
@@ -460,8 +463,10 @@ local function onTimerTick()
             iterations = 1,
             duration = 1,
             callback = (function()
-                tes3.mobilePlayer.movementCollision = true;
-                tes3.playAnimation({reference = tes3.player, group = 0})
+                if not ENABLE_MOVEMENT then
+                    tes3.mobilePlayer.movementCollision = true;
+                    tes3.playAnimation({reference = tes3.player, group = 0})
+                end
                 tes3.fadeIn({duration = 1})
                 teleport_to_closest_marker();
                 is_traveling = false
@@ -567,12 +572,13 @@ local function start_travel(start, destination)
                     reference = tes3.mobilePlayer,
                     position = start_pos
                 })
-
-                tes3.mobilePlayer.movementCollision = false;
-                tes3.playAnimation({
-                    reference = tes3.player,
-                    group = tes3.animationGroup.idle2
-                })
+                if not ENABLE_MOVEMENT then
+                    tes3.mobilePlayer.movementCollision = false;
+                    tes3.playAnimation({
+                        reference = tes3.player,
+                        group = tes3.animationGroup.idle2
+                    })
+                end
 
                 -- duplicate guide
                 object_id = original_guide.baseObject.id
@@ -590,7 +596,12 @@ local function start_travel(start, destination)
 
                 -- start timer
                 is_traveling = true
-                -- tes3.mobilePlayer.jumpingDisabled = true
+                tes3.playSound({
+                    sound = "Boat Hull",
+                    reference = mount,
+                    loop = true
+                })
+
                 myTimer = timer.start({
                     duration = timertick,
                     type = timer.real,
@@ -796,7 +807,6 @@ local function getClosestMarkerIdx()
 end
 
 local function renderMarkers()
-    -- cleanup
     editor_markers = {}
     editor_instance = nil
     local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
