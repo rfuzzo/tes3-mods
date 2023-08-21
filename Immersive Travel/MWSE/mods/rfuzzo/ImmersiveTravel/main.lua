@@ -5,14 +5,7 @@ by rfuzzo
 
 mwse real-time travel mod
 
----
-Current Usage (Debug)
-- Open route editor 						... R-Ctrl
-- move a marker 							... L-Ctrl
-- delete a marker 							... Del
-- exit edit mode 							... L-Ctrl
-- add a marker								... >
-- start traveling            		        ... <
+
 
 --]] -- 
 -- /////////////////////////////////////////////////////////////////////////////////////////
@@ -23,6 +16,14 @@ local sway_frequency = 0.12 -- how fast the mount sways
 local sway_amplitude = 0.014 -- how much the mount sways
 
 local ENABLE_MOVEMENT = false
+
+local logger = require("logging.logger")
+local log = logger.new {
+    name = config.mod,
+    logLevel = config.logLevel,
+    logToConsole = true,
+    includeTimestamp = true
+}
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// CLASSES
@@ -59,10 +60,6 @@ local ENABLE_MOVEMENT = false
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// VARIABLES
-local edit_menu = tes3ui.registerID("it:MenuEdit")
-local edit_menu_display = tes3ui.registerID("it:MenuEdit_Display")
-local edit_menu_mode = tes3ui.registerID("it:MenuEdit_Mode")
-local edit_menu_cancel = tes3ui.registerID("it:MenuEdit_Cancel")
 
 local travel_menu = tes3ui.registerID("it:travel_menu")
 local travel_menu_cancel = tes3ui.registerID("it:travel_menu_cancel")
@@ -82,27 +79,11 @@ local spline_index = 1
 local sway_time = 0
 local npc_menu = nil
 
--- editor
-local editmode = false
-
-local editor_marker = "marker_arrow.nif"
----@type niNode[]
-local editor_markers = {}
-local editor_instance = nil
-
 local current_spline = {} ---@type PositionRecord[]
 local mount_data = nil ---@type MountData|nil
 
 local current_mountpoint = 2
 local doOnce = true
-
-local logger = require("logging.logger")
-local log = logger.new {
-    name = config.mod,
-    logLevel = config.logLevel,
-    logToConsole = true,
-    includeTimestamp = true
-}
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// LOGIC
@@ -216,30 +197,6 @@ local function teleport_to_closest_marker()
             cell = marker.cell,
             position = marker.position
         })
-    end
-end
-
---- find the first a_siltstrider in the actors cell
----@param actor tes3mobileActor
----@return tes3reference|nil
-local function findStrider(actor)
-    local cell = actor.cell
-    local references = referenceListToTable(cell.statics)
-    for _, r in ipairs(references) do
-        if r.baseObject.id == "a_siltstrider" then return r end
-    end
-end
-
---- find the first boat in the actors cell
----@param actor tes3mobileActor
----@return tes3reference|nil
-local function findBoat(actor)
-    local cell = actor.cell
-    local references = referenceListToTable(cell.statics)
-    for _, r in ipairs(references) do
-        if r.baseObject.id == "ex_longboat" or r.baseObject.id ==
-            "ex_longboat01" or r.baseObject.id == "Ex_longboat02" or
-            r.baseObject.id == "Ex_DE_ship" then return r end
     end
 end
 
@@ -600,41 +557,6 @@ local function start_travel(start, destination, data)
     end
 end
 
---- @param e combatStartEventData
-local function forcedPacifism(e) if (is_traveling == true) then return false end end
-event.register(tes3.event.combatStart, forcedPacifism)
-
---- Disable activate of mount and guide while in travel
---- @param e activateEventData
-local function activateCallback(e)
-    if (e.activator ~= tes3.player) then return end
-    if mount == nil then return; end
-    if guide == nil then return; end
-    if myTimer == nil then return; end
-
-    if e.target.id == guide.id then return false end
-    if e.target.id == mount.id then return false end
-end
-event.register(tes3.event.activate, activateCallback)
-
---- Disable tooltips of mount and guide while in travel
---- @param e uiObjectTooltipEventData
-local function uiObjectTooltipCallback(e)
-    if mount == nil then return; end
-    if guide == nil then return; end
-    if myTimer == nil then return; end
-
-    if e.object.id == guide.id then
-        e.tooltip.visible = false
-        return false
-    end
-    if e.object.id == mount.id then
-        e.tooltip.visible = false
-        return false
-    end
-end
-event.register(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
-
 --- Start Travel window
 -- Create window and layout. Called by onCommand.
 ---@param data ServiceData
@@ -703,9 +625,180 @@ local function createTravelWindow(data)
     tes3ui.enterMenuMode(travel_menu)
 end
 
+---@param menu tes3uiElement
+local function updateServiceButton(menu)
+    timer.frame.delayOneFrame(function()
+        if not menu then return end
+        local serviceButton = menu:findChild("rf_id_travel_button")
+        if not serviceButton then return end
+        serviceButton.visible = true
+        serviceButton.disabled = false
+    end)
+end
+
+---@param menu tes3uiElement
+---@param attached_guide tes3reference
+---@param data ServiceData
+local function createTravelButton(menu, attached_guide, data)
+    local divider = menu:findChild("MenuDialog_divider")
+    local topicsList = divider.parent
+    local button = topicsList:createTextSelect({
+        id = "rf_id_travel_button",
+        text = "Take me to..."
+    })
+    button.widthProportional = 1.0
+    button.visible = true
+    button.disabled = false
+
+    topicsList:reorderChildren(divider, button, 1)
+
+    button:register("mouseClick", function()
+        guide = attached_guide
+        npc_menu = menu.id
+        createTravelWindow(data)
+    end)
+    menu:registerAfter("update", function() updateServiceButton(menu) end)
+end
+
+--- This function returns `true` if given NPC
+--- or creature offers traveling service.
+---@param actor tes3npc|tes3npcInstance|tes3creature|tes3creatureInstance
+---@return boolean
+local function offersTraveling(actor)
+    local travelDestinations = actor.aiConfig.travelDestinations
+
+    -- Actors that can't transport the player
+    -- have travelDestinations equal to `nil`
+    return travelDestinations ~= nil
+end
+
+---comment
+---@param table string[]
+---@param str string
+local function is_in(table, str)
+    for index, value in ipairs(table) do if value == str then return true end end
+    return false
+end
+
+-- /////////////////////////////////////////////////////////////////////////////////////////
+-- ////////////// EVENTS
+
+--- Disable combat while in travel
+--- @param e combatStartEventData
+local function forcedPacifism(e) if (is_traveling == true) then return false end end
+event.register(tes3.event.combatStart, forcedPacifism)
+
+--- Disable activate of mount and guide while in travel
+--- @param e activateEventData
+local function activateCallback(e)
+    if (e.activator ~= tes3.player) then return end
+    if mount == nil then return; end
+    if guide == nil then return; end
+    if myTimer == nil then return; end
+
+    if e.target.id == guide.id then return false end
+    if e.target.id == mount.id then return false end
+end
+event.register(tes3.event.activate, activateCallback)
+
+--- Disable tooltips of mount and guide while in travel
+--- @param e uiObjectTooltipEventData
+local function uiObjectTooltipCallback(e)
+    if mount == nil then return; end
+    if guide == nil then return; end
+    if myTimer == nil then return; end
+
+    if e.object.id == guide.id then
+        e.tooltip.visible = false
+        return false
+    end
+    if e.object.id == mount.id then
+        e.tooltip.visible = false
+        return false
+    end
+end
+event.register(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
+
+--- Cleanup on save load
+--- @param e loadEventData
+local function loadCallback(e) cleanup() end
+event.register(tes3.event.load, loadCallback)
+
+-- upon entering the dialog menu, create the hot tea button
+---@param e uiActivatedEventData
+local function onMenuDialog(e)
+    local menuDialog = e.element
+    local mobileActor = menuDialog:getPropertyObject("PartHyperText_actor") ---@cast mobileActor tes3mobileActor
+    if mobileActor.actorType == tes3.actorType.npc then
+        local ref = mobileActor.reference
+        local obj = ref.baseObject
+        local npc = obj ---@cast obj tes3npc
+
+        if not offersTraveling(npc) then return end
+
+        -- get npc class
+        local class = npc.class.id
+        local service = table.get(services, class)
+        if service == nil then
+
+            for key, value in pairs(services) do
+                if value.override_npc ~= nil then
+                    if is_in(value.override_npc, npc.id) then
+                        service = value
+                        break
+                    end
+                end
+            end
+        end
+
+        if service == nil then
+            log:debug("no service found for " .. npc.id)
+            return
+        end
+
+        log:debug("createTravelButton for " .. npc.id)
+        createTravelButton(menuDialog, ref, service)
+        menuDialog:updateLayout()
+
+    end
+
+end
+event.register("uiActivated", onMenuDialog, {filter = "MenuDialog"})
+
+-- key down callbacks while in travel
+--- @param e keyDownEventData
+local function keyDownCallback(e)
+    -- move
+    if e.keyCode == tes3.scanCode["w"] then
+        if is_traveling then increment_mountpoint() end
+    end
+end
+event.register(tes3.event.keyDown, keyDownCallback)
+
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// EDITOR
 
+--[[
+Current Usage (Debug)
+- Open route editor 						... R-Ctrl
+- move a marker 							... L-Ctrl
+- delete a marker 							... Del
+- exit edit mode 							... L-Ctrl
+- add a marker								... >
+- start traveling            		        ... <
+
+--]]
+local edit_menu = tes3ui.registerID("it:MenuEdit")
+local edit_menu_display = tes3ui.registerID("it:MenuEdit_Display")
+local edit_menu_mode = tes3ui.registerID("it:MenuEdit_Mode")
+local edit_menu_cancel = tes3ui.registerID("it:MenuEdit_Cancel")
+
+local editmode = false
+
+local editor_marker = "marker_arrow.nif"
+---@type niNode[]
+local editor_markers = {}
+local editor_instance = nil
 local current_editor_route = ""
 ---@type number | nil
 local current_editor_idx = nil
@@ -954,7 +1047,7 @@ local function createEditWindow()
 end
 
 --- @param e keyDownEventData
-local function keyDownCallback(e)
+local function editor_keyDownCallback(e)
 
     if config.enableeditor == false then return end
 
@@ -1002,113 +1095,8 @@ local function keyDownCallback(e)
         editmode = true
     end
 
-    -- move
-    if e.keyCode == tes3.scanCode["w"] then
-        if is_traveling then increment_mountpoint() end
-    end
-
 end
-event.register(tes3.event.keyDown, keyDownCallback)
-
----@param menu tes3uiElement
-local function updateServiceButton(menu)
-    timer.frame.delayOneFrame(function()
-        if not menu then return end
-        local serviceButton = menu:findChild("rf_id_travel_button")
-        if not serviceButton then return end
-        serviceButton.visible = true
-        serviceButton.disabled = false
-    end)
-end
-
----@param menu tes3uiElement
----@param attached_guide tes3reference
----@param data ServiceData
-local function createTravelButton(menu, attached_guide, data)
-    local divider = menu:findChild("MenuDialog_divider")
-    local topicsList = divider.parent
-    local button = topicsList:createTextSelect({
-        id = "rf_id_travel_button",
-        text = "Take me to..."
-    })
-    button.widthProportional = 1.0
-    button.visible = true
-    button.disabled = false
-
-    topicsList:reorderChildren(divider, button, 1)
-
-    button:register("mouseClick", function()
-        guide = attached_guide
-        npc_menu = menu.id
-        createTravelWindow(data)
-    end)
-    menu:registerAfter("update", function() updateServiceButton(menu) end)
-end
-
---- This function returns `true` if given NPC
---- or creature offers traveling service.
----@param actor tes3npc|tes3npcInstance|tes3creature|tes3creatureInstance
----@return boolean
-local function offersTraveling(actor)
-    local travelDestinations = actor.aiConfig.travelDestinations
-
-    -- Actors that can't transport the player
-    -- have travelDestinations equal to `nil`
-    return travelDestinations ~= nil
-end
-
----comment
----@param table string[]
----@param str string
-local function is_in(table, str)
-    for index, value in ipairs(table) do if value == str then return true end end
-    return false
-end
-
--- upon entering the dialog menu, create the hot tea button
----@param e uiActivatedEventData
-local function onMenuDialog(e)
-    local menuDialog = e.element
-    local mobileActor = menuDialog:getPropertyObject("PartHyperText_actor") ---@cast mobileActor tes3mobileActor
-    if mobileActor.actorType == tes3.actorType.npc then
-        local ref = mobileActor.reference
-        local obj = ref.baseObject
-        local npc = obj ---@cast obj tes3npc
-
-        if not offersTraveling(npc) then return end
-
-        -- get npc class
-        local class = npc.class.id
-        local service = table.get(services, class)
-        if service == nil then
-
-            for key, value in pairs(services) do
-                if value.override_npc ~= nil then
-                    if is_in(value.override_npc, npc.id) then
-                        service = value
-                        break
-                    end
-                end
-            end
-        end
-
-        if service == nil then
-            log:debug("no service found for " .. npc.id)
-            return
-        end
-
-        log:debug("createTravelButton for " .. npc.id)
-        createTravelButton(menuDialog, ref, service)
-        menuDialog:updateLayout()
-
-    end
-
-end
-event.register("uiActivated", onMenuDialog, {filter = "MenuDialog"})
-
---- @param e loadEventData
-local function loadCallback(e) cleanup() end
-event.register(tes3.event.load, loadCallback)
+event.register(tes3.event.keyDown, editor_keyDownCallback)
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// CONFIG
