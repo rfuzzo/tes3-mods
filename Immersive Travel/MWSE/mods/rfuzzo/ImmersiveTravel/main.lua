@@ -32,16 +32,26 @@ local ENABLE_MOVEMENT = false
 ---@field y number The y position
 ---@field z number The z position
 
+---@class ServiceData
+---@field class string The npc class name
+---@field mount string The mount
+---@field override_npc string[]? register specific npcs with the service
+---@field override_mount table<string,string[]>? register specific mounts with the service
+---@field routes table<string, table>? routes
+---@field ground_offset number DEPRECATED: editor marker offset
+
 ---@class MountData
 ---@field offset number? The mount offset to ground
 ---@field sway number The sway intensity
+---@field speed number forward speed
+---@field turnspeed number turning speed
 ---@field player_mount number inital player mountpoint
----@field mountpoint1 PositionRecord guide mount
----@field mountpoint2 PositionRecord front
----@field mountpoint3 PositionRecord middle
----@field mountpoint4 PositionRecord left
----@field mountpoint5 PositionRecord right
----@field mountpoint6 PositionRecord back
+---@field mountpoint1 PositionRecord? guide mount
+---@field mountpoint2 PositionRecord? front
+---@field mountpoint3 PositionRecord? middle
+---@field mountpoint4 PositionRecord? left
+---@field mountpoint5 PositionRecord? right
+---@field mountpoint6 PositionRecord? back
 
 ---@class ReferenceRecord
 ---@field cell tes3cell The cell
@@ -56,6 +66,8 @@ local edit_menu_cancel = tes3ui.registerID("it:MenuEdit_Cancel")
 
 local travel_menu = tes3ui.registerID("it:travel_menu")
 local travel_menu_cancel = tes3ui.registerID("it:travel_menu_cancel")
+
+local services = {} ---@type table<string, ServiceData>
 
 local timertick = 0.01
 ---@type mwseTimer | nil
@@ -81,10 +93,6 @@ local editor_instance = nil
 local current_spline = {} ---@type PositionRecord[]
 local mount_data = nil ---@type MountData|nil
 
-local destination_map = {} ---@type table<string, table>
-local destination_boat_map = {} ---@type table<string, table>
-
-local boat_mode = false
 local current_mountpoint = 2
 local doOnce = true
 
@@ -97,57 +105,16 @@ local log = logger.new {
 }
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
--- ////////////// GETTERS
-
--- speed of the mount
---- @return number
-local function get_speed()
-    if boat_mode then
-        return config.boatspeed
-    else
-        return config.speed
-    end
-end
-
--- rotation speed of the mount
-local function get_angle()
-    if boat_mode then
-        return config.boatturnspeed / 10000
-    else
-        return config.turnspeed / 10000
-    end
-end
-
--- get destination_map var for mounts
-local function get_destinations()
-    if boat_mode then
-        return destination_boat_map
-    else
-        return destination_map
-    end
-end
-
--- editor: get marker offset from the ground
-local function get_ground_offset()
-    if boat_mode then
-        return 0
-    else
-        return 1025
-    end
-end
-
--- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// LOGIC
 
 --- load json spline from file
 ---@param start string
 ---@param destination string
-local function load_spline(start, destination)
+---@param data ServiceData
+local function load_spline(start, destination, data)
     local fileName = start .. "_" .. destination
-    local filePath = "mods\\rfuzzo\\ImmersiveTravel\\data\\" .. fileName
-    if boat_mode then
-        filePath = "mods\\rfuzzo\\ImmersiveTravel\\data_boats\\" .. fileName
-    end
+    local filePath = "mods\\rfuzzo\\ImmersiveTravel\\" .. data.class .. "\\" ..
+                         fileName
     local result = json.loadfile(filePath)
     if result ~= nil then
         log:debug("loaded spline: " .. filePath)
@@ -332,7 +299,7 @@ local function vec(pos) return tes3vector3.new(pos.x, pos.y, pos.z) end
 
 ---@param idx number
 ---@param data MountData
---- @return PositionRecord
+--- @return PositionRecord?
 local function get_mount_point(data, idx)
     if idx == 2 then
         return data.mountpoint2
@@ -354,7 +321,7 @@ local function increment_mountpoint()
     if current_mountpoint > 6 then current_mountpoint = 2 end
 
     local v = get_mount_point(mount_data, current_mountpoint)
-    if v.x + v.y + v.z == 0 then increment_mountpoint() end
+    if v == nil then increment_mountpoint() end
 end
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
@@ -388,19 +355,21 @@ local function onTimerTick()
         if diff < -math.pi then diff = diff + 2 * math.pi end
         if diff > math.pi then diff = diff - 2 * math.pi end
 
-        if diff > 0 and diff > get_angle() then
-            facing = current_facing + get_angle()
-        elseif diff < 0 and diff < -get_angle() then
-            facing = current_facing - get_angle()
+        local angle = mount_data.turnspeed / 10000
+        if diff > 0 and diff > angle then
+            facing = current_facing + angle
+        elseif diff < 0 and diff < -angle then
+            facing = current_facing - angle
         else
             facing = new_facing
         end
         mount.facing = facing
 
         -- calculate delta
+        local speed = mount_data.speed
         local delta = tes3vector3.new(0, 0, 0)
-        if dist > get_speed() then
-            delta = d * get_speed()
+        if dist > speed then
+            delta = d * speed
         else
             delta = next_pos - local_pos
             -- move to next marker
@@ -409,7 +378,12 @@ local function onTimerTick()
 
         -- set mount position
         local mount_pos = local_pos + delta + mount_offset
-        mount.position = mount_pos
+        -- mount.position = mount_pos
+        tes3.positionCell({
+            reference = mount,
+            position = mount_pos
+            -- orientation = tes3.player.orientation
+        })
 
         -- set sway
         sway_time = sway_time + timertick
@@ -425,7 +399,8 @@ local function onTimerTick()
         local guide_pos = mount.position +
                               toWorld(vec(mount_data.mountpoint1),
                                       mount.orientation)
-        guide.position = guide_pos
+        -- guide.position = guide_pos
+        tes3.positionCell({reference = guide, position = guide_pos})
         guide.facing = facing
 
         if ENABLE_MOVEMENT then
@@ -437,10 +412,20 @@ local function onTimerTick()
                                                get_mount_point(mount_data,
                                                                current_mountpoint)),
                                            mount.orientation)
-                tes3.player.position = player_pos
+                -- tes3.player.position = player_pos
+                tes3.positionCell({
+                    reference = tes3.mobilePlayer,
+                    position = player_pos,
+                    orientation = tes3.player.orientation
+                })
                 doOnce = false
             else
                 local p = tes3.player.position + delta
+                -- tes3.positionCell({
+                --     reference = tes3.mobilePlayer,
+                --     position = p,
+                --     orientation = tes3.player.orientation
+                -- })
                 tes3.player.position = tes3vector3.new(p.x, p.y, p.z)
             end
         else
@@ -450,7 +435,12 @@ local function onTimerTick()
                                            get_mount_point(mount_data,
                                                            current_mountpoint)),
                                        mount.orientation)
-            tes3.player.position = player_pos
+            -- tes3.player.position = player_pos
+            tes3.positionCell({
+                reference = tes3.mobilePlayer,
+                position = player_pos,
+                orientation = tes3.player.orientation
+            })
         end
 
     else -- if i is at the end of the list
@@ -478,8 +468,8 @@ end
 --- set up everything
 ---@param start string
 ---@param destination string
-local function start_travel(start, destination)
-    if mount == nil then return end
+---@param data ServiceData
+local function start_travel(start, destination, data)
     if guide == nil then return end
 
     local m = tes3ui.findMenu(travel_menu)
@@ -495,23 +485,17 @@ local function start_travel(start, destination)
             menu:destroy()
         end
 
-        load_spline(start, destination)
+        load_spline(start, destination, data)
         if current_spline == nil then return end
 
-        -- duplicate mount
-        local object_id = "a_siltstrider"
-        if boat_mode then
-            if (string.startswith(start, "Dagon Fel") or
-                string.startswith(start, "Vos") or
-                string.startswith(start, "Sadrith Mora") or
-                string.startswith(start, "Ebonheart")) and
-                (string.startswith(destination, "Dagon Fel") or
-                    string.startswith(destination, "Vos") or
-                    string.startswith(destination, "Sadrith Mora") or
-                    string.startswith(destination, "Ebonheart")) then
-                object_id = "a_DE_ship"
-            else
-                object_id = "a_longboat"
+        local object_id = data.mount
+        -- override mounts 
+        if data.override_mount then
+            for key, value in pairs(data.override_mount) do
+                if table.get(value, start) and table.get(value, destination) then
+                    object_id = key
+                    break
+                end
             end
         end
 
@@ -519,7 +503,7 @@ local function start_travel(start, destination)
         load_mount_data(object_id)
         if mount_data == nil then return end
 
-        local original_mount = mount
+        -- local original_mount = mount
         local original_guide = guide
 
         -- fade out
@@ -535,26 +519,19 @@ local function start_travel(start, destination)
                 tes3.fadeIn({duration = 1})
 
                 -- hide original mount for a while
-                original_mount:disable()
-                timer.start({
-                    type = timer.real,
-                    iterations = 1,
-                    duration = 7,
-                    callback = (function()
-                        original_mount:enable()
-                    end)
-                })
+                -- original_mount:disable()
+                -- timer.start({
+                --     type = timer.real,
+                --     iterations = 1,
+                --     duration = 7,
+                --     callback = (function()
+                --         original_mount:enable()
+                --     end)
+                -- })
 
                 local start_point = current_spline[1]
                 local start_pos = tes3vector3.new(start_point.x, start_point.y,
                                                   start_point.z)
-
-                -- create mount
-                mount = tes3.createReference {
-                    object = object_id,
-                    position = start_pos,
-                    orientation = mount.orientation
-                }
 
                 -- set initial facing of mount
                 local next_point = current_spline[2]
@@ -563,15 +540,24 @@ local function start_travel(start, destination)
                 local d = next_pos - start_pos
                 d:normalize()
                 local new_facing = math.atan2(d.x, d.y)
+
+                -- create mount
+                mount = tes3.createReference {
+                    object = object_id,
+                    position = start_pos,
+                    orientation = d
+                }
                 mount.facing = new_facing
 
                 -- player settings
                 -- teleport player to mount
                 doOnce = true
-                tes3.positionCell({
-                    reference = tes3.mobilePlayer,
-                    position = start_pos
-                })
+                -- tes3.positionCell({
+                --     reference = tes3.player,
+                --     position = mount.position,
+                --     orientation = tes3.player.orientation
+                -- })
+                tes3.player.position = start_pos
                 if not ENABLE_MOVEMENT then
                     tes3.mobilePlayer.movementCollision = false;
                     tes3.playAnimation({
@@ -651,12 +637,13 @@ event.register(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
 
 --- Start Travel window
 -- Create window and layout. Called by onCommand.
-local function createTravelWindow()
+---@param data ServiceData
+local function createTravelWindow(data)
     log:debug("travel from: " .. tes3.player.cell.id)
     -- Return if window is already open
     if (tes3ui.findMenu(travel_menu) ~= nil) then return end
     -- Return if no destinations
-    local destinations = get_destinations()[tes3.player.cell.id]
+    local destinations = data.routes[tes3.player.cell.id]
     -- log:debug(json.encode(destinations))
     if destinations == nil then return end
 
@@ -682,9 +669,8 @@ local function createTravelWindow()
             text = name
         }
 
-        button:register(tes3.uiEvent.mouseClick,
-                        function()
-            start_travel(tes3.player.cell.id, name)
+        button:register(tes3.uiEvent.mouseClick, function()
+            start_travel(tes3.player.cell.id, name, data)
         end)
     end
     pane:getContentElement():sortChildren(function(a, b)
@@ -707,7 +693,6 @@ local function createTravelWindow()
         local m = tes3ui.findMenu(travel_menu)
         if (m) then
             mount = nil
-
             tes3ui.leaveMenuMode()
             m:destroy()
         end
@@ -722,22 +707,26 @@ end
 -- ////////////// EDITOR
 
 local current_editor_route = ""
+---@type number | nil
+local current_editor_idx = nil
+---@type string[]
+local editor_services = {}
 
 event.register("simulate", function(e)
     if editmode == false then return end
     if editor_instance == nil then return end
 
     local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
+    local data = services[editor_services[current_editor_idx]]
 
-    if boat_mode then
+    if data.class == "Shipmaster" then
         from.z = 0
     else
-
         local groundZ = getGroundZ(from)
         if groundZ == nil then
-            from.z = get_ground_offset()
+            from.z = data.ground_offset
         else
-            from.z = groundZ + get_ground_offset()
+            from.z = groundZ + data.ground_offset
         end
     end
 
@@ -853,39 +842,44 @@ local function createEditWindow()
     local label = menu:createLabel{text = "Loaded routes"}
     label.borderBottom = 5
 
-    local pane = menu:createVerticalScrollPane{id = "sortedPane"}
-
-    local destinations = get_destinations()
-
-    for _i, start in ipairs(table.keys(destinations)) do
-        for _j, destination in ipairs(destinations[start]) do
-            local text = start .. " - " .. destination
-            local button = pane:createButton{
-                id = "button_spline" .. text,
-                text = text
-            }
-            button:register(tes3.uiEvent.mouseClick, function()
-                -- start editor
-                current_editor_route = start .. "_" .. destination
-                load_spline(start, destination)
-                renderMarkers()
-            end)
-        end
+    for key, value in pairs(services) do
+        if current_editor_idx == nil then current_editor_idx = 1 end
+        table.insert(editor_services, key)
     end
-    pane:getContentElement():sortChildren(function(a, b)
-        return a.text < b.text
-    end)
+    if current_editor_idx == nil then return end
+    local data = services[editor_services[current_editor_idx]]
+
+    local destinations = data.routes
+    if destinations then
+        local pane = menu:createVerticalScrollPane{id = "sortedPane"}
+        for _i, start in ipairs(table.keys(destinations)) do
+            for _j, destination in ipairs(destinations[start]) do
+                local text = start .. " - " .. destination
+                local button = pane:createButton{
+                    id = "button_spline" .. text,
+                    text = text
+                }
+                button:register(tes3.uiEvent.mouseClick, function()
+                    -- start editor
+                    current_editor_route = start .. "_" .. destination
+                    load_spline(start, destination, data)
+                    renderMarkers()
+                end)
+            end
+        end
+        pane:getContentElement():sortChildren(function(a, b)
+            return a.text < b.text
+        end)
+    end
 
     local button_block = menu:createBlock{}
     button_block.widthProportional = 1.0 -- width is 100% parent width
     button_block.autoHeight = true
     button_block.childAlignX = 1.0 -- right content alignment
 
-    local mode_text = "Strider"
-    if boat_mode then mode_text = "Boat" end
     local button_mode = button_block:createButton{
         id = edit_menu_mode,
-        text = mode_text
+        text = editor_services[current_editor_idx]
     }
     local button_save = button_block:createButton{
         id = edit_menu_display,
@@ -895,12 +889,15 @@ local function createEditWindow()
         id = edit_menu_cancel,
         text = "Exit"
     }
-
     -- Switch mode
     button_mode:register(tes3.uiEvent.mouseClick, function()
         local m = tes3ui.findMenu(edit_menu)
         if (m) then
-            boat_mode = not boat_mode
+            -- TODO
+            current_editor_idx = current_editor_idx + 1
+            if current_editor_idx > #editor_services then
+                current_editor_idx = 1
+            end
 
             mount = nil
             -- tes3ui.leaveMenuMode()
@@ -909,7 +906,6 @@ local function createEditWindow()
             createEditWindow()
         end
     end)
-
     -- Leave Menu
     button_cancel:register(tes3.uiEvent.mouseClick, function()
         local m = tes3ui.findMenu(edit_menu)
@@ -944,13 +940,9 @@ local function createEditWindow()
         mwse.log("============================================")
 
         -- save to file
-        if boat_mode then
-            json.savefile("mods\\rfuzzo\\ImmersiveTravel\\data_boats\\" ..
-                              current_editor_route .. ".saved", current_spline)
-        else
-            json.savefile("mods\\rfuzzo\\ImmersiveTravel\\data\\" ..
-                              current_editor_route .. ".saved", current_spline)
-        end
+        json.savefile(
+            "mods\\rfuzzo\\ImmersiveTravel\\" .. data.class .. "\\" ..
+                current_editor_route, current_spline)
 
         renderMarkers()
     end)
@@ -1029,10 +1021,9 @@ local function updateServiceButton(menu)
 end
 
 ---@param menu tes3uiElement
----@param attached_mount tes3reference
 ---@param attached_guide tes3reference
----@param mode boolean
-local function createTravelButton(menu, attached_mount, attached_guide, mode)
+---@param data ServiceData
+local function createTravelButton(menu, attached_guide, data)
     local divider = menu:findChild("MenuDialog_divider")
     local topicsList = divider.parent
     local button = topicsList:createTextSelect({
@@ -1046,11 +1037,9 @@ local function createTravelButton(menu, attached_mount, attached_guide, mode)
     topicsList:reorderChildren(divider, button, 1)
 
     button:register("mouseClick", function()
-        boat_mode = mode;
-        mount = attached_mount
         guide = attached_guide
         npc_menu = menu.id
-        createTravelWindow()
+        createTravelWindow(data)
     end)
     menu:registerAfter("update", function() updateServiceButton(menu) end)
 end
@@ -1067,7 +1056,7 @@ local function offersTraveling(actor)
     return travelDestinations ~= nil
 end
 
--- upon entering the dialog menu, create the hot tea button (thanks joseph)
+-- upon entering the dialog menu, create the hot tea button
 ---@param e uiActivatedEventData
 local function onMenuDialog(e)
     local menuDialog = e.element
@@ -1077,27 +1066,18 @@ local function onMenuDialog(e)
         local obj = ref.baseObject
         local npc = obj ---@cast obj tes3npc
 
-        -- an npc that is class Caravaner AND has AI travel package AND in the same cell as a siltstrider is eligible
-        if npc.class.id == "Caravaner" and offersTraveling(npc) then
-            local strider = findStrider(mobileActor)
-            if strider ~= nil then
-                log:debug("Adding Hot Tea Service to %s", ref.id)
+        if not offersTraveling(npc) then return end
 
-                createTravelButton(menuDialog, strider, ref, false)
-                menuDialog:updateLayout()
-            end
+        -- get npc class
+        local class = npc.class.id
+        local service = table.get(services, class)
+        if not service then
+            -- TODO get overrides
+            return
         end
 
-        -- an npc that is class Shipmaster AND has AI travel package AND in the same cell as a boat is eligible
-        if npc.class.id == "Shipmaster" and offersTraveling(npc) then
-            local boat = findBoat(mobileActor)
-            if boat ~= nil then
-                log:debug("Adding Hot Tea Service to %s", ref.id)
-
-                createTravelButton(menuDialog, boat, ref, true)
-                menuDialog:updateLayout()
-            end
-        end
+        createTravelButton(menuDialog, ref, service)
+        menuDialog:updateLayout()
 
     end
 
@@ -1114,75 +1094,55 @@ require("rfuzzo.ImmersiveTravel.mcm")
 
 --- init mod
 local function init()
-    local map = {} ---@type table<string, table>
+
+    -- load services
+    log:debug("Loading travel services...")
+    local r = json.loadfile("mods\\rfuzzo\\ImmersiveTravel\\services.json")
+    if r == nil then
+        log:debug("!!! failed to load travel services.")
+        -- TODO disable mod
+        return
+    else
+        services = r
+    end
+
+    for key, service in pairs(services) do
+        local map = {} ---@type table<string, table>
+        -- striders
+        log:debug("Registered " .. key .. " destinations: ")
+        for file in lfs.dir(
+                        "Data Files\\MWSE\\mods\\rfuzzo\\ImmersiveTravel\\" ..
+                            key) do
+            if (string.endswith(file, ".json")) then
+                local split = string.split(file:sub(0, -6), "_")
+                if #split == 2 then
+                    local start = ""
+                    local destination = ""
+                    for i, id in ipairs(split) do
+                        if i == 1 then
+                            start = id
+                        else
+                            destination = id
+                        end
+                    end
+
+                    log:debug("  " .. start .. " - " .. destination)
+                    local result = table.get(map, start, nil)
+                    if result == nil then
+                        local v = {}
+                        table.insert(v, destination)
+                        map[start] = v
+
+                    else
+                        table.insert(result, destination)
+                        map[start] = result
+                    end
+                end
+            end
+        end
+        service.routes = map
+    end
+
     log:info("[Immersive Travel] Loaded successfully.")
-    -- striders
-    log:debug("Registered strider destinations: ")
-    for file in lfs.dir("Data Files\\MWSE\\mods\\rfuzzo\\ImmersiveTravel\\data") do
-        if (string.endswith(file, ".json")) then
-            local split = string.split(file:sub(0, -6), "_")
-            if #split == 2 then
-                local start = ""
-                local destination = ""
-                for i, id in ipairs(split) do
-                    if i == 1 then
-                        start = id
-                    else
-                        destination = id
-                    end
-                end
-
-                log:debug("  " .. start .. " - " .. destination)
-                local result = table.get(map, start, nil)
-                if result == nil then
-                    local vec = {}
-                    table.insert(vec, destination)
-                    map[start] = vec
-
-                else
-                    table.insert(result, destination)
-                    map[start] = result
-                end
-            end
-        end
-    end
-    destination_map = map
-
-    -- boats
-    map = {}
-    log:debug("Registered boat destinations: ")
-    for file in lfs.dir(
-                    "Data Files\\MWSE\\mods\\rfuzzo\\ImmersiveTravel\\data_boats") do
-        if (string.endswith(file, ".json")) then
-            local split = string.split(file:sub(0, -6), "_")
-            if #split == 2 then
-                local start = ""
-                local destination = ""
-                for i, id in ipairs(split) do
-                    if i == 1 then
-                        start = id
-                    else
-                        destination = id
-                    end
-                end
-
-                log:debug("  " .. start .. " - " .. destination)
-                local result = table.get(map, start, nil)
-                if result == nil then
-                    local vec = {}
-                    table.insert(vec, destination)
-                    map[start] = vec
-
-                else
-                    table.insert(result, destination)
-                    map[start] = result
-                end
-            end
-        end
-    end
-    destination_boat_map = map
-
-    -- mounts
-
 end
 event.register(tes3.event.initialized, init)

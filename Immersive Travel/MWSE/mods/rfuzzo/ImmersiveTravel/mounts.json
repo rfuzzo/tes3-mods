@@ -2,6 +2,8 @@
   "a_siltstrider": {
     "offset": -1220,
     "sway": 1,
+    "speed": 3,
+    "turnspeed": 20,
     "player_mount": 2,
     "mountpoint1": {
       "x": 0,
@@ -12,11 +14,6 @@
       "x": 0,
       "y": -34,
       "z": 1223
-    },
-    "mountpoint3": {
-      "x": 0,
-      "y": 0,
-      "z": 0
     },
     "mountpoint4": {
       "x": -81,
@@ -37,6 +34,8 @@
   "a_longboat": {
     "offset": 74,
     "sway": 4,
+    "speed": 3,
+    "turnspeed": 10,
     "player_mount": 2,
     "mountpoint1": {
       "x": 67,
@@ -62,16 +61,13 @@
       "x": 111,
       "y": 0,
       "z": -63
-    },
-    "mountpoint6": {
-      "x": 0,
-      "y": 0,
-      "z": 0
     }
   },
   "a_DE_ship": {
     "offset": -20,
     "sway": 4,
+    "speed": 3,
+    "turnspeed": 10,
     "player_mount": 2,
     "mountpoint1": {
       "x": -25,

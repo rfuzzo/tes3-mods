@@ -1,0 +1,23 @@
+{
+  "Caravaner": {
+    "class": "Caravaner",
+    "mount": "a_siltstrider",
+    "ground_offset": 1025
+  },
+  "Shipmaster": {
+    "class": "Shipmaster",
+    "override_npc": [
+      "rindral dralor"
+    ],
+    "mount": "a_longboat",
+    "override_mount": {
+      "a_DE_ship": [
+        "Vos",
+        "Dagon Fel",
+        "Sadrith Mora",
+        "Ebonheart"
+      ]
+    },
+    "ground_offset": 0
+  }
+}

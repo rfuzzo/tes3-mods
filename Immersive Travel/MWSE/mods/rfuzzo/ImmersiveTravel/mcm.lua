@@ -16,54 +16,54 @@ local function registerModConfig()
     local settingsPage = page:createCategory("Settings")
     local generalCategory = settingsPage:createCategory("General")
 
-    generalCategory:createSlider({
-        label = "Silt Strider speed",
-        description = "The speed of the silt strider",
-        min = 1,
-        max = 100,
-        step = 1,
-        jump = 10,
-        variable = mwse.mcm.createTableVariable {id = "speed", table = config}
-    })
+    -- generalCategory:createSlider({
+    --     label = "Silt Strider speed",
+    --     description = "The speed of the silt strider",
+    --     min = 1,
+    --     max = 100,
+    --     step = 1,
+    --     jump = 10,
+    --     variable = mwse.mcm.createTableVariable {id = "speed", table = config}
+    -- })
 
-    generalCategory:createSlider({
-        label = "Boat speed",
-        description = "The speed of the boat",
-        min = 1,
-        max = 100,
-        step = 1,
-        jump = 10,
-        variable = mwse.mcm.createTableVariable {
-            id = "boatspeed",
-            table = config
-        }
-    })
+    -- generalCategory:createSlider({
+    --     label = "Boat speed",
+    --     description = "The speed of the boat",
+    --     min = 1,
+    --     max = 100,
+    --     step = 1,
+    --     jump = 10,
+    --     variable = mwse.mcm.createTableVariable {
+    --         id = "boatspeed",
+    --         table = config
+    --     }
+    -- })
 
-    generalCategory:createSlider({
-        label = "Silt Strider turning speed",
-        description = "The turning speed of the silt strider",
-        min = 1,
-        max = 100,
-        step = 1,
-        jump = 10,
-        variable = mwse.mcm.createTableVariable {
-            id = "turnspeed",
-            table = config
-        }
-    })
+    -- generalCategory:createSlider({
+    --     label = "Silt Strider turning speed",
+    --     description = "The turning speed of the silt strider",
+    --     min = 1,
+    --     max = 100,
+    --     step = 1,
+    --     jump = 10,
+    --     variable = mwse.mcm.createTableVariable {
+    --         id = "turnspeed",
+    --         table = config
+    --     }
+    -- })
 
-    generalCategory:createSlider({
-        label = "Boat turning speed",
-        description = "The turning speed of the boat",
-        min = 1,
-        max = 100,
-        step = 1,
-        jump = 10,
-        variable = mwse.mcm.createTableVariable {
-            id = "boatturnspeed",
-            table = config
-        }
-    })
+    -- generalCategory:createSlider({
+    --     label = "Boat turning speed",
+    --     description = "The turning speed of the boat",
+    --     min = 1,
+    --     max = 100,
+    --     step = 1,
+    --     jump = 10,
+    --     variable = mwse.mcm.createTableVariable {
+    --         id = "boatturnspeed",
+    --         table = config
+    --     }
+    -- })
 
     generalCategory:createOnOffButton({
         label = "Enable Editor",
