@@ -67,7 +67,7 @@ local edit_menu_cancel = tes3ui.registerID("it:MenuEdit_Cancel")
 local travel_menu = tes3ui.registerID("it:travel_menu")
 local travel_menu_cancel = tes3ui.registerID("it:travel_menu_cancel")
 
-local services = {} ---@type table<string, ServiceData>
+local services = {} ---@type table<string, ServiceData>|nil
 
 local timertick = 0.01
 ---@type mwseTimer | nil
@@ -715,6 +715,7 @@ local editor_services = {}
 event.register("simulate", function(e)
     if editmode == false then return end
     if editor_instance == nil then return end
+    if services == nil then return end
 
     local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
     local data = services[editor_services[current_editor_idx]]
@@ -824,6 +825,7 @@ end
 local function createEditWindow()
     -- Return if window is already open
     if (tes3ui.findMenu(edit_menu) ~= nil) then return end
+    if services == nil then return end
 
     -- Create window and frame
     local menu = tes3ui.createMenu {
@@ -893,7 +895,6 @@ local function createEditWindow()
     button_mode:register(tes3.uiEvent.mouseClick, function()
         local m = tes3ui.findMenu(edit_menu)
         if (m) then
-            -- TODO
             current_editor_idx = current_editor_idx + 1
             if current_editor_idx > #editor_services then
                 current_editor_idx = 1
@@ -1056,6 +1057,14 @@ local function offersTraveling(actor)
     return travelDestinations ~= nil
 end
 
+---comment
+---@param table string[]
+---@param str string
+local function is_in(table, str)
+    for index, value in ipairs(table) do if value == str then return true end end
+    return false
+end
+
 -- upon entering the dialog menu, create the hot tea button
 ---@param e uiActivatedEventData
 local function onMenuDialog(e)
@@ -1071,11 +1080,24 @@ local function onMenuDialog(e)
         -- get npc class
         local class = npc.class.id
         local service = table.get(services, class)
-        if not service then
-            -- TODO get overrides
+        if service == nil then
+
+            for key, value in pairs(services) do
+                if value.override_npc ~= nil then
+                    if is_in(value.override_npc, npc.id) then
+                        service = value
+                        break
+                    end
+                end
+            end
+        end
+
+        if service == nil then
+            log:debug("no service found for " .. npc.id)
             return
         end
 
+        log:debug("createTravelButton for " .. npc.id)
         createTravelButton(menuDialog, ref, service)
         menuDialog:updateLayout()
 
@@ -1100,7 +1122,6 @@ local function init()
     local r = json.loadfile("mods\\rfuzzo\\ImmersiveTravel\\services.json")
     if r == nil then
         log:debug("!!! failed to load travel services.")
-        -- TODO disable mod
         return
     else
         services = r
