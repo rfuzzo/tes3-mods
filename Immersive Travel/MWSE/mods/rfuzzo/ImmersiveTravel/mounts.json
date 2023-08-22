@@ -1,5 +1,6 @@
 {
   "a_siltstrider": {
+    "sound": "Silt_2",
     "offset": -1220,
     "sway": 1,
     "speed": 3,
@@ -32,6 +33,7 @@
     }
   },
   "a_longboat": {
+    "sound": "Boat Hull",
     "offset": 74,
     "sway": 4,
     "speed": 3,
@@ -64,6 +66,7 @@
     }
   },
   "a_DE_ship": {
+    "sound": "Boat Hull",
     "offset": -20,
     "sway": 4,
     "speed": 3,

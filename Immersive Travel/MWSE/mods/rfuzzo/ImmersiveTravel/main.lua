@@ -1,10 +1,9 @@
 --[[
 Immersive Travel Mod
-v 0.1
+v 1.0
 by rfuzzo
 
 mwse real-time travel mod
-
 
 
 --]] -- 
@@ -42,6 +41,7 @@ local log = logger.new {
 ---@field ground_offset number DEPRECATED: editor marker offset
 
 ---@class MountData
+---@field sound string The mount sound id
 ---@field offset number? The mount offset to ground
 ---@field sway number The sway intensity
 ---@field speed number forward speed
@@ -87,6 +87,14 @@ local doOnce = true
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// LOGIC
+
+--- list contains
+---@param table string[]
+---@param str string
+local function is_in(table, str)
+    for index, value in ipairs(table) do if value == str then return true end end
+    return false
+end
 
 --- load json spline from file
 ---@param start string
@@ -239,7 +247,9 @@ local function cleanup()
     if myTimer ~= nil then myTimer:cancel() end
     spline_index = 1
 
-    tes3.removeSound({sound = "Boat Hull", reference = mount})
+    if mount_data then
+        tes3.removeSound({sound = mount_data.sound, reference = mount})
+    end
 
     -- delete the mount
     if mount ~= nil then mount:delete() end
@@ -247,6 +257,7 @@ local function cleanup()
     if guide ~= nil then guide:delete() end
     guide = nil
 
+    mount_data = nil
     is_traveling = false
 end
 
@@ -285,10 +296,12 @@ end
 -- ////////////// TRAVEL
 
 local function onTimerTick()
+    -- checks
     if mount == nil then return; end
     if mount_data == nil then return; end
     if guide == nil then return; end
     if myTimer == nil then return; end
+    if is_traveling == false then return end
 
     local len = #current_spline
     if spline_index <= len then -- if i is not at the end of the list
@@ -392,29 +405,31 @@ local function onTimerTick()
                                            get_mount_point(mount_data,
                                                            current_mountpoint)),
                                        mount.orientation)
-            -- tes3.player.position = player_pos
-            tes3.positionCell({
-                reference = tes3.mobilePlayer,
-                position = player_pos,
-                orientation = tes3.player.orientation
-            })
+            tes3.player.position = player_pos
+            -- tes3.positionCell({
+            --     reference = tes3.mobilePlayer,
+            --     position = player_pos
+            --     -- orientation = tes3.player.orientation
+            -- })
         end
 
     else -- if i is at the end of the list
 
-        tes3.fadeOut({duration = 0.5})
-        cleanup()
+        tes3.fadeOut({duration = 1})
 
         timer.start({
-            type = timer.real,
+            type = timer.simulate,
             iterations = 1,
             duration = 1,
             callback = (function()
+                tes3.fadeIn({duration = 1})
+
+                cleanup()
                 if not ENABLE_MOVEMENT then
                     tes3.mobilePlayer.movementCollision = true;
                     tes3.playAnimation({reference = tes3.player, group = 0})
                 end
-                tes3.fadeIn({duration = 1})
+
                 teleport_to_closest_marker();
                 is_traveling = false
             end)
@@ -449,7 +464,7 @@ local function start_travel(start, destination, data)
         -- override mounts 
         if data.override_mount then
             for key, value in pairs(data.override_mount) do
-                if table.get(value, start) and table.get(value, destination) then
+                if is_in(value, start) and is_in(value, destination) then
                     object_id = key
                     break
                 end
@@ -464,27 +479,16 @@ local function start_travel(start, destination, data)
         local original_guide = guide
 
         -- fade out
-        tes3.fadeOut({duration = 1.0})
+        tes3.fadeOut({duration = 1})
 
         -- fade back in
         timer.start({
-            type = timer.real,
+            type = timer.simulate,
             iterations = 1,
             duration = 1,
             callback = (function()
 
                 tes3.fadeIn({duration = 1})
-
-                -- hide original mount for a while
-                -- original_mount:disable()
-                -- timer.start({
-                --     type = timer.real,
-                --     iterations = 1,
-                --     duration = 7,
-                --     callback = (function()
-                --         original_mount:enable()
-                --     end)
-                -- })
 
                 local start_point = current_spline[1]
                 local start_pos = tes3vector3.new(start_point.x, start_point.y,
@@ -540,14 +544,14 @@ local function start_travel(start, destination, data)
                 -- start timer
                 is_traveling = true
                 tes3.playSound({
-                    sound = "Boat Hull",
+                    sound = mount_data.sound,
                     reference = mount,
                     loop = true
                 })
 
                 myTimer = timer.start({
                     duration = timertick,
-                    type = timer.real,
+                    type = timer.simulate,
                     iterations = -1,
                     callback = onTimerTick
                 })
@@ -670,14 +674,6 @@ local function offersTraveling(actor)
     -- Actors that can't transport the player
     -- have travelDestinations equal to `nil`
     return travelDestinations ~= nil
-end
-
----comment
----@param table string[]
----@param str string
-local function is_in(table, str)
-    for index, value in ipairs(table) do if value == str then return true end end
-    return false
 end
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
@@ -1053,6 +1049,8 @@ local function editor_keyDownCallback(e)
 
     -- editor menu
     if e.keyCode == tes3.scanCode["rCtrl"] then createEditWindow() end
+
+    if not editmode then return end
 
     -- marker edit mode
     if e.keyCode == tes3.scanCode["lCtrl"] then
