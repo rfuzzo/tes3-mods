@@ -482,6 +482,7 @@ local function onTimerTick()
     else -- if i is at the end of the list
 
         tes3.fadeOut({duration = 1})
+        is_traveling = false
 
         timer.start({
             type = timer.simulate,
@@ -504,7 +505,7 @@ local function onTimerTick()
                 end
 
                 teleport_to_closest_marker();
-                is_traveling = false
+
             end)
         })
     end
@@ -586,12 +587,8 @@ local function start_travel(start, destination, data)
             -- player settings
             -- teleport player to mount
             doOnce = true
-            -- tes3.positionCell({
-            --     reference = tes3.player,
-            --     position = mount.position,
-            --     orientation = tes3.player.orientation
-            -- })
             tes3.player.position = start_pos
+            tes3.player.facing = new_facing
             if not ENABLE_MOVEMENT then
                 tes3.mobilePlayer.movementCollision = false;
                 tes3.playAnimation({
@@ -870,6 +867,7 @@ local edit_menu = tes3ui.registerID("it:MenuEdit")
 local edit_menu_display = tes3ui.registerID("it:MenuEdit_Display")
 local edit_menu_mode = tes3ui.registerID("it:MenuEdit_Mode")
 local edit_menu_cancel = tes3ui.registerID("it:MenuEdit_Cancel")
+local edit_menu_teleport = tes3ui.registerID("it:MenuEdit_Teleport")
 
 local editmode = false
 
@@ -1007,7 +1005,7 @@ local function createEditWindow()
 
     -- To avoid low contrast, text input windows should not use menu transparency settings
     menu.alpha = 1.0
-    menu.width = 300
+    menu.width = 400
     menu.height = 400
     menu.text = "Editor"
 
@@ -1056,6 +1054,10 @@ local function createEditWindow()
         id = edit_menu_mode,
         text = editor_services[current_editor_idx]
     }
+    local button_teleport = button_block:createButton{
+        id = edit_menu_teleport,
+        text = "Teleport"
+    }
     local button_save = button_block:createButton{
         id = edit_menu_display,
         text = "Save"
@@ -1087,6 +1089,22 @@ local function createEditWindow()
             mount = nil
             tes3ui.leaveMenuMode()
             m:destroy()
+        end
+    end)
+    -- Teleport
+    button_teleport:register(tes3.uiEvent.mouseClick, function()
+        local m = tes3ui.findMenu(edit_menu)
+        if (m) then
+            if #editor_markers > 1 then
+                local position = editor_markers[1].translation
+                tes3.positionCell({
+                    reference = tes3.mobilePlayer,
+                    position = position
+                })
+
+                tes3ui.leaveMenuMode()
+                m:destroy()
+            end
         end
     end)
 
