@@ -579,7 +579,7 @@ local function start_travel(start, destination, data)
             -- create mount
             mount = tes3.createReference {
                 object = object_id,
-                position = start_pos,
+                position = start_pos + tes3vector3.new(0, 0, mount_data.offset),
                 orientation = d
             }
             mount.facing = new_facing
@@ -587,7 +587,8 @@ local function start_travel(start, destination, data)
             -- player settings
             -- teleport player to mount
             doOnce = true
-            tes3.player.position = start_pos
+            tes3.player.position = start_pos +
+                                       tes3vector3.new(0, 0, mount_data.offset)
             tes3.player.facing = new_facing
             if not ENABLE_MOVEMENT then
                 tes3.mobilePlayer.movementCollision = false;
@@ -601,7 +602,7 @@ local function start_travel(start, destination, data)
             object_id = original_guide.baseObject.id
             guide = tes3.createReference {
                 object = object_id,
-                position = start_pos,
+                position = start_pos + tes3vector3.new(0, 0, mount_data.offset),
                 orientation = mount.orientation
             }
             -- play guide animation
