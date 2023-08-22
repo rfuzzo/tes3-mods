@@ -102,5 +102,33 @@
       "y": -466,
       "z": 208
     }
+  },
+  "ex_gondola_01": {
+    "sound": "Boat Creak",
+    "offset": 40,
+    "sway": 3,
+    "speed": 2,
+    "turnspeed": 16,
+    "player_mount": 2,
+    "mountpoint1": {
+      "x": 0,
+      "y": -188,
+      "z": -1
+    },
+    "mountpoint2": {
+      "x": 0,
+      "y": 106,
+      "z": -36
+    },
+    "mountpoint3": {
+      "x": 0,
+      "y": 37,
+      "z": -38
+    },
+    "mountpoint6": {
+      "x": 0,
+      "y": -67,
+      "z": -38
+    }
   }
 }

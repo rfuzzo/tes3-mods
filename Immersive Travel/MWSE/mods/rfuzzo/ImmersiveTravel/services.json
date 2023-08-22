@@ -19,5 +19,10 @@
       ]
     },
     "ground_offset": 0
+  },
+  "Gondolier": {
+    "class": "Gondolier",
+    "mount": "ex_gondola_01",
+    "ground_offset": 0
   }
 }

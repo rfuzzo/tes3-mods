@@ -891,7 +891,7 @@ event.register("simulate", function(e)
     local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
     local data = services[editor_services[current_editor_idx]]
 
-    if data.class == "Shipmaster" then
+    if data.ground_offset == 0 then
         from.z = 0
     else
         local groundZ = getGroundZ(from)
@@ -1037,6 +1037,8 @@ local function createEditWindow()
                     current_editor_route = start .. "_" .. destination
                     load_spline(start, destination, data)
                     renderMarkers()
+                    tes3.messageBox("loaded spline: " .. start .. " -> " ..
+                                        destination)
                 end)
             end
         end
@@ -1112,9 +1114,12 @@ local function createEditWindow()
         mwse.log("============================================")
 
         -- save to file
-        json.savefile(
+        local filename =
             "mods\\rfuzzo\\ImmersiveTravel\\" .. data.class .. "\\" ..
-                current_editor_route, current_spline)
+                current_editor_route
+        json.savefile(filename, current_spline)
+
+        tes3.messageBox("saved spline: " .. current_editor_route)
 
         renderMarkers()
     end)
@@ -1131,26 +1136,6 @@ local function editor_keyDownCallback(e)
 
     -- editor menu
     if e.keyCode == tes3.scanCode["rCtrl"] then createEditWindow() end
-
-    if not editmode then return end
-
-    -- marker edit mode
-    if e.keyCode == tes3.scanCode["lCtrl"] then
-        local idx = getClosestMarkerIdx()
-        editmode = not editmode
-        tes3.messageBox("Marker index: " .. idx)
-    end
-
-    -- delete
-    if e.keyCode == tes3.scanCode["delete"] then
-        local idx = getClosestMarkerIdx()
-
-        local instance = editor_markers[idx]
-        local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-        vfxRoot:detachChild(instance)
-
-        table.remove(editor_markers, idx)
-    end
 
     -- insert
     if e.keyCode == tes3.scanCode["keyRight"] then
@@ -1173,6 +1158,24 @@ local function editor_keyDownCallback(e)
 
         editor_instance = child
         editmode = true
+    end
+
+    -- marker edit mode
+    if e.keyCode == tes3.scanCode["lCtrl"] then
+        local idx = getClosestMarkerIdx()
+        editmode = not editmode
+        tes3.messageBox("Marker index: " .. idx)
+    end
+
+    -- delete
+    if e.keyCode == tes3.scanCode["delete"] then
+        local idx = getClosestMarkerIdx()
+
+        local instance = editor_markers[idx]
+        local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+        vfxRoot:detachChild(instance)
+
+        table.remove(editor_markers, idx)
     end
 
 end
