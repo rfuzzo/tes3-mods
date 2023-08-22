@@ -106,9 +106,9 @@
   "ex_gondola_01": {
     "sound": "Boat Creak",
     "offset": 40,
-    "sway": 3,
+    "sway": 1,
     "speed": 2,
-    "turnspeed": 16,
+    "turnspeed": 14,
     "player_mount": 2,
     "mountpoint1": {
       "x": 0,

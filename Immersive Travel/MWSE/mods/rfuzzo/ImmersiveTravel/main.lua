@@ -652,6 +652,7 @@ local function createTravelWindow(data)
     local destinations = data.routes[tes3.player.cell.id]
     -- log:debug(json.encode(destinations))
     if destinations == nil then return end
+    if #destinations == 0 then return end
 
     -- Create window and frame
     local menu = tes3ui.createMenu {

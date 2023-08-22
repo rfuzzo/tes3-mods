@@ -7,7 +7,8 @@
   "Shipmaster": {
     "class": "Shipmaster",
     "override_npc": [
-      "rindral dralor"
+      "rindral dralor",
+      "Daynas Darys"
     ],
     "mount": "a_longboat",
     "override_mount": {
