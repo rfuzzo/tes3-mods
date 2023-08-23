@@ -23,7 +23,10 @@
   },
   "Gondolier": {
     "class": "Gondolier",
-    "mount": "ex_gondola_01",
-    "ground_offset": 0
+    "mount": "a_gondola_01",
+    "ground_offset": 0,
+    "override_npc": [
+      "Blatta Hateria"
+    ]
   }
 }
