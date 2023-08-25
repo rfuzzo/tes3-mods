@@ -293,7 +293,7 @@ local function findClosestTravelMarker()
         end
     end
 
-    local last_distance = 9999
+    local last_distance = 8000
     local last_index = 1
     for index, marker in ipairs(results) do
         local dist = tes3.mobilePlayer.position:distance(marker.position)
@@ -324,6 +324,19 @@ local function cleanup()
 
     if mountData then
         tes3.removeSound({sound = mountData.sound, reference = mount})
+
+        -- statics
+        mountData.guideSlot.reference:delete()
+        mountData.guideSlot.reference = nil
+        if mountData.clutter then
+            for index, slot in ipairs(mountData.clutter) do
+                if slot.reference then
+                    slot.reference:delete()
+                    slot.reference = nil
+                end
+            end
+        end
+
     end
 
     -- delete the mount
@@ -460,25 +473,31 @@ local function onTimerTick()
         local mount_offset = tes3vector3.new(0, 0, mountData.offset)
         local local_pos = mount.position - mount_offset
 
-        -- calculate delta
+        -- calculate heading
         local d = next_pos - local_pos
         d:normalize()
+        local current_facing = mount.facing
+        local new_facing = math.atan2(d.x, d.y)
+        local facing = new_facing
+        local diff = new_facing - current_facing
+        if diff < -math.pi then diff = diff + 2 * math.pi end
+        if diff > math.pi then diff = diff - 2 * math.pi end
+        local angle = mountData.turnspeed / 10000
+        if diff > 0 and diff > angle then
+            facing = current_facing + angle
+        elseif diff < 0 and diff < -angle then
+            facing = current_facing - angle
+        else
+            facing = new_facing
+        end
 
+        mount.facing = facing
         local f = mount.forwardDirection
         f:normalize()
 
-        local alt = f + (d * mountData.turnspeed / 1000)
-        alt:normalize()
-        local delta = alt * mountData.speed
-
-        -- set mount position
+        local delta = f * mountData.speed
         local mountPosition = local_pos + delta + mount_offset
-        local orientation = rotationFromDirection(alt):toEulerXYZ()
-        tes3.positionCell({
-            reference = mount,
-            position = mountPosition,
-            orientation = orientation
-        })
+        tes3.positionCell({reference = mount, position = mountPosition})
 
         -- set sway
         swayTime = swayTime + timertick
@@ -525,7 +544,7 @@ local function onTimerTick()
         end
 
         -- move to next marker
-        local isBehind = isPointBehindObject(next_pos, mount.position, alt)
+        local isBehind = isPointBehindObject(next_pos, mount.position, f)
         if isBehind then splineIndex = splineIndex + 1 end
 
     else -- if i is at the end of the list
@@ -1049,14 +1068,14 @@ end
 
 ---comment
 ---@param startpos tes3vector3
----@param startforward tes3vector3
-local function calculatePositions(startpos, startforward)
+local function calculatePositions(startpos)
     -- checks
     if mountData == nil then return; end
+    if mount == nil then return; end
 
     positions = {}
     arrows = {}
-    table.insert(positions, 1, {position = startpos, forward = startforward})
+    table.insert(positions, 1, {position = startpos})
 
     for idx = 1, eN, 1 do
         if splineIndex <= #editor_markers then
@@ -1064,34 +1083,46 @@ local function calculatePositions(startpos, startforward)
             local point = editor_markers[splineIndex].translation
             local next_pos = tes3vector3.new(point.x, point.y, point.z)
             local mount_offset = tes3vector3.new(0, 0, mountData.offset)
-
             local local_pos = positions[idx].position - mount_offset
-            local f = positions[idx].forward
 
-            -- calculate delta
+            -- calculate heading
             local d = next_pos - local_pos
             d:normalize()
-            f:normalize()
-            local alt = f + (d * mountData.turnspeed / 1000)
-            alt:normalize()
-            local delta = alt * mountData.speed * config.grain
+            local current_facing = mount.facing
+            local new_facing = math.atan2(d.x, d.y)
+            local facing = new_facing
+            local diff = new_facing - current_facing
+            if diff < -math.pi then diff = diff + 2 * math.pi end
+            if diff > math.pi then diff = diff - 2 * math.pi end
+            local angle = mountData.turnspeed / 10000 * config.grain
+            if diff > 0 and diff > angle then
+                facing = current_facing + angle
+            elseif diff < 0 and diff < -angle then
+                facing = current_facing - angle
+            else
+                facing = new_facing
+            end
 
-            -- set mount position
-            local mount_pos = local_pos + delta + mount_offset
+            mount.facing = facing
+            local f = mount.forwardDirection
+            f:normalize()
+
+            local delta = f * mountData.speed * config.grain
+            local mountPosition = local_pos + delta + mount_offset
             table.insert(positions, idx + 1,
-                         {position = mount_pos, forward = delta})
+                         {position = mountPosition, forward = delta})
 
             -- draw vfx lines
             if arrow then
                 local child = arrow:clone()
-                child.translation = mount_pos - mount_offset
+                child.translation = mountPosition - mount_offset
                 child.appCulled = false
-                child.rotation = rotationFromDirection(alt)
+                child.rotation = rotationFromDirection(f)
                 table.insert(arrows, child)
             end
 
             -- move to next marker
-            local isBehind = isPointBehindObject(next_pos, mount_pos, alt)
+            local isBehind = isPointBehindObject(next_pos, mountPosition, f)
             if isBehind then splineIndex = splineIndex + 1 end
         else
             break
@@ -1119,27 +1150,36 @@ local function traceRoute(data)
     d:normalize()
 
     -- create mount
-    local object_id = data.mount
+    local mountId = data.mount
     -- override mounts 
     if data.override_mount then
         for key, value in pairs(data.override_mount) do
             if is_in(value, current_editor_start) and
                 is_in(value, current_editor_dest) then
-                object_id = key
+                mountId = key
                 break
             end
         end
     end
 
-    loadMountData(object_id)
+    loadMountData(mountId)
     if not mountData then return end
 
     local startpos = start_pos + tes3vector3.new(0, 0, mountData.offset)
+    local new_facing = math.atan2(d.x, d.y)
+
+    -- create mount
+    mount = tes3.createReference {
+        object = mountId,
+        position = start_pos,
+        orientation = d
+    }
+    mount.facing = new_facing
+
     splineIndex = 1
+    calculatePositions(startpos)
 
-    calculatePositions(startpos, d)
-
-    mountData = nil
+    cleanup()
     -- vfx
     for index, child in ipairs(arrows) do
         ---@diagnostic disable-next-line: param-type-mismatch
@@ -1291,30 +1331,6 @@ local function createEditWindow()
             end
         end
     end)
-
-    -- Trace
-    -- Teleport
-    -- button_trace_stop:register(tes3.uiEvent.mouseClick, function()
-    --     local m = tes3ui.findMenu(edit_menu)
-    --     if (m) then
-    --         -- cleanup
-    --         local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-    --         vfxRoot:detachAllChildren()
-    --         if myEditorTimer ~= nil then myEditorTimer:cancel() end
-    --         splineIndex = 1
-    --         if mount ~= nil then mount:delete() end
-    --         mount = nil
-    --         mountData = nil
-    --     end
-    -- end)
-    -- button_trace:register(tes3.uiEvent.mouseClick, function()
-    --     local m = tes3ui.findMenu(edit_menu)
-    --     if (m) then
-    --         if editor_markers then traceRoute(service) end
-    --         tes3ui.leaveMenuMode()
-    --         m:destroy()
-    --     end
-    -- end)
 
     -- log current spline
     button_print:register(tes3.uiEvent.mouseClick, function()

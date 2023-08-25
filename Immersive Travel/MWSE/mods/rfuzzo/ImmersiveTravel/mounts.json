@@ -4,7 +4,7 @@
     "offset": -1220,
     "sway": 1,
     "speed": 3,
-    "turnspeed": 0.3,
+    "turnspeed": 30,
     "guideSlot": {
       "animationGroup": "idle5",
       "position": {
@@ -48,8 +48,8 @@
     "sound": "Boat Hull",
     "offset": 74,
     "sway": 4,
-    "speed": 3,
-    "turnspeed": 0.2,
+    "speed": 4,
+    "turnspeed": 40,
     "guideSlot": {
       "position": {
         "x": 67,
@@ -156,7 +156,7 @@
     "offset": -20,
     "sway": 3,
     "speed": 3,
-    "turnspeed": 3,
+    "turnspeed": 25,
     "guideSlot": {
       "position": {
         "x": -25,
@@ -207,7 +207,7 @@
     "offset": 40,
     "sway": 1,
     "speed": 2,
-    "turnspeed": 0.3,
+    "turnspeed": 40,
     "guideSlot": {
       "animationGroup": "walkForward",
       "animationFile": "ds22\\anim\\gondola.nif",
