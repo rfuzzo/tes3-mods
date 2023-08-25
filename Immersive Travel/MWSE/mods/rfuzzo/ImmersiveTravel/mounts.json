@@ -4,7 +4,7 @@
     "offset": -1220,
     "sway": 1,
     "speed": 3,
-    "turnspeed": 0.2,
+    "turnspeed": 0.3,
     "guideSlot": {
       "animationGroup": "idle5",
       "position": {
@@ -207,7 +207,7 @@
     "offset": 40,
     "sway": 1,
     "speed": 2,
-    "turnspeed": 14,
+    "turnspeed": 0.5,
     "guideSlot": {
       "animationGroup": "walkForward",
       "animationFile": "ds22\\anim\\gondola.nif",

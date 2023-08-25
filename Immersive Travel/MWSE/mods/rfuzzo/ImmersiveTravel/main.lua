@@ -270,7 +270,6 @@ local function loadMountData(id)
     result = json.loadfile(filePath)
 
     if result ~= nil then
-        log:debug("loaded mount " .. id .. ": " .. filePath)
         mountData = result[id]
     else
         log:debug("!!! failed to load mount: " .. filePath)
@@ -924,12 +923,13 @@ Current Usage (Debug)
 
 --]]
 local edit_menu = tes3ui.registerID("it:MenuEdit")
-local edit_menu_display = tes3ui.registerID("it:MenuEdit_Display")
+local edit_menu_save = tes3ui.registerID("it:MenuEdit_Display")
+local edit_menu_print = tes3ui.registerID("it:MenuEdit_Print")
 local edit_menu_mode = tes3ui.registerID("it:MenuEdit_Mode")
 local edit_menu_cancel = tes3ui.registerID("it:MenuEdit_Cancel")
 local edit_menu_teleport = tes3ui.registerID("it:MenuEdit_Teleport")
-local edit_menu_trace = tes3ui.registerID("it:MenuEdit_Trace")
-local edit_menu_traceStop = tes3ui.registerID("it:MenuEdit_TraceStop")
+-- local edit_menu_trace = tes3ui.registerID("it:MenuEdit_Trace")
+-- local edit_menu_traceStop = tes3ui.registerID("it:MenuEdit_TraceStop")
 
 local editmode = false
 
@@ -945,6 +945,20 @@ local current_editor_dest = ""
 local current_editor_idx = nil
 ---@type string[]
 local editor_services = {}
+
+---@class SPositionRecord
+---@field position tes3vector3
+---@field forward tes3vector3
+
+---@type mwseTimer | nil
+local myEditorTimer = nil
+local eratio = 30
+local eN = 5000
+local etimertick = timertick * eratio
+local last_pos = nil
+local positions = {} ---@type SPositionRecord[]
+local arrows = {}
+local arrow = nil
 
 event.register("simulate", function(e)
     if editmode == false then return end
@@ -1040,20 +1054,6 @@ local function renderMarkers()
     updateMarkers()
 end
 
----@class SPositionRecord
----@field position tes3vector3
----@field forward tes3vector3
-
----@type mwseTimer | nil
-local myEditorTimer = nil
-local eratio = 30
-local eN = 3000
-local etimertick = timertick * eratio
-local last_pos = nil
-local positions = {} ---@type SPositionRecord[]
-local arrows = {}
-local arrow = nil
-
 ---comment
 ---@param startpos tes3vector3
 ---@param startforward tes3vector3
@@ -1101,6 +1101,8 @@ local function calculatePositions(startpos, startforward)
             -- move to next marker
             local isBehind = isPointBehindObject(next_pos, mount_pos, delta)
             if isBehind then splineIndex = splineIndex + 1 end
+        else
+            break
         end
     end
 
@@ -1180,8 +1182,8 @@ local function createEditWindow()
     -- To avoid low contrast, text input windows should not use menu transparency settings
     menu.alpha = 1.0
     menu.width = 500
-    menu.height = 500
-    menu.text = "Editor"
+    menu.height = 600
+    menu.text = "Editor " .. current_editor_route
 
     -- Create layout
     local label = menu:createLabel{text = "Loaded routes"}
@@ -1213,6 +1215,8 @@ local function createEditWindow()
                     renderMarkers()
                     tes3.messageBox("loaded spline: " .. start .. " -> " ..
                                         destination)
+
+                    traceRoute(service)
                 end)
             end
         end
@@ -1234,17 +1238,21 @@ local function createEditWindow()
         id = edit_menu_teleport,
         text = "Teleport"
     }
-    local button_trace = button_block:createButton{
-        id = edit_menu_trace,
-        text = "Trace"
-    }
-    local button_trace_stop = button_block:createButton{
-        id = edit_menu_traceStop,
-        text = "Trace Stop"
-    }
+    -- local button_trace = button_block:createButton{
+    --     id = edit_menu_trace,
+    --     text = "Trace"
+    -- }
+    -- local button_trace_stop = button_block:createButton{
+    --     id = edit_menu_traceStop,
+    --     text = "Trace Stop"
+    -- }
     local button_save = button_block:createButton{
-        id = edit_menu_display,
+        id = edit_menu_save,
         text = "Save"
+    }
+    local button_print = button_block:createButton{
+        id = edit_menu_print,
+        text = "Print"
     }
     local button_cancel = button_block:createButton{
         id = edit_menu_cancel,
@@ -1294,29 +1302,43 @@ local function createEditWindow()
 
     -- Trace
     -- Teleport
-    button_trace_stop:register(tes3.uiEvent.mouseClick, function()
-        local m = tes3ui.findMenu(edit_menu)
-        if (m) then
-            -- cleanup
-            local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-            vfxRoot:detachAllChildren()
-            if myEditorTimer ~= nil then myEditorTimer:cancel() end
-            splineIndex = 1
-            if mount ~= nil then mount:delete() end
-            mount = nil
-            mountData = nil
-        end
-    end)
-    button_trace:register(tes3.uiEvent.mouseClick, function()
-        local m = tes3ui.findMenu(edit_menu)
-        if (m) then
-            if editor_markers then traceRoute(service) end
-            tes3ui.leaveMenuMode()
-            m:destroy()
-        end
-    end)
+    -- button_trace_stop:register(tes3.uiEvent.mouseClick, function()
+    --     local m = tes3ui.findMenu(edit_menu)
+    --     if (m) then
+    --         -- cleanup
+    --         local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+    --         vfxRoot:detachAllChildren()
+    --         if myEditorTimer ~= nil then myEditorTimer:cancel() end
+    --         splineIndex = 1
+    --         if mount ~= nil then mount:delete() end
+    --         mount = nil
+    --         mountData = nil
+    --     end
+    -- end)
+    -- button_trace:register(tes3.uiEvent.mouseClick, function()
+    --     local m = tes3ui.findMenu(edit_menu)
+    --     if (m) then
+    --         if editor_markers then traceRoute(service) end
+    --         tes3ui.leaveMenuMode()
+    --         m:destroy()
+    --     end
+    -- end)
 
     -- log current spline
+    button_print:register(tes3.uiEvent.mouseClick, function()
+        -- print to log
+        mwse.log("============================================")
+        mwse.log(current_editor_route)
+        mwse.log("============================================")
+        for i, value in ipairs(editor_markers) do
+            local t = value.translation
+            mwse.log("{ \"x\": " .. math.round(t.x) .. ", \"y\": " ..
+                         math.round(t.y) .. ", \"z\": " .. math.round(t.z) ..
+                         " },")
+        end
+        mwse.log("============================================")
+        tes3.messageBox("printed spline: " .. current_editor_route)
+    end)
     button_save:register(tes3.uiEvent.mouseClick, function()
         -- print to log
         mwse.log("============================================")
@@ -1390,6 +1412,12 @@ local function editor_keyDownCallback(e)
         local idx = getClosestMarkerIdx()
         editmode = not editmode
         tes3.messageBox("Marker index: " .. idx)
+        if not editmode then
+            if services then
+                local service = services[editor_services[current_editor_idx]]
+                traceRoute(service)
+            end
+        end
     end
 
     -- delete
@@ -1401,6 +1429,11 @@ local function editor_keyDownCallback(e)
         vfxRoot:detachChild(instance)
 
         table.remove(editor_markers, idx)
+
+        if services then
+            local service = services[editor_services[current_editor_idx]]
+            traceRoute(service)
+        end
     end
 
     -- trace
