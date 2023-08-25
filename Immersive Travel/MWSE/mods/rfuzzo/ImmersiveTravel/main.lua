@@ -57,7 +57,7 @@ local log = logger.new {
 ---@field turnspeed number turning speed
 ---@field guideSlot Slot
 ---@field slots Slot[]
----@field clutter Clutter[]
+---@field clutter Clutter[]?
 
 ---@class ReferenceRecord
 ---@field cell tes3cell The cell
@@ -91,6 +91,18 @@ local mountData = nil ---@type MountData|nil
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// COMMON
+
+---comment
+---@param point tes3vector3
+---@param objectPosition tes3vector3
+---@param objectForwardVector tes3vector3
+---@return boolean
+local function isPointBehindObject(point, objectPosition, objectForwardVector)
+    local vectorToPoint = point - objectPosition
+    local dotProduct = vectorToPoint:dot(objectForwardVector)
+    return dotProduct < 0
+end
+
 --- list contains
 ---@param table string[]
 ---@param str string
@@ -148,6 +160,22 @@ local function toWorld(localVector, worldOrientation)
 
     -- Combine the rotation matrices to get the world rotation matrix
     return baseRotationMatrix * localVector
+end
+
+--- @param forward tes3vector3
+--- @return tes3matrix33
+local function rotationFromDirection(forward)
+    forward:normalize()
+    local up = tes3vector3.new(0, 0, 1)
+    local right = up:cross(forward)
+    right:normalize()
+    up = right:cross(forward)
+
+    local rotation_matrix = tes3matrix33.new(right.x, forward.x, up.x, right.y,
+                                             forward.y, up.y, right.z,
+                                             forward.z, up.z)
+
+    return rotation_matrix
 end
 
 -- This function loops over the references inside the
@@ -400,9 +428,11 @@ local function incrementSlot(data)
     end
 
     -- register anew for anims
-    local tmp = data.slots[idx].reference
-    registerInSlot(data, tmp, playerIdx)
-    registerInSlot(data, tes3.player, idx)
+    if playerIdx and idx then
+        local tmp = data.slots[idx].reference
+        registerInSlot(data, tmp, playerIdx)
+        registerInSlot(data, tes3.player, idx)
+    end
 
 end
 
@@ -434,48 +464,23 @@ local function onTimerTick()
         local mount_offset = tes3vector3.new(0, 0, mountData.offset)
 
         local local_pos = mount.position - mount_offset
-
-        -- calculate next position
-        local d = next_pos - local_pos -- get the direction vector from the object to the coordinate
-        local dist = d:length() -- get the distance from the object to the coordinate
-        d:normalize()
-
-        -- calculate heading
-        local current_facing = mount.facing
-        local new_facing = math.atan2(d.x, d.y)
-        local facing = new_facing
-        local diff = new_facing - current_facing
-        if diff < -math.pi then diff = diff + 2 * math.pi end
-        if diff > math.pi then diff = diff - 2 * math.pi end
-
-        local angle = mountData.turnspeed / 10000
-        if diff > 0 and diff > angle then
-            facing = current_facing + angle
-        elseif diff < 0 and diff < -angle then
-            facing = current_facing - angle
-        else
-            facing = new_facing
-        end
-        mount.facing = facing
+        local f = mount.forwardDirection
 
         -- calculate delta
-        local speed = mountData.speed
-        local delta = tes3vector3.new(0, 0, 0)
-        if dist > speed then
-            delta = d * speed
-        else
-            delta = next_pos - local_pos
-            -- move to next marker
-            splineIndex = splineIndex + 1
-        end
+        local d = next_pos - local_pos
+        d:normalize()
+        f:normalize()
+        local alt = f + (d * mountData.turnspeed)
+        alt:normalize()
+        local delta = alt * mountData.speed
 
         -- set mount position
-        local mount_pos = local_pos + delta + mount_offset
-        -- mount.position = mount_pos
+        local mFacing = rotationFromDirection(delta)
+        local facing = mFacing:toEulerXYZ()
         tes3.positionCell({
             reference = mount,
-            position = mount_pos
-            -- orientation = tes3.player.orientation
+            position = local_pos + delta + mount_offset,
+            orientation = facing
         })
 
         -- set sway
@@ -496,7 +501,7 @@ local function onTimerTick()
             reference = mountData.guideSlot.reference,
             position = guidePos
         })
-        mountData.guideSlot.reference.facing = facing
+        mountData.guideSlot.reference.facing = mount.facing
 
         -- position references in slots
         for index, slot in ipairs(mountData.slots) do
@@ -505,18 +510,30 @@ local function onTimerTick()
                                    toWorld(vec(slot.position), mount.orientation)
                 slot.reference.position = refpos
                 if slot.reference ~= tes3.player then
-                    slot.reference.facing = facing
+                    slot.reference.facing = mount.facing
                 end
             end
         end
 
         -- statics
-        for index, slot in ipairs(mountData.clutter) do
-            if slot.reference then
-                local refpos = mount.position +
-                                   toWorld(vec(slot.position), mount.orientation)
-                slot.reference.position = refpos
+        if mountData.clutter then
+            for index, slot in ipairs(mountData.clutter) do
+                if slot.reference then
+                    local refpos = mount.position +
+                                       toWorld(vec(slot.position),
+                                               mount.orientation)
+                    slot.reference.position = refpos
+                end
             end
+        end
+
+        -- move to next marker
+        local isBehind = isPointBehindObject(next_pos, mount.position,
+                                             mount.forwardDirection)
+        if isBehind then
+            tes3.messageBox("passed")
+            debug.log("passed")
+            splineIndex = splineIndex + 1
         end
 
     else -- if i is at the end of the list
@@ -568,10 +585,12 @@ local function start_travel(start, destination, service, guide)
     tes3ui.leaveMenuMode()
     m:destroy()
 
-    local menu = tes3ui.findMenu(npcMenu)
-    if menu then
-        npcMenu = nil
-        menu:destroy()
+    if npcMenu then
+        local menu = tes3ui.findMenu(npcMenu)
+        if menu then
+            npcMenu = nil
+            menu:destroy()
+        end
     end
 
     loadSpline(start, destination, service)
@@ -645,17 +664,18 @@ local function start_travel(start, destination, service, guide)
             end
 
             -- clutter
-            for index, clutter in ipairs(mountData.clutter) do
-                -- instantiate
-                local inst = tes3.createReference {
-                    object = clutter.id,
-                    position = start_pos +
-                        tes3vector3.new(0, 0, mountData.offset),
-                    orientation = mount.orientation
-                }
-                -- register
-                registerStatic(mountData, inst, index)
-
+            if mountData.clutter then
+                for index, clutter in ipairs(mountData.clutter) do
+                    -- instantiate
+                    local inst = tes3.createReference {
+                        object = clutter.id,
+                        position = start_pos +
+                            tes3vector3.new(0, 0, mountData.offset),
+                        orientation = mount.orientation
+                    }
+                    -- register
+                    registerStatic(mountData, inst, index)
+                end
             end
 
             -- start timer
@@ -908,14 +928,19 @@ local edit_menu_display = tes3ui.registerID("it:MenuEdit_Display")
 local edit_menu_mode = tes3ui.registerID("it:MenuEdit_Mode")
 local edit_menu_cancel = tes3ui.registerID("it:MenuEdit_Cancel")
 local edit_menu_teleport = tes3ui.registerID("it:MenuEdit_Teleport")
+local edit_menu_trace = tes3ui.registerID("it:MenuEdit_Trace")
+local edit_menu_traceStop = tes3ui.registerID("it:MenuEdit_TraceStop")
 
 local editmode = false
 
+local editor_marker2 = "marker_divine.nif"
 local editor_marker = "marker_arrow.nif"
 ---@type niNode[]
 local editor_markers = {}
 local editor_instance = nil
 local current_editor_route = ""
+local current_editor_start = ""
+local current_editor_dest = ""
 ---@type number | nil
 local current_editor_idx = nil
 ---@type string[]
@@ -944,29 +969,13 @@ event.register("simulate", function(e)
     editor_instance:update()
 end)
 
---- @param forward tes3vector3
---- @return tes3matrix33
-local function rotation_matrix_from_direction(forward)
-    forward:normalize()
-    local up = tes3vector3.new(0, 0, 1)
-    local right = up:cross(forward)
-    right:normalize()
-    up = right:cross(forward)
-
-    local rotation_matrix = tes3matrix33.new(right.x, forward.x, up.x, right.y,
-                                             forward.y, up.y, right.z,
-                                             forward.z, up.z)
-
-    return rotation_matrix
-end
-
 local function updateMarkers()
     -- update rotation
     for index, marker in ipairs(editor_markers) do
         if index < #editor_markers then
             local nextMarker = editor_markers[index + 1]
             local direction = nextMarker.translation - marker.translation
-            local rotation_matrix = rotation_matrix_from_direction(direction)
+            local rotation_matrix = rotationFromDirection(direction)
             marker.rotation = rotation_matrix
 
         end
@@ -1031,6 +1040,131 @@ local function renderMarkers()
     updateMarkers()
 end
 
+---@class SPositionRecord
+---@field position tes3vector3
+---@field forward tes3vector3
+
+---@type mwseTimer | nil
+local myEditorTimer = nil
+local eratio = 30
+local eN = 3000
+local etimertick = timertick * eratio
+local last_pos = nil
+local positions = {} ---@type SPositionRecord[]
+local arrows = {}
+local arrow = nil
+
+---comment
+---@param startpos tes3vector3
+---@param startforward tes3vector3
+local function calculatePositions(startpos, startforward)
+    -- checks
+    if mountData == nil then return; end
+
+    positions = {}
+    arrows = {}
+    table.insert(positions, 1, {position = startpos, forward = startforward})
+
+    for idx = 1, eN, 1 do
+        if splineIndex <= #editor_markers then
+            -- calculate next position
+            local point = editor_markers[splineIndex].translation
+            local next_pos = tes3vector3.new(point.x, point.y, point.z)
+            local mount_offset = tes3vector3.new(0, 0, mountData.offset)
+
+            local local_pos = positions[idx].position - mount_offset
+            local f = positions[idx].forward
+
+            -- calculate delta
+            local d = next_pos - local_pos
+            d:normalize()
+            f:normalize()
+            local alt = f + (d * mountData.turnspeed)
+            alt:normalize()
+            local delta = alt * mountData.speed * eratio
+
+            -- set mount position
+            local mount_pos = local_pos + delta + mount_offset
+            table.insert(positions, idx + 1,
+                         {position = mount_pos, forward = delta})
+
+            -- draw vfx lines
+            if last_pos and arrow then
+                local child = arrow:clone()
+                child.translation = mount_pos - mount_offset
+                child.appCulled = false
+                child.rotation = rotationFromDirection(mount_pos - last_pos)
+                table.insert(arrows, child)
+            end
+            last_pos = mount_pos
+
+            -- move to next marker
+            local isBehind = isPointBehindObject(next_pos, mount_pos, delta)
+            if isBehind then splineIndex = splineIndex + 1 end
+        end
+    end
+
+end
+
+---comment
+---@param data ServiceData
+local function traceRoute(data)
+    arrow = tes3.loadMesh("mwse\\arrow.nif"):getObjectByName("unitArrow")
+                :clone()
+    arrow.scale = 40
+    local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+    for index, value in ipairs(arrows) do vfxRoot:detachChild(value) end
+
+    -- trace the route
+    local start_point = currentSpline[1]
+    local start_pos = tes3vector3.new(start_point.x, start_point.y,
+                                      start_point.z)
+    local next_point = currentSpline[2]
+    local next_pos = tes3vector3.new(next_point.x, next_point.y, next_point.z)
+    local d = next_pos - start_pos
+    d:normalize()
+
+    -- create mount
+    local object_id = data.mount
+    -- override mounts 
+    if data.override_mount then
+        for key, value in pairs(data.override_mount) do
+            if is_in(value, current_editor_start) and
+                is_in(value, current_editor_dest) then
+                object_id = key
+                break
+            end
+        end
+    end
+
+    loadMountData(object_id)
+    if not mountData then return end
+
+    local startpos = start_pos + tes3vector3.new(0, 0, mountData.offset)
+    splineIndex = 1
+
+    calculatePositions(startpos, d)
+
+    mountData = nil
+    -- vfx
+    for index, child in ipairs(arrows) do
+        ---@diagnostic disable-next-line: param-type-mismatch
+        vfxRoot:attachChild(child)
+        vfxRoot:update()
+    end
+end
+
+--- Cleanup on save load
+--- @param e loadEventData
+local function editloadCallback(e)
+    if myEditorTimer ~= nil then myEditorTimer:cancel() end
+    splineIndex = 1
+    if mount ~= nil then mount:delete() end
+    mount = nil
+    mountData = nil
+end
+event.register(tes3.event.load, editloadCallback)
+
 local function createEditWindow()
     -- Return if window is already open
     if (tes3ui.findMenu(edit_menu) ~= nil) then return end
@@ -1045,8 +1179,8 @@ local function createEditWindow()
 
     -- To avoid low contrast, text input windows should not use menu transparency settings
     menu.alpha = 1.0
-    menu.width = 400
-    menu.height = 400
+    menu.width = 500
+    menu.height = 500
     menu.text = "Editor"
 
     -- Create layout
@@ -1058,9 +1192,9 @@ local function createEditWindow()
         table.insert(editor_services, key)
     end
     if current_editor_idx == nil then return end
-    local data = services[editor_services[current_editor_idx]]
+    local service = services[editor_services[current_editor_idx]]
 
-    local destinations = data.routes
+    local destinations = service.routes
     if destinations then
         local pane = menu:createVerticalScrollPane{id = "sortedPane"}
         for _i, start in ipairs(table.keys(destinations)) do
@@ -1073,7 +1207,9 @@ local function createEditWindow()
                 button:register(tes3.uiEvent.mouseClick, function()
                     -- start editor
                     current_editor_route = start .. "_" .. destination
-                    loadSpline(start, destination, data)
+                    current_editor_start = start
+                    current_editor_dest = destination
+                    loadSpline(start, destination, service)
                     renderMarkers()
                     tes3.messageBox("loaded spline: " .. start .. " -> " ..
                                         destination)
@@ -1097,6 +1233,14 @@ local function createEditWindow()
     local button_teleport = button_block:createButton{
         id = edit_menu_teleport,
         text = "Teleport"
+    }
+    local button_trace = button_block:createButton{
+        id = edit_menu_trace,
+        text = "Trace"
+    }
+    local button_trace_stop = button_block:createButton{
+        id = edit_menu_traceStop,
+        text = "Trace Stop"
     }
     local button_save = button_block:createButton{
         id = edit_menu_display,
@@ -1148,6 +1292,30 @@ local function createEditWindow()
         end
     end)
 
+    -- Trace
+    -- Teleport
+    button_trace_stop:register(tes3.uiEvent.mouseClick, function()
+        local m = tes3ui.findMenu(edit_menu)
+        if (m) then
+            -- cleanup
+            local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+            vfxRoot:detachAllChildren()
+            if myEditorTimer ~= nil then myEditorTimer:cancel() end
+            splineIndex = 1
+            if mount ~= nil then mount:delete() end
+            mount = nil
+            mountData = nil
+        end
+    end)
+    button_trace:register(tes3.uiEvent.mouseClick, function()
+        local m = tes3ui.findMenu(edit_menu)
+        if (m) then
+            if editor_markers then traceRoute(service) end
+            tes3ui.leaveMenuMode()
+            m:destroy()
+        end
+    end)
+
     -- log current spline
     button_save:register(tes3.uiEvent.mouseClick, function()
         -- print to log
@@ -1172,9 +1340,8 @@ local function createEditWindow()
         mwse.log("============================================")
 
         -- save to file
-        local filename =
-            "mods\\rfuzzo\\ImmersiveTravel\\" .. data.class .. "\\" ..
-                current_editor_route
+        local filename = "mods\\rfuzzo\\ImmersiveTravel\\" .. service.class ..
+                             "\\" .. current_editor_route
         json.savefile(filename, currentSpline)
 
         tes3.messageBox("saved spline: " .. current_editor_route)
@@ -1234,6 +1401,14 @@ local function editor_keyDownCallback(e)
         vfxRoot:detachChild(instance)
 
         table.remove(editor_markers, idx)
+    end
+
+    -- trace
+    if e.keyCode == tes3.scanCode["forwardSlash"] then
+        if services then
+            local service = services[editor_services[current_editor_idx]]
+            traceRoute(service)
+        end
     end
 
 end

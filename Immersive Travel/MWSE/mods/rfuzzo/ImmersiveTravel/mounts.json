@@ -4,7 +4,7 @@
     "offset": -1220,
     "sway": 1,
     "speed": 3,
-    "turnspeed": 20,
+    "turnspeed": 0.2,
     "guideSlot": {
       "animationGroup": "idle5",
       "position": {
@@ -49,7 +49,7 @@
     "offset": 74,
     "sway": 4,
     "speed": 3,
-    "turnspeed": 10,
+    "turnspeed": 0.2,
     "guideSlot": {
       "position": {
         "x": 67,
@@ -156,7 +156,7 @@
     "offset": -20,
     "sway": 4,
     "speed": 3,
-    "turnspeed": 10,
+    "turnspeed": 0.1,
     "guideSlot": {
       "position": {
         "x": -25,
