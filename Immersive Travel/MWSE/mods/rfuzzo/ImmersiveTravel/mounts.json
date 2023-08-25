@@ -156,7 +156,7 @@
     "offset": -20,
     "sway": 3,
     "speed": 3,
-    "turnspeed": 25,
+    "turnspeed": 20,
     "guideSlot": {
       "position": {
         "x": -25,

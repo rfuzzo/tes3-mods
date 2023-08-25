@@ -326,8 +326,11 @@ local function cleanup()
         tes3.removeSound({sound = mountData.sound, reference = mount})
 
         -- statics
-        mountData.guideSlot.reference:delete()
-        mountData.guideSlot.reference = nil
+        if mountData.guideSlot.reference then
+            mountData.guideSlot.reference:delete()
+            mountData.guideSlot.reference = nil
+        end
+
         if mountData.clutter then
             for index, slot in ipairs(mountData.clutter) do
                 if slot.reference then
@@ -976,9 +979,10 @@ event.register("simulate", function(e)
     if editmode == false then return end
     if editor_instance == nil then return end
     if services == nil then return end
+    local data = services[editor_services[current_editor_idx]]
+    if not data then return end
 
     local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
-    local data = services[editor_services[current_editor_idx]]
 
     if data.ground_offset == 0 then
         from.z = 0
@@ -1134,6 +1138,8 @@ end
 ---comment
 ---@param data ServiceData
 local function traceRoute(data)
+    if #editor_markers < 2 then return end
+
     arrow = tes3.loadMesh("mwse\\arrow.nif"):getObjectByName("unitArrow")
                 :clone()
     arrow.scale = 40
@@ -1141,10 +1147,10 @@ local function traceRoute(data)
     for index, value in ipairs(arrows) do vfxRoot:detachChild(value) end
 
     -- trace the route
-    local start_point = currentSpline[1]
+    local start_point = editor_markers[1].translation
     local start_pos = tes3vector3.new(start_point.x, start_point.y,
                                       start_point.z)
-    local next_point = currentSpline[2]
+    local next_point = editor_markers[2].translation
     local next_pos = tes3vector3.new(next_point.x, next_point.y, next_point.z)
     local d = next_pos - start_pos
     d:normalize()
@@ -1164,6 +1170,7 @@ local function traceRoute(data)
 
     loadMountData(mountId)
     if not mountData then return end
+    log:debug("loaded mount: " .. mountId)
 
     local startpos = start_pos + tes3vector3.new(0, 0, mountData.offset)
     local new_facing = math.atan2(d.x, d.y)
@@ -1510,5 +1517,9 @@ local function init()
     end
 
     log:info("[Immersive Travel] Loaded successfully.")
+
+    -- dbg
+    -- tes3.setGlobal("PS_GnisisDocks", 1)
+    -- tes3.setGlobal("ColonyService", 6)
 end
 event.register(tes3.event.initialized, init)
