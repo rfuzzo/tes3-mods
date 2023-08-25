@@ -16,15 +16,15 @@ local function registerModConfig()
     local settingsPage = page:createCategory("Settings")
     local generalCategory = settingsPage:createCategory("General")
 
-    -- generalCategory:createSlider({
-    --     label = "Silt Strider speed",
-    --     description = "The speed of the silt strider",
-    --     min = 1,
-    --     max = 100,
-    --     step = 1,
-    --     jump = 10,
-    --     variable = mwse.mcm.createTableVariable {id = "speed", table = config}
-    -- })
+    generalCategory:createSlider({
+        label = "Editor resolution",
+        description = "The speed of the silt strider",
+        min = 1,
+        max = 100,
+        step = 1,
+        jump = 10,
+        variable = mwse.mcm.createTableVariable {id = "grain", table = config}
+    })
 
     -- generalCategory:createSlider({
     --     label = "Boat speed",

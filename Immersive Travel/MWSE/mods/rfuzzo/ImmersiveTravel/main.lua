@@ -166,7 +166,7 @@ end
 --- @return tes3matrix33
 local function rotationFromDirection(forward)
     forward:normalize()
-    local up = tes3vector3.new(0, 0, 1)
+    local up = tes3vector3.new(0, 0, -1)
     local right = up:cross(forward)
     right:normalize()
     up = right:cross(forward)
@@ -451,35 +451,33 @@ local function onTimerTick()
     -- checks
     if mount == nil then return; end
     if mountData == nil then return; end
-    -- if guide == nil then return; end
     if myTimer == nil then return; end
     if isTraveling == false then return end
 
-    local len = #currentSpline
-    if splineIndex <= len then -- if i is not at the end of the list
+    if splineIndex <= #currentSpline then
 
-        local point = currentSpline[splineIndex]
-        local next_pos = tes3vector3.new(point.x, point.y, point.z)
+        local next_pos = vec(currentSpline[splineIndex])
         local mount_offset = tes3vector3.new(0, 0, mountData.offset)
-
         local local_pos = mount.position - mount_offset
-        local f = mount.forwardDirection
 
         -- calculate delta
         local d = next_pos - local_pos
         d:normalize()
+
+        local f = mount.forwardDirection
         f:normalize()
-        local alt = f + (d * mountData.turnspeed)
+
+        local alt = f + (d * mountData.turnspeed / 1000)
         alt:normalize()
         local delta = alt * mountData.speed
 
         -- set mount position
-        local mFacing = rotationFromDirection(delta)
-        local facing = mFacing:toEulerXYZ()
+        local mountPosition = local_pos + delta + mount_offset
+        local orientation = rotationFromDirection(alt):toEulerXYZ()
         tes3.positionCell({
             reference = mount,
-            position = local_pos + delta + mount_offset,
-            orientation = facing
+            position = mountPosition,
+            orientation = orientation
         })
 
         -- set sway
@@ -527,13 +525,8 @@ local function onTimerTick()
         end
 
         -- move to next marker
-        local isBehind = isPointBehindObject(next_pos, mount.position,
-                                             mount.forwardDirection)
-        if isBehind then
-            tes3.messageBox("passed")
-            debug.log("passed")
-            splineIndex = splineIndex + 1
-        end
+        local isBehind = isPointBehindObject(next_pos, mount.position, alt)
+        if isBehind then splineIndex = splineIndex + 1 end
 
     else -- if i is at the end of the list
 
@@ -574,7 +567,7 @@ end
 ---@param destination string
 ---@param service ServiceData
 ---@param guide tes3reference
-local function start_travel(start, destination, service, guide)
+local function startTravel(start, destination, service, guide)
     -- if guide == nil then return end
 
     local m = tes3ui.findMenu(travelMenuId)
@@ -595,20 +588,21 @@ local function start_travel(start, destination, service, guide)
     loadSpline(start, destination, service)
     if currentSpline == nil then return end
 
-    local object_id = service.mount
+    local mountId = service.mount
     -- override mounts 
     if service.override_mount then
         for key, value in pairs(service.override_mount) do
             if is_in(value, start) and is_in(value, destination) then
-                object_id = key
+                mountId = key
                 break
             end
         end
     end
 
     -- load mount data
-    loadMountData(object_id)
+    loadMountData(mountId)
     if mountData == nil then return end
+    log:debug("loaded mount: " .. mountId)
 
     -- fade out
     tes3.fadeOut({duration = 1})
@@ -636,7 +630,7 @@ local function start_travel(start, destination, service, guide)
 
             -- create mount
             mount = tes3.createReference {
-                object = object_id,
+                object = mountId,
                 position = start_pos + tes3vector3.new(0, 0, mountData.offset),
                 orientation = d
             }
@@ -678,6 +672,7 @@ local function start_travel(start, destination, service, guide)
             end
 
             -- start timer
+            splineIndex = 1
             isTraveling = true
             tes3.playSound({
                 sound = mountData.sound,
@@ -698,14 +693,13 @@ end
 
 --- Start Travel window
 -- Create window and layout. Called by onCommand.
----@param data ServiceData
+---@param service ServiceData
 ---@param guide tes3reference
-local function createTravelWindow(data, guide)
+local function createTravelWindow(service, guide)
     -- Return if window is already open
     if (tes3ui.findMenu(travelMenuId) ~= nil) then return end
     -- Return if no destinations
-    local destinations = data.routes[tes3.player.cell.id]
-    -- log:debug(json.encode(destinations))
+    local destinations = service.routes[guide.cell.id]
     if destinations == nil then return end
     if #destinations == 0 then return end
 
@@ -732,7 +726,7 @@ local function createTravelWindow(data, guide)
         }
 
         button:register(tes3.uiEvent.mouseClick, function()
-            start_travel(tes3.player.cell.id, name, data, guide)
+            startTravel(tes3.player.cell.id, name, service, guide)
         end)
     end
     pane:getContentElement():sortChildren(function(a, b)
@@ -778,8 +772,8 @@ end
 
 ---@param menu tes3uiElement
 ---@param guide tes3reference
----@param data ServiceData
-local function createTravelButton(menu, guide, data)
+---@param service ServiceData
+local function createTravelButton(menu, guide, service)
     local divider = menu:findChild("MenuDialog_divider")
     local topicsList = divider.parent
     local button = topicsList:createTextSelect({
@@ -794,7 +788,7 @@ local function createTravelButton(menu, guide, data)
 
     button:register("mouseClick", function()
         npcMenu = menu.id
-        createTravelWindow(data, guide)
+        createTravelWindow(service, guide)
     end)
     menu:registerAfter("update", function() updateServiceButton(menu) end)
 end
@@ -872,14 +866,11 @@ local function onMenuDialog(e)
         -- get npc class
         local class = npc.class.id
         local service = table.get(services, class)
-        if service == nil then
-
-            for key, value in pairs(services) do
-                if value.override_npc ~= nil then
-                    if is_in(value.override_npc, npc.id) then
-                        service = value
-                        break
-                    end
+        for key, value in pairs(services) do
+            if value.override_npc ~= nil then
+                if is_in(value.override_npc, npc.id) then
+                    service = value
+                    break
                 end
             end
         end
@@ -888,6 +879,11 @@ local function onMenuDialog(e)
             log:debug("no service found for " .. npc.id)
             return
         end
+
+        -- Return if no destinations
+        local destinations = service.routes[ref.cell.id]
+        if destinations == nil then return end
+        if #destinations == 0 then return end
 
         log:debug("createTravelButton for " .. npc.id)
         createTravelButton(menuDialog, ref, service)
@@ -952,10 +948,7 @@ local editor_services = {}
 
 ---@type mwseTimer | nil
 local myEditorTimer = nil
-local eratio = 30
 local eN = 5000
-local etimertick = timertick * eratio
-local last_pos = nil
 local positions = {} ---@type SPositionRecord[]
 local arrows = {}
 local arrow = nil
@@ -1079,9 +1072,9 @@ local function calculatePositions(startpos, startforward)
             local d = next_pos - local_pos
             d:normalize()
             f:normalize()
-            local alt = f + (d * mountData.turnspeed)
+            local alt = f + (d * mountData.turnspeed / 1000)
             alt:normalize()
-            local delta = alt * mountData.speed * eratio
+            local delta = alt * mountData.speed * config.grain
 
             -- set mount position
             local mount_pos = local_pos + delta + mount_offset
@@ -1089,17 +1082,16 @@ local function calculatePositions(startpos, startforward)
                          {position = mount_pos, forward = delta})
 
             -- draw vfx lines
-            if last_pos and arrow then
+            if arrow then
                 local child = arrow:clone()
                 child.translation = mount_pos - mount_offset
                 child.appCulled = false
-                child.rotation = rotationFromDirection(mount_pos - last_pos)
+                child.rotation = rotationFromDirection(alt)
                 table.insert(arrows, child)
             end
-            last_pos = mount_pos
 
             -- move to next marker
-            local isBehind = isPointBehindObject(next_pos, mount_pos, delta)
+            local isBehind = isPointBehindObject(next_pos, mount_pos, alt)
             if isBehind then splineIndex = splineIndex + 1 end
         else
             break
@@ -1182,7 +1174,7 @@ local function createEditWindow()
     -- To avoid low contrast, text input windows should not use menu transparency settings
     menu.alpha = 1.0
     menu.width = 500
-    menu.height = 600
+    menu.height = 500
     menu.text = "Editor " .. current_editor_route
 
     -- Create layout

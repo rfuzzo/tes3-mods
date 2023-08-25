@@ -4,7 +4,7 @@ local defaultConfig = {
     version = 1.0,
     author = "rfuzzo",
     -- configs
-    -- speed = 3,
+    grain = 30,
     -- boatspeed = 3,
     -- turnspeed = 20,
     -- boatturnspeed = 10,

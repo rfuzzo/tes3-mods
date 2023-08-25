@@ -154,9 +154,9 @@
   "a_DE_ship": {
     "sound": "Boat Hull",
     "offset": -20,
-    "sway": 4,
+    "sway": 3,
     "speed": 3,
-    "turnspeed": 0.1,
+    "turnspeed": 3,
     "guideSlot": {
       "position": {
         "x": -25,
@@ -207,7 +207,7 @@
     "offset": 40,
     "sway": 1,
     "speed": 2,
-    "turnspeed": 0.5,
+    "turnspeed": 0.3,
     "guideSlot": {
       "animationGroup": "walkForward",
       "animationFile": "ds22\\anim\\gondola.nif",
