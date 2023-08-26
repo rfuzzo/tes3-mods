@@ -1523,3 +1523,13 @@ local function init()
     -- tes3.setGlobal("ColonyService", 6)
 end
 event.register(tes3.event.initialized, init)
+
+--[[
+"animationGroup": "walkForward",
+      "animationFile": "ds22\\anim\\gondola.nif",
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": -46
+      }
+--]]

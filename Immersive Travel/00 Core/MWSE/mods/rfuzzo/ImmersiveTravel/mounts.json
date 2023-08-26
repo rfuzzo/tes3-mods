@@ -209,12 +209,11 @@
     "speed": 2,
     "turnspeed": 40,
     "guideSlot": {
-      "animationGroup": "walkForward",
-      "animationFile": "ds22\\anim\\gondola.nif",
+      "animationGroup": "idle6",
       "position": {
         "x": 0,
-        "y": 0,
-        "z": -46
+        "y": -171,
+        "z": -18
       }
     },
     "slots": [
