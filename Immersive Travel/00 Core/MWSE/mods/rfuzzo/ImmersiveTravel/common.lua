@@ -11,8 +11,11 @@ local log = logger.new {
     includeTimestamp = true
 }
 
-local localmodpath = "mods\\rfuzzo\\ImmersiveTravel\\"
-local fullmodpath = "Data Files\\MWSE\\" .. localmodpath
+this.localmodpath = "mods\\rfuzzo\\ImmersiveTravel\\"
+this.fullmodpath = "Data Files\\MWSE\\" .. this.localmodpath
+
+local localmodpath = this.localmodpath
+local fullmodpath = this.fullmodpath
 
 ---comment
 ---@param point tes3vector3

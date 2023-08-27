@@ -25,8 +25,8 @@ local log = logger.new {
 ---@field destination string
 ---@field mount tes3reference|nil
 ---@field splineIndex integer
----@field editorMarkers niNode[]?
----@field currentMarker niNode?
+---@field editorMarkers niNode[]|nil
+---@field currentMarker niNode|nil
 
 --[[
 Current Usage (Debug)
