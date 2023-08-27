@@ -79,10 +79,11 @@ local myTimer = nil
 ---@type tes3reference | nil
 local mount = nil
 local isTraveling = false
-local splineIndex = 1
+local splineIndex = 2
 local swayTime = 0
 local currentSpline = {} ---@type PositionRecord[]
 local mountData = nil ---@type MountData|nil
+local lastPos = nil ---@type tes3vector3|nil
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// FUNCTIONS
@@ -224,9 +225,12 @@ local function teleportToClosestMarker()
 end
 
 local function cleanup()
+
+    lastPos = nil
+
     -- cleanup
     if myTimer ~= nil then myTimer:cancel() end
-    splineIndex = 1
+    splineIndex = 2
 
     if mountData then
         tes3.removeSound({sound = mountData.sound, reference = mount})
@@ -377,14 +381,23 @@ local function onTimerTick()
     if isTraveling == false then return end
 
     if splineIndex <= #currentSpline then
+        local mountOffset = tes3vector3.new(0, 0, mountData.offset)
+        local nextPos = vec(currentSpline[splineIndex])
+        local currentPos = mount.position - mountOffset
 
-        local next_pos = vec(currentSpline[splineIndex])
-        local mount_offset = tes3vector3.new(0, 0, mountData.offset)
-        local local_pos = mount.position - mount_offset
+        local v = mount.forwardDirection
+        if lastPos then v = currentPos - lastPos end
+        v:normalize()
+        local d = (nextPos - currentPos):normalized()
+        local lerp = v:lerp(d, mountData.turnspeed / 10):normalized()
+        -- local delta = f * mountData.speed
+        -- local mountPosition = currentPos + delta + mountOffset
+        -- local rotation = common.rotationFromDirection(f)
+        -- lastPos = mount.position - mountOffset
+        -- mount.position = mountPosition
+        -- mount.orientation = rotation:toEulerXYZ()
 
         -- calculate heading
-        local d = next_pos - local_pos
-        d:normalize()
         local current_facing = mount.facing
         local new_facing = math.atan2(d.x, d.y)
         local facing = new_facing
@@ -399,13 +412,11 @@ local function onTimerTick()
         else
             facing = new_facing
         end
-
         mount.facing = facing
-        local f = mount.forwardDirection
-        f:normalize()
-
+        local f = tes3vector3.new(mount.forwardDirection.x,
+                                  mount.forwardDirection.y, lerp.z):normalized()
         local delta = f * mountData.speed
-        local mountPosition = local_pos + delta + mount_offset
+        local mountPosition = currentPos + delta + mountOffset
         tes3.positionCell({reference = mount, position = mountPosition})
 
         -- set sway
@@ -453,7 +464,7 @@ local function onTimerTick()
         end
 
         -- move to next marker
-        local isBehind = common.isPointBehindObject(next_pos, mount.position, f)
+        local isBehind = common.isPointBehindObject(nextPos, mount.position, f)
         if isBehind then splineIndex = splineIndex + 1 end
 
     else -- if i is at the end of the list
@@ -513,7 +524,7 @@ local function startTravel(start, destination, service, guide)
         end
     end
 
-    common.loadSpline(start, destination, service)
+    currentSpline = common.loadSpline(start, destination, service)
     if currentSpline == nil then return end
 
     local mountId = service.mount
@@ -544,36 +555,37 @@ local function startTravel(start, destination, service, guide)
 
             tes3.fadeIn({duration = 1})
 
-            local start_point = currentSpline[1]
-            local start_pos = tes3vector3.new(start_point.x, start_point.y,
-                                              start_point.z)
+            local startPoint = currentSpline[1]
+            local startPos = tes3vector3.new(startPoint.x, startPoint.y,
+                                             startPoint.z)
 
             -- set initial facing of mount
             local next_point = currentSpline[2]
             local next_pos = tes3vector3.new(next_point.x, next_point.y,
                                              next_point.z)
-            local d = next_pos - start_pos
+            local d = next_pos - startPos
             d:normalize()
             local new_facing = math.atan2(d.x, d.y)
+
+            local mountOffset = tes3vector3.new(0, 0, mountData.offset)
 
             -- create mount
             mount = tes3.createReference {
                 object = mountId,
-                position = start_pos + tes3vector3.new(0, 0, mountData.offset),
+                position = startPos + mountOffset,
                 orientation = d
             }
             mount.facing = new_facing
 
             -- register refs in slots
-            tes3.player.position = start_pos +
-                                       tes3vector3.new(0, 0, mountData.offset)
+            tes3.player.position = startPos + mountOffset
             tes3.player.facing = new_facing
             registerRef(mountData, tes3.player)
 
             -- duplicate guide
             local guide2 = tes3.createReference {
                 object = guide.baseObject.id,
-                position = start_pos + tes3vector3.new(0, 0, mountData.offset),
+                position = startPos + mountOffset,
                 orientation = mount.orientation
             }
             registerGuide(mountData, guide2)
@@ -590,8 +602,7 @@ local function startTravel(start, destination, service, guide)
                     -- instantiate
                     local inst = tes3.createReference {
                         object = clutter.id,
-                        position = start_pos +
-                            tes3vector3.new(0, 0, mountData.offset),
+                        position = startPos + mountOffset,
                         orientation = mount.orientation
                     }
                     -- register
@@ -600,7 +611,8 @@ local function startTravel(start, destination, service, guide)
             end
 
             -- start timer
-            splineIndex = 1
+            lastPos = nil
+            splineIndex = 2
             isTraveling = true
             tes3.playSound({
                 sound = mountData.sound,

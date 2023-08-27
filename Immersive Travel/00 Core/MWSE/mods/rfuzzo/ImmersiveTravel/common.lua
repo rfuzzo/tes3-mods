@@ -33,6 +33,22 @@ function this.is_in(table, str)
     return false
 end
 
+--- @param forward tes3vector3
+--- @return tes3matrix33
+function this.rotationFromDirection(forward)
+    forward:normalize()
+    local up = tes3vector3.new(0, 0, -1)
+    local right = up:cross(forward)
+    right:normalize()
+    up = right:cross(forward)
+
+    local rotation_matrix = tes3matrix33.new(right.x, forward.x, up.x, right.y,
+                                             forward.y, up.y, right.z,
+                                             forward.z, up.z)
+
+    return rotation_matrix
+end
+
 --- load json spline from file
 ---@param start string
 ---@param destination string
@@ -95,9 +111,6 @@ end
 ---@param service ServiceData
 function this.loadRoutes(service)
     local map = {} ---@type table<string, table>
-
-    log:debug("Registered " .. service.class .. " destinations: ")
-
     for file in lfs.dir(fullmodpath .. service.class) do
         if (string.endswith(file, ".json")) then
             local split = string.split(file:sub(0, -6), "_")
@@ -111,8 +124,6 @@ function this.loadRoutes(service)
                         destination = id
                     end
                 end
-
-                log:debug("  " .. start .. " - " .. destination)
 
                 local result = table.get(map, start, nil)
                 if result == nil then

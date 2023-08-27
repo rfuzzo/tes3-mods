@@ -7,5 +7,7 @@ echo %drive%
 
 mklink /J "%location%\MWSE\mods\rfuzzo\ImmersiveTravel" "%drive%00 Core\MWSE\mods\rfuzzo\ImmersiveTravel"
 
+mklink /J "%location%\MWSE\mods\rfuzzo\ImmersiveTravelEditor" "%drive%99 Editor\MWSE\mods\rfuzzo\ImmersiveTravelEditor"
+
 pause
 
