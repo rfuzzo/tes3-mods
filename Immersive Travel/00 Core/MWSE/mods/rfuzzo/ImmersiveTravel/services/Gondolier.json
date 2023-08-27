@@ -1,0 +1,8 @@
+{
+  "class": "Gondolier",
+  "mount": "a_gondola_01",
+  "ground_offset": 0,
+  "override_npc": [
+    "Blatta Hateria"
+  ]
+}

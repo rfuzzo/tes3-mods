@@ -1,0 +1,18 @@
+{
+  "class": "Shipmaster",
+  "override_npc": [
+    "rindral dralor",
+    "Daynas Darys"
+  ],
+  "mount": "a_longboat",
+  "override_mount": {
+    "a_DE_ship": [
+      "Vos",
+      "Dagon Fel",
+      "Sadrith Mora",
+      "Ebonheart",
+      "Fort Frostmoth"
+    ]
+  },
+  "ground_offset": 0
+}

@@ -1,0 +1,107 @@
+{
+  "sound": "Boat Hull",
+  "offset": 74,
+  "sway": 4,
+  "speed": 4,
+  "turnspeed": 40,
+  "guideSlot": {
+    "position": {
+      "x": 67,
+      "y": -457,
+      "z": -65
+    }
+  },
+  "slots": [
+    {
+      "position": {
+        "x": 0,
+        "y": 324,
+        "z": -63
+      }
+    },
+    {
+      "position": {
+        "x": 0,
+        "y": 90,
+        "z": -63
+      }
+    },
+    {
+      "position": {
+        "x": -111,
+        "y": 0,
+        "z": -63
+      }
+    },
+    {
+      "position": {
+        "x": 111,
+        "y": 0,
+        "z": -63
+      }
+    },
+    {
+      "animationGroup": "idle6",
+      "animationFile": "VA_sitting.nif",
+      "position": {
+        "x": 0,
+        "y": 298,
+        "z": -25
+      }
+    },
+    {
+      "animationGroup": "idle6",
+      "animationFile": "VA_sitting.nif",
+      "position": {
+        "x": 0,
+        "y": 130,
+        "z": -27
+      }
+    },
+    {
+      "animationGroup": "idle6",
+      "animationFile": "VA_sitting.nif",
+      "position": {
+        "x": 0,
+        "y": 15,
+        "z": -26
+      }
+    },
+    {
+      "animationGroup": "idle6",
+      "animationFile": "VA_sitting.nif",
+      "position": {
+        "x": -130,
+        "y": 126,
+        "z": -26
+      }
+    },
+    {
+      "animationGroup": "idle6",
+      "animationFile": "VA_sitting.nif",
+      "position": {
+        "x": 127,
+        "y": 43,
+        "z": -28
+      }
+    }
+  ],
+  "clutter": [
+    {
+      "id": "light_com_lantern_01",
+      "position": {
+        "x": 0,
+        "y": 623,
+        "z": 28
+      }
+    },
+    {
+      "id": "light_com_lantern_02",
+      "position": {
+        "x": 0,
+        "y": -585,
+        "z": 18
+      }
+    }
+  ]
+}

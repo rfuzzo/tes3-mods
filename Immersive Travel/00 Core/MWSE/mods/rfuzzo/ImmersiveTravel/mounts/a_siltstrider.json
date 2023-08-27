@@ -1,0 +1,45 @@
+{
+  "sound": "Silt_2",
+  "offset": -1220,
+  "sway": 1,
+  "speed": 3,
+  "turnspeed": 30,
+  "guideSlot": {
+    "animationGroup": "idle5",
+    "position": {
+      "x": 0,
+      "y": 70,
+      "z": 1223
+    }
+  },
+  "slots": [
+    {
+      "position": {
+        "x": 0,
+        "y": -34,
+        "z": 1223
+      }
+    },
+    {
+      "position": {
+        "x": -81,
+        "y": 0,
+        "z": 1230
+      }
+    },
+    {
+      "position": {
+        "x": 81,
+        "y": 0,
+        "z": 1230
+      }
+    },
+    {
+      "position": {
+        "x": 0,
+        "y": -86,
+        "z": 1227
+      }
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "sound": "Boat Hull",
+  "offset": -20,
+  "sway": 3,
+  "speed": 3,
+  "turnspeed": 10,
+  "guideSlot": {
+    "position": {
+      "x": -25,
+      "y": -823,
+      "z": 360
+    }
+  },
+  "slots": [
+    {
+      "position": {
+        "x": 0,
+        "y": 438,
+        "z": 257
+      }
+    },
+    {
+      "position": {
+        "x": 0,
+        "y": 29,
+        "z": 209
+      }
+    },
+    {
+      "position": {
+        "x": -181,
+        "y": 139,
+        "z": 209
+      }
+    },
+    {
+      "position": {
+        "x": 181,
+        "y": -139,
+        "z": 209
+      }
+    },
+    {
+      "position": {
+        "x": 115,
+        "y": -466,
+        "z": 208
+      }
+    }
+  ]
+}

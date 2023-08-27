@@ -7,6 +7,8 @@ mwse real-time travel mod
 
 
 --]] -- 
+local common = require("rfuzzo.ImmersiveTravel.common")
+
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// CONFIGURATION
 local config = require("rfuzzo.ImmersiveTravel.config")
@@ -63,19 +65,12 @@ local log = logger.new {
 ---@field cell tes3cell The cell
 ---@field position tes3vector3 The reference position
 
----@param pos PositionRecord
---- @return tes3vector3
-local function vec(pos) return tes3vector3.new(pos.x, pos.y, pos.z) end
-
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// VARIABLES
 
 local travelMenuId = tes3ui.registerID("it:travel_menu")
 local travelMenuCancelId = tes3ui.registerID("it:travel_menu_cancel")
-
 local npcMenu = nil
-
-local services = {} ---@type table<string, ServiceData>|nil
 
 local timertick = 0.01
 ---@type mwseTimer | nil
@@ -90,43 +85,7 @@ local currentSpline = {} ---@type PositionRecord[]
 local mountData = nil ---@type MountData|nil
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
--- ////////////// COMMON
-
----comment
----@param point tes3vector3
----@param objectPosition tes3vector3
----@param objectForwardVector tes3vector3
----@return boolean
-local function isPointBehindObject(point, objectPosition, objectForwardVector)
-    local vectorToPoint = point - objectPosition
-    local dotProduct = vectorToPoint:dot(objectForwardVector)
-    return dotProduct < 0
-end
-
---- list contains
----@param table string[]
----@param str string
-local function is_in(table, str)
-    for index, value in ipairs(table) do if value == str then return true end end
-    return false
-end
-
---- @param from tes3vector3
---- @return number|nil
-local function getGroundZ(from)
-    local rayhit = tes3.rayTest {
-        position = from,
-        direction = tes3vector3.new(0, 0, -1),
-        returnNormal = true
-    }
-
-    if (rayhit) then
-        local to = rayhit.intersection
-        return to.z
-    end
-
-    return nil
-end
+-- ////////////// FUNCTIONS
 
 -- Translate local orientation around a base-centered coordinate system to world orientation
 ---@param localOrientation tes3vector3
@@ -160,22 +119,6 @@ local function toWorld(localVector, worldOrientation)
 
     -- Combine the rotation matrices to get the world rotation matrix
     return baseRotationMatrix * localVector
-end
-
---- @param forward tes3vector3
---- @return tes3matrix33
-local function rotationFromDirection(forward)
-    forward:normalize()
-    local up = tes3vector3.new(0, 0, -1)
-    local right = up:cross(forward)
-    right:normalize()
-    up = right:cross(forward)
-
-    local rotation_matrix = tes3matrix33.new(right.x, forward.x, up.x, right.y,
-                                             forward.y, up.y, right.z,
-                                             forward.z, up.z)
-
-    return rotation_matrix
 end
 
 -- This function loops over the references inside the
@@ -239,43 +182,6 @@ local function getFollowers()
     end
 
     return followers
-end
-
--- /////////////////////////////////////////////////////////////////////////////////////////
--- ////////////// LOGIC
-
---- load json spline from file
----@param start string
----@param destination string
----@param data ServiceData
-local function loadSpline(start, destination, data)
-    local fileName = start .. "_" .. destination
-    local filePath = "mods\\rfuzzo\\ImmersiveTravel\\" .. data.class .. "\\" ..
-                         fileName
-    local result = json.loadfile(filePath)
-    if result ~= nil then
-        log:debug("loaded spline: " .. filePath)
-        currentSpline = result
-    else
-        log:debug("!!! failed to load spline: " .. filePath)
-        result = nil
-    end
-end
-
---- load json static mount data
----@param id string
-local function loadMountData(id)
-    local filePath = "mods\\rfuzzo\\ImmersiveTravel\\mounts.json"
-    local result = {} ---@type table<string, MountData>
-    result = json.loadfile(filePath)
-
-    if result ~= nil then
-        mountData = result[id]
-    else
-        log:debug("!!! failed to load mount: " .. filePath)
-        mountData = nil
-    end
-
 end
 
 ---@return ReferenceRecord|nil
@@ -547,7 +453,7 @@ local function onTimerTick()
         end
 
         -- move to next marker
-        local isBehind = isPointBehindObject(next_pos, mount.position, f)
+        local isBehind = common.isPointBehindObject(next_pos, mount.position, f)
         if isBehind then splineIndex = splineIndex + 1 end
 
     else -- if i is at the end of the list
@@ -607,14 +513,14 @@ local function startTravel(start, destination, service, guide)
         end
     end
 
-    loadSpline(start, destination, service)
+    common.loadSpline(start, destination, service)
     if currentSpline == nil then return end
 
     local mountId = service.mount
     -- override mounts 
     if service.override_mount then
         for key, value in pairs(service.override_mount) do
-            if is_in(value, start) and is_in(value, destination) then
+            if common.is_in(value, start) and common.is_in(value, destination) then
                 mountId = key
                 break
             end
@@ -622,7 +528,7 @@ local function startTravel(start, destination, service, guide)
     end
 
     -- load mount data
-    loadMountData(mountId)
+    mountData = common.loadMountData(mountId)
     if mountData == nil then return end
     log:debug("loaded mount: " .. mountId)
 
@@ -885,12 +791,15 @@ local function onMenuDialog(e)
 
         if not offersTraveling(npc) then return end
 
+        local services = common.loadServices()
+        if not services then return end
+
         -- get npc class
         local class = npc.class.id
         local service = table.get(services, class)
         for key, value in pairs(services) do
             if value.override_npc ~= nil then
-                if is_in(value.override_npc, npc.id) then
+                if common.is_in(value.override_npc, npc.id) then
                     service = value
                     break
                 end
@@ -903,6 +812,7 @@ local function onMenuDialog(e)
         end
 
         -- Return if no destinations
+        common.loadRoutes(service)
         local destinations = service.routes[ref.cell.id]
         if destinations == nil then return end
         if #destinations == 0 then return end
@@ -928,601 +838,8 @@ end
 event.register(tes3.event.keyDown, keyDownCallback)
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
--- ////////////// EDITOR
-
---[[
-Current Usage (Debug)
-- Open route editor 						... R-Ctrl
-- move a marker 							... L-Ctrl
-- delete a marker 							... Del
-- exit edit mode 							... L-Ctrl
-- add a marker								... >
-- start traveling            		        ... <
-
---]]
-local edit_menu = tes3ui.registerID("it:MenuEdit")
-local edit_menu_save = tes3ui.registerID("it:MenuEdit_Display")
-local edit_menu_print = tes3ui.registerID("it:MenuEdit_Print")
-local edit_menu_mode = tes3ui.registerID("it:MenuEdit_Mode")
-local edit_menu_cancel = tes3ui.registerID("it:MenuEdit_Cancel")
-local edit_menu_teleport = tes3ui.registerID("it:MenuEdit_Teleport")
--- local edit_menu_trace = tes3ui.registerID("it:MenuEdit_Trace")
--- local edit_menu_traceStop = tes3ui.registerID("it:MenuEdit_TraceStop")
-
-local editmode = false
-
-local editor_marker2 = "marker_divine.nif"
-local editor_marker = "marker_arrow.nif"
----@type niNode[]
-local editor_markers = {}
-local editor_instance = nil
-local current_editor_route = ""
-local current_editor_start = ""
-local current_editor_dest = ""
----@type number | nil
-local current_editor_idx = nil
----@type string[]
-local editor_services = {}
-
----@class SPositionRecord
----@field position tes3vector3
----@field forward tes3vector3
-
----@type mwseTimer | nil
-local myEditorTimer = nil
-local eN = 5000
-local positions = {} ---@type SPositionRecord[]
-local arrows = {}
-local arrow = nil
-
-event.register("simulate", function(e)
-    if editmode == false then return end
-    if editor_instance == nil then return end
-    if services == nil then return end
-    local data = services[editor_services[current_editor_idx]]
-    if not data then return end
-
-    local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
-
-    if data.ground_offset == 0 then
-        from.z = 0
-    else
-        local groundZ = getGroundZ(from)
-        if groundZ == nil then
-            from.z = data.ground_offset
-        else
-            from.z = groundZ + data.ground_offset
-        end
-    end
-
-    editor_instance.translation = from
-    editor_instance:update()
-end)
-
-local function updateMarkers()
-    -- update rotation
-    for index, marker in ipairs(editor_markers) do
-        if index < #editor_markers then
-            local nextMarker = editor_markers[index + 1]
-            local direction = nextMarker.translation - marker.translation
-            local rotation_matrix = rotationFromDirection(direction)
-            marker.rotation = rotation_matrix
-
-        end
-    end
-
-    local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-    vfxRoot:update()
-end
-
----@return number
-local function getClosestMarkerIdx()
-    -- get closest marker
-    local pp = tes3.player.position
-
-    local final_idx = 0
-    local last_distance = nil
-    for index, marker in ipairs(editor_markers) do
-        local distance_to_marker = pp:distance(marker.translation)
-
-        -- first
-        if last_distance == nil then
-            last_distance = distance_to_marker
-            final_idx = 1
-        end
-
-        if distance_to_marker < last_distance then
-            final_idx = index
-            last_distance = distance_to_marker
-        end
-    end
-
-    editor_instance = editor_markers[final_idx]
-
-    updateMarkers()
-
-    return final_idx
-end
-
-local function renderMarkers()
-    editor_markers = {}
-    editor_instance = nil
-    local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-    vfxRoot:detachAllChildren()
-
-    -- add markers
-    local mesh = tes3.loadMesh(editor_marker)
-
-    for idx, v in ipairs(currentSpline) do
-
-        local child = mesh:clone()
-        child.translation = tes3vector3.new(v.x, v.y, v.z)
-        child.appCulled = false
-
-        ---@diagnostic disable-next-line: param-type-mismatch
-        vfxRoot:attachChild(child)
-        vfxRoot:update()
-
-        ---@diagnostic disable-next-line: assign-type-mismatch
-        editor_markers[idx] = child
-    end
-
-    updateMarkers()
-end
-
----comment
----@param startpos tes3vector3
-local function calculatePositions(startpos)
-    -- checks
-    if mountData == nil then return; end
-    if mount == nil then return; end
-
-    positions = {}
-    arrows = {}
-    table.insert(positions, 1, {position = startpos})
-
-    for idx = 1, eN, 1 do
-        if splineIndex <= #editor_markers then
-            -- calculate next position
-            local point = editor_markers[splineIndex].translation
-            local next_pos = tes3vector3.new(point.x, point.y, point.z)
-            local mount_offset = tes3vector3.new(0, 0, mountData.offset)
-            local local_pos = positions[idx].position - mount_offset
-
-            -- calculate heading
-            local d = next_pos - local_pos
-            d:normalize()
-            local current_facing = mount.facing
-            local new_facing = math.atan2(d.x, d.y)
-            local facing = new_facing
-            local diff = new_facing - current_facing
-            if diff < -math.pi then diff = diff + 2 * math.pi end
-            if diff > math.pi then diff = diff - 2 * math.pi end
-            local angle = mountData.turnspeed / 10000 * config.grain
-            if diff > 0 and diff > angle then
-                facing = current_facing + angle
-            elseif diff < 0 and diff < -angle then
-                facing = current_facing - angle
-            else
-                facing = new_facing
-            end
-
-            mount.facing = facing
-            local f = mount.forwardDirection
-            f:normalize()
-
-            local delta = f * mountData.speed * config.grain
-            local mountPosition = local_pos + delta + mount_offset
-            table.insert(positions, idx + 1,
-                         {position = mountPosition, forward = delta})
-
-            -- draw vfx lines
-            if arrow then
-                local child = arrow:clone()
-                child.translation = mountPosition - mount_offset
-                child.appCulled = false
-                child.rotation = rotationFromDirection(f)
-                table.insert(arrows, child)
-            end
-
-            -- move to next marker
-            local isBehind = isPointBehindObject(next_pos, mountPosition, f)
-            if isBehind then splineIndex = splineIndex + 1 end
-        else
-            break
-        end
-    end
-
-end
-
----comment
----@param data ServiceData
-local function traceRoute(data)
-    if #editor_markers < 2 then return end
-
-    arrow = tes3.loadMesh("mwse\\arrow.nif"):getObjectByName("unitArrow")
-                :clone()
-    arrow.scale = 40
-    local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-    for index, value in ipairs(arrows) do vfxRoot:detachChild(value) end
-
-    -- trace the route
-    local start_point = editor_markers[1].translation
-    local start_pos = tes3vector3.new(start_point.x, start_point.y,
-                                      start_point.z)
-    local next_point = editor_markers[2].translation
-    local next_pos = tes3vector3.new(next_point.x, next_point.y, next_point.z)
-    local d = next_pos - start_pos
-    d:normalize()
-
-    -- create mount
-    local mountId = data.mount
-    -- override mounts 
-    if data.override_mount then
-        for key, value in pairs(data.override_mount) do
-            if is_in(value, current_editor_start) and
-                is_in(value, current_editor_dest) then
-                mountId = key
-                break
-            end
-        end
-    end
-
-    loadMountData(mountId)
-    if not mountData then return end
-    log:debug("loaded mount: " .. mountId)
-
-    local startpos = start_pos + tes3vector3.new(0, 0, mountData.offset)
-    local new_facing = math.atan2(d.x, d.y)
-
-    -- create mount
-    mount = tes3.createReference {
-        object = mountId,
-        position = start_pos,
-        orientation = d
-    }
-    mount.facing = new_facing
-
-    splineIndex = 1
-    calculatePositions(startpos)
-
-    cleanup()
-    -- vfx
-    for index, child in ipairs(arrows) do
-        ---@diagnostic disable-next-line: param-type-mismatch
-        vfxRoot:attachChild(child)
-        vfxRoot:update()
-    end
-end
-
---- Cleanup on save load
---- @param e loadEventData
-local function editloadCallback(e)
-    if myEditorTimer ~= nil then myEditorTimer:cancel() end
-    splineIndex = 1
-    if mount ~= nil then mount:delete() end
-    mount = nil
-    mountData = nil
-end
-event.register(tes3.event.load, editloadCallback)
-
-local function createEditWindow()
-    -- Return if window is already open
-    if (tes3ui.findMenu(edit_menu) ~= nil) then return end
-    if services == nil then return end
-
-    -- Create window and frame
-    local menu = tes3ui.createMenu {
-        id = edit_menu,
-        fixedFrame = false,
-        dragFrame = true
-    }
-
-    -- To avoid low contrast, text input windows should not use menu transparency settings
-    menu.alpha = 1.0
-    menu.width = 500
-    menu.height = 500
-    menu.text = "Editor " .. current_editor_route
-
-    -- Create layout
-    local label = menu:createLabel{text = "Loaded routes"}
-    label.borderBottom = 5
-
-    for key, value in pairs(services) do
-        if current_editor_idx == nil then current_editor_idx = 1 end
-        table.insert(editor_services, key)
-    end
-    if current_editor_idx == nil then return end
-    local service = services[editor_services[current_editor_idx]]
-
-    local destinations = service.routes
-    if destinations then
-        local pane = menu:createVerticalScrollPane{id = "sortedPane"}
-        for _i, start in ipairs(table.keys(destinations)) do
-            for _j, destination in ipairs(destinations[start]) do
-                local text = start .. " - " .. destination
-                local button = pane:createButton{
-                    id = "button_spline" .. text,
-                    text = text
-                }
-                button:register(tes3.uiEvent.mouseClick, function()
-                    -- start editor
-                    current_editor_route = start .. "_" .. destination
-                    current_editor_start = start
-                    current_editor_dest = destination
-                    loadSpline(start, destination, service)
-                    renderMarkers()
-                    tes3.messageBox("loaded spline: " .. start .. " -> " ..
-                                        destination)
-
-                    traceRoute(service)
-                end)
-            end
-        end
-        pane:getContentElement():sortChildren(function(a, b)
-            return a.text < b.text
-        end)
-    end
-
-    local button_block = menu:createBlock{}
-    button_block.widthProportional = 1.0 -- width is 100% parent width
-    button_block.autoHeight = true
-    button_block.childAlignX = 1.0 -- right content alignment
-
-    local button_mode = button_block:createButton{
-        id = edit_menu_mode,
-        text = editor_services[current_editor_idx]
-    }
-    local button_teleport = button_block:createButton{
-        id = edit_menu_teleport,
-        text = "Teleport"
-    }
-    -- local button_trace = button_block:createButton{
-    --     id = edit_menu_trace,
-    --     text = "Trace"
-    -- }
-    -- local button_trace_stop = button_block:createButton{
-    --     id = edit_menu_traceStop,
-    --     text = "Trace Stop"
-    -- }
-    local button_save = button_block:createButton{
-        id = edit_menu_save,
-        text = "Save"
-    }
-    local button_print = button_block:createButton{
-        id = edit_menu_print,
-        text = "Print"
-    }
-    local button_cancel = button_block:createButton{
-        id = edit_menu_cancel,
-        text = "Exit"
-    }
-    -- Switch mode
-    button_mode:register(tes3.uiEvent.mouseClick, function()
-        local m = tes3ui.findMenu(edit_menu)
-        if (m) then
-            current_editor_idx = current_editor_idx + 1
-            if current_editor_idx > #editor_services then
-                current_editor_idx = 1
-            end
-
-            mount = nil
-            -- tes3ui.leaveMenuMode()
-            m:destroy()
-
-            createEditWindow()
-        end
-    end)
-    -- Leave Menu
-    button_cancel:register(tes3.uiEvent.mouseClick, function()
-        local m = tes3ui.findMenu(edit_menu)
-        if (m) then
-            mount = nil
-            tes3ui.leaveMenuMode()
-            m:destroy()
-        end
-    end)
-    -- Teleport
-    button_teleport:register(tes3.uiEvent.mouseClick, function()
-        local m = tes3ui.findMenu(edit_menu)
-        if (m) then
-            if #editor_markers > 1 then
-                local position = editor_markers[1].translation
-                tes3.positionCell({
-                    reference = tes3.mobilePlayer,
-                    position = position
-                })
-
-                tes3ui.leaveMenuMode()
-                m:destroy()
-            end
-        end
-    end)
-
-    -- log current spline
-    button_print:register(tes3.uiEvent.mouseClick, function()
-        -- print to log
-        mwse.log("============================================")
-        mwse.log(current_editor_route)
-        mwse.log("============================================")
-        for i, value in ipairs(editor_markers) do
-            local t = value.translation
-            mwse.log("{ \"x\": " .. math.round(t.x) .. ", \"y\": " ..
-                         math.round(t.y) .. ", \"z\": " .. math.round(t.z) ..
-                         " },")
-        end
-        mwse.log("============================================")
-        tes3.messageBox("printed spline: " .. current_editor_route)
-    end)
-    button_save:register(tes3.uiEvent.mouseClick, function()
-        -- print to log
-        mwse.log("============================================")
-        mwse.log(current_editor_route)
-        mwse.log("============================================")
-        currentSpline = {}
-        for i, value in ipairs(editor_markers) do
-            local t = value.translation
-            mwse.log("{ \"x\": " .. math.round(t.x) .. ", \"y\": " ..
-                         math.round(t.y) .. ", \"z\": " .. math.round(t.z) ..
-                         " },")
-
-            -- save currently edited markers back to spline
-            table.insert(currentSpline, i, {
-                x = math.round(t.x),
-                y = math.round(t.y),
-                z = math.round(t.z)
-            })
-
-        end
-        mwse.log("============================================")
-
-        -- save to file
-        local filename = "mods\\rfuzzo\\ImmersiveTravel\\" .. service.class ..
-                             "\\" .. current_editor_route
-        json.savefile(filename, currentSpline)
-
-        tes3.messageBox("saved spline: " .. current_editor_route)
-
-        renderMarkers()
-    end)
-
-    -- Final setup
-    menu:updateLayout()
-    tes3ui.enterMenuMode(edit_menu)
-end
-
---- @param e keyDownEventData
-local function editor_keyDownCallback(e)
-
-    if config.enableeditor == false then return end
-
-    -- editor menu
-    if e.keyCode == tes3.scanCode["rCtrl"] then createEditWindow() end
-
-    -- insert
-    if e.keyCode == tes3.scanCode["keyRight"] then
-        local idx = getClosestMarkerIdx()
-        local mesh = tes3.loadMesh(editor_marker)
-        local child = mesh:clone()
-
-        local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() *
-                         256
-
-        child.translation = tes3vector3.new(from.x, from.y, from.z)
-        child.appCulled = false
-
-        local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-        ---@diagnostic disable-next-line: param-type-mismatch
-        vfxRoot:attachChild(child)
-        vfxRoot:update()
-
-        table.insert(editor_markers, idx + 1, child)
-
-        editor_instance = child
-        editmode = true
-    end
-
-    -- marker edit mode
-    if e.keyCode == tes3.scanCode["lCtrl"] then
-        local idx = getClosestMarkerIdx()
-        editmode = not editmode
-        tes3.messageBox("Marker index: " .. idx)
-        if not editmode then
-            if services then
-                local service = services[editor_services[current_editor_idx]]
-                traceRoute(service)
-            end
-        end
-    end
-
-    -- delete
-    if e.keyCode == tes3.scanCode["delete"] then
-        local idx = getClosestMarkerIdx()
-
-        local instance = editor_markers[idx]
-        local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-        vfxRoot:detachChild(instance)
-
-        table.remove(editor_markers, idx)
-
-        if services then
-            local service = services[editor_services[current_editor_idx]]
-            traceRoute(service)
-        end
-    end
-
-    -- trace
-    if e.keyCode == tes3.scanCode["forwardSlash"] then
-        if services then
-            local service = services[editor_services[current_editor_idx]]
-            traceRoute(service)
-        end
-    end
-
-end
-event.register(tes3.event.keyDown, editor_keyDownCallback)
-
--- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// CONFIG
 require("rfuzzo.ImmersiveTravel.mcm")
-
---- init mod
-local function init()
-
-    -- load services
-    log:debug("Loading travel services...")
-    local r = json.loadfile("mods\\rfuzzo\\ImmersiveTravel\\services.json")
-    if r == nil then
-        log:debug("!!! failed to load travel services.")
-        return
-    else
-        services = r
-    end
-
-    for key, service in pairs(services) do
-        local map = {} ---@type table<string, table>
-        -- striders
-        log:debug("Registered " .. key .. " destinations: ")
-        for file in lfs.dir(
-                        "Data Files\\MWSE\\mods\\rfuzzo\\ImmersiveTravel\\" ..
-                            key) do
-            if (string.endswith(file, ".json")) then
-                local split = string.split(file:sub(0, -6), "_")
-                if #split == 2 then
-                    local start = ""
-                    local destination = ""
-                    for i, id in ipairs(split) do
-                        if i == 1 then
-                            start = id
-                        else
-                            destination = id
-                        end
-                    end
-
-                    log:debug("  " .. start .. " - " .. destination)
-                    local result = table.get(map, start, nil)
-                    if result == nil then
-                        local v = {}
-                        table.insert(v, destination)
-                        map[start] = v
-
-                    else
-                        table.insert(result, destination)
-                        map[start] = result
-                    end
-                end
-            end
-        end
-        service.routes = map
-    end
-
-    log:info("[Immersive Travel] Loaded successfully.")
-
-    -- dbg
-    -- tes3.setGlobal("PS_GnisisDocks", 1)
-    -- tes3.setGlobal("ColonyService", 6)
-end
-event.register(tes3.event.initialized, init)
 
 --[[
 "animationGroup": "walkForward",

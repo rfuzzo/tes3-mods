@@ -1,0 +1,74 @@
+{
+  "sound": "Boat Creak",
+  "offset": 40,
+  "sway": 1,
+  "speed": 2,
+  "turnspeed": 40,
+  "guideSlot": {
+    "animationGroup": "idle6",
+    "position": {
+      "x": 0,
+      "y": -171,
+      "z": -18
+    }
+  },
+  "slots": [
+    {
+      "animationGroup": "idle6",
+      "animationFile": "VA_sitting.nif",
+      "position": {
+        "x": 0,
+        "y": 82,
+        "z": -15
+      }
+    },
+    {
+      "animationGroup": "idle6",
+      "animationFile": "VA_sitting.nif",
+      "position": {
+        "x": 0,
+        "y": -82,
+        "z": -15
+      }
+    },
+    {
+      "position": {
+        "x": 0,
+        "y": 106,
+        "z": -36
+      }
+    },
+    {
+      "position": {
+        "x": 0,
+        "y": 7,
+        "z": -40
+      }
+    },
+    {
+      "position": {
+        "x": 0,
+        "y": -63,
+        "z": -37
+      }
+    }
+  ],
+  "clutter": [
+    {
+      "id": "light_de_paper_lantern_01",
+      "position": {
+        "x": 0,
+        "y": -219,
+        "z": 56
+      }
+    },
+    {
+      "id": "light_de_paper_lantern_04",
+      "position": {
+        "x": 0,
+        "y": 176,
+        "z": 17
+      }
+    }
+  ]
+}
