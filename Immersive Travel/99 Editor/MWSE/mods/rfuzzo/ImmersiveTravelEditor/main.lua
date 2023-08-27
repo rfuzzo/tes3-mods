@@ -57,7 +57,6 @@ local editmode = false
 
 -- tracing
 local eN = 5000
-local positions = {} ---@type tes3vector3[]
 local arrows = {}
 local arrow = nil
 local GRAIN = 20
@@ -181,20 +180,20 @@ local function calculatePositions(startpos, mountData)
 
     editorData.splineIndex = 2
 
-    positions = {}
+    -- local positions = {} ---@type tes3vector3[]
     arrows = {}
-    table.insert(positions, 1, startpos)
+    -- table.insert(positions, 1, startpos)
 
     for idx = 1, eN, 1 do
         if editorData.splineIndex <= #editorData.editorMarkers then
-            -- calculate next position
+            local mountOffset = tes3vector3.new(0, 0, mountData.offset)
             local point = editorData.editorMarkers[editorData.splineIndex]
                               .translation
             local nextPos = tes3vector3.new(point.x, point.y, point.z)
-            local currentPos = positions[idx]
+            local currentPos = editorData.mount.position - mountOffset
 
             local v = editorData.mount.forwardDirection
-            if idx > 1 then v = currentPos - positions[idx - 1] end
+            -- if idx > 1 then v = currentPos - positions[idx - 1] end
             v:normalize()
             local d = (nextPos - currentPos):normalized()
             local lerp = v:lerp(d, mountData.turnspeed / 10):normalized()
@@ -219,15 +218,13 @@ local function calculatePositions(startpos, mountData)
                                       editorData.mount.forwardDirection.y,
                                       lerp.z):normalized()
             local delta = f * mountData.speed * GRAIN
-            local mountPosition = currentPos + delta
-
-            -- set position
-            table.insert(positions, idx + 1, mountPosition)
+            local mountPosition = currentPos + delta + mountOffset
+            editorData.mount.position = mountPosition
 
             -- draw vfx lines
             if arrow then
                 local child = arrow:clone()
-                child.translation = mountPosition
+                child.translation = mountPosition - mountOffset
                 child.appCulled = false
                 child.rotation = common.rotationFromDirection(f)
                 table.insert(arrows, child)
@@ -293,9 +290,10 @@ local function traceRoute(data)
     local newFacing = math.atan2(d.x, d.y)
 
     -- create mount
+    local mountOffset = tes3vector3.new(0, 0, mountData.offset)
     editorData.mount = tes3.createReference {
         object = mountId,
-        position = start_pos,
+        position = start_pos + mountOffset,
         orientation = d
     }
     editorData.mount.facing = newFacing

@@ -386,7 +386,6 @@ local function onTimerTick()
         local currentPos = mount.position - mountOffset
 
         local v = mount.forwardDirection
-        if lastPos then v = currentPos - lastPos end
         v:normalize()
         local d = (nextPos - currentPos):normalized()
         local lerp = v:lerp(d, mountData.turnspeed / 10):normalized()
@@ -567,9 +566,8 @@ local function startTravel(start, destination, service, guide)
             d:normalize()
             local new_facing = math.atan2(d.x, d.y)
 
-            local mountOffset = tes3vector3.new(0, 0, mountData.offset)
-
             -- create mount
+            local mountOffset = tes3vector3.new(0, 0, mountData.offset)
             mount = tes3.createReference {
                 object = mountId,
                 position = startPos + mountOffset,

@@ -3,7 +3,7 @@
   "offset": -1220,
   "sway": 1,
   "speed": 3,
-  "turnspeed": 15,
+  "turnspeed": 30,
   "guideSlot": {
     "animationGroup": "idle5",
     "position": {
