@@ -6,6 +6,7 @@ My TES3 Morrowind mods and modding utility tools.
 
 ### 🚧 Immersive Travel
 >
+> nightly link: <https://rfuzzo.github.io/tes3-mods/ImmersiveTravel.zip>
 > nexus link:
 Real-time travel with smooth movement.
 
@@ -43,4 +44,3 @@ This mod adds compare tooltips for looked-at or equipped items against the equip
 >
 > nexus link: <https://www.nexusmods.com/morrowind/mods/51076>
 This mod uses MWSE to display splash screens during cell loading instead of freezing the frame as vanilla does.
-
