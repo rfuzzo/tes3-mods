@@ -60,14 +60,44 @@ end
 function this.loadSpline(start, destination, data)
     local fileName = start .. "_" .. destination
     local filePath = localmodpath .. data.class .. "\\" .. fileName
-    local result = json.loadfile(filePath)
-    if result ~= nil then
-        log:debug("loaded spline: " .. fileName)
-        return result
+    if tes3.getFileExists("MWSE\\" .. filePath .. ".json") then
+        local result = json.loadfile(filePath)
+        if result ~= nil then
+            log:debug("loaded spline: " .. fileName)
+            return result
+        else
+            log:error("!!! failed to load spline: " .. fileName)
+            return nil
+        end
     else
-        log:error("!!! failed to load spline: " .. fileName)
-        return nil
+        -- check if return route exists
+        fileName = destination .. "_" .. start
+        filePath = localmodpath .. data.class .. "\\" .. fileName
+        if tes3.getFileExists("MWSE\\" .. filePath .. ".json") then
+            local result = json.loadfile(filePath)
+            if result ~= nil then
+                log:debug("loaded spline: " .. fileName)
+
+                -- reverse result
+                local reversed = {}
+                for i = #result, 1, -1 do
+                    local val = result[i]
+                    table.insert(reversed, val)
+                end
+
+                log:debug("reversed spline: " .. fileName)
+                return reversed
+            else
+                log:error("!!! failed to load spline: " .. fileName)
+                return nil
+            end
+
+        else
+            log:error("!!! failed to find any file: " .. fileName)
+        end
+
     end
+
 end
 
 --- load json static mount data
@@ -129,19 +159,36 @@ function this.loadRoutes(service)
                 end
 
                 local result = table.get(map, start, nil)
-                if result == nil then
+                if not result then
                     local v = {}
-                    table.insert(v, destination)
+                    v[destination] = 1
                     map[start] = v
-
                 else
-                    table.insert(result, destination)
+                    result[destination] = 1
                     map[start] = result
+                end
+
+                -- add return trip
+                result = table.get(map, destination, nil)
+                if not result then
+                    local v = {}
+                    v[start] = 1
+                    map[destination] = v
+                else
+                    result[start] = 1
+                    map[destination] = result
                 end
             end
         end
     end
-    service.routes = map
+
+    local r = {}
+    for key, value in pairs(map) do
+        local v = {}
+        for d, _ in pairs(value) do table.insert(v, d) end
+        r[key] = v
+    end
+    service.routes = r
 end
 
 return this

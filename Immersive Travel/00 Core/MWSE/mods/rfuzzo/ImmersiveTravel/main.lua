@@ -37,7 +37,7 @@ local log = logger.new {
 ---@field mount string The mount
 ---@field override_npc string[]? register specific npcs with the service
 ---@field override_mount table<string,string[]>? register specific mounts with the service
----@field routes table<string, table>? routes
+---@field routes table<string, string[]>? routes
 ---@field ground_offset number DEPRECATED: editor marker offset
 
 ---@class Slot
