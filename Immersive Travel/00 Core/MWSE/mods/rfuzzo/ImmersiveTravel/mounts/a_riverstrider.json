@@ -1,0 +1,44 @@
+{
+  "sound": "T_SndCrea_Riverstrider1",
+  "offset": 74,
+  "sway": 4,
+  "speed": 4,
+  "turnspeed": 30,
+  "guideSlot": {
+    "position": {
+      "x": 0,
+      "y": 533,
+      "z": 51
+    }
+  },
+  "slots": [
+    {
+      "position": {
+        "x": 0,
+        "y": 240,
+        "z": 153
+      }
+    },
+    {
+      "position": {
+        "x": -215,
+        "y": -89,
+        "z": 160
+      }
+    },
+    {
+      "position": {
+        "x": 215,
+        "y": -89,
+        "z": 160
+      }
+    },
+    {
+      "position": {
+        "x": 0,
+        "y": -543,
+        "z": 108
+      }
+    }
+  ]
+}

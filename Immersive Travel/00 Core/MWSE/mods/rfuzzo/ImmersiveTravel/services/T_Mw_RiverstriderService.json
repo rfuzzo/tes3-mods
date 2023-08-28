@@ -1,5 +1,5 @@
 {
   "class": "T_Mw_RiverstriderService",
-  "mount": "T_Mw_Fauna_Riverstrider_01",
+  "mount": "a_riverstrider",
   "ground_offset": 0
 }
