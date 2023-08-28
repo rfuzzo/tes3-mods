@@ -11,6 +11,8 @@ local common = require("rfuzzo.ImmersiveTravel.common")
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// CONFIGURATION
+local config = require("rfuzzo.ImmersiveTravelEditor.config")
+
 local logger = require("logging.logger")
 local log = logger.new {
     name = "Immersive Travel Editor",
@@ -56,10 +58,9 @@ local editorData = nil
 local editmode = false
 
 -- tracing
-local eN = 5000
+local eN = 6000
 local arrows = {}
 local arrow = nil
-local GRAIN = 20
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// FUNCTIONS
@@ -205,7 +206,7 @@ local function calculatePositions(startpos, mountData)
             local diff = new_facing - current_facing
             if diff < -math.pi then diff = diff + 2 * math.pi end
             if diff > math.pi then diff = diff - 2 * math.pi end
-            local angle = mountData.turnspeed / 10000 * GRAIN
+            local angle = mountData.turnspeed / 10000 * config.grain
             if diff > 0 and diff > angle then
                 facing = current_facing + angle
             elseif diff < 0 and diff < -angle then
@@ -217,7 +218,7 @@ local function calculatePositions(startpos, mountData)
             local f = tes3vector3.new(editorData.mount.forwardDirection.x,
                                       editorData.mount.forwardDirection.y,
                                       lerp.z):normalized()
-            local delta = f * mountData.speed * GRAIN
+            local delta = f * mountData.speed * config.grain
             local mountPosition = currentPos + delta + mountOffset
             editorData.mount.position = mountPosition
 
@@ -379,7 +380,10 @@ local function createEditWindow()
                                         destination)
 
                     renderMarkers(spline)
-                    traceRoute(service)
+                    if config.traceOnSave then
+                        traceRoute(service)
+                    end
+
                 end)
             end
         end
@@ -578,7 +582,9 @@ local function editor_keyDownCallback(e)
         editmode = not editmode
         tes3.messageBox("Marker index: " .. idx)
         if not editmode then
-            if editorData then traceRoute(editorData.service) end
+            if editorData and config.traceOnSave then
+                traceRoute(editorData.service)
+            end
         end
     end
 
@@ -595,7 +601,9 @@ local function editor_keyDownCallback(e)
 
         table.remove(editorData.editorMarkers, idx)
 
-        if editorData then traceRoute(editorData.service) end
+        if editorData and config.traceOnSave then
+            traceRoute(editorData.service)
+        end
     end
 
     -- trace
@@ -610,3 +618,7 @@ event.register(tes3.event.keyDown, editor_keyDownCallback)
 --- @param e loadEventData
 local function editloadCallback(e) cleanup() end
 event.register(tes3.event.load, editloadCallback)
+
+-- /////////////////////////////////////////////////////////////////////////////////////////
+-- ////////////// CONFIG
+require("rfuzzo.ImmersiveTravelEditor.mcm")
