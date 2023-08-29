@@ -548,10 +548,10 @@ event.register(tes3.event.simulated, simulatedCallback)
 --- @param e keyDownEventData
 local function editor_keyDownCallback(e)
     -- editor menu
-    if e.keyCode == tes3.scanCode["rCtrl"] then createEditWindow() end
+    if e.keyCode == config.openkeybind.keyCode then createEditWindow() end
 
     -- insert
-    if e.keyCode == tes3.scanCode["keyRight"] then
+    if e.keyCode == config.placekeybind.keyCode then
         if not editorData then return end
         if not editorData.editorMarkers then return end
 
@@ -577,7 +577,7 @@ local function editor_keyDownCallback(e)
     end
 
     -- marker edit mode
-    if e.keyCode == tes3.scanCode["lCtrl"] then
+    if e.keyCode == config.editkeybind.keyCode then
         local idx = getClosestMarkerIdx()
         editmode = not editmode
         tes3.messageBox("Marker index: " .. idx)
@@ -589,7 +589,7 @@ local function editor_keyDownCallback(e)
     end
 
     -- delete
-    if e.keyCode == tes3.scanCode["delete"] then
+    if e.keyCode == config.deletekeybind.keyCode then
         if not editorData then return end
         if not editorData.editorMarkers then return end
 
@@ -607,7 +607,7 @@ local function editor_keyDownCallback(e)
     end
 
     -- trace
-    if e.keyCode == tes3.scanCode["forwardSlash"] then
+    if e.keyCode == config.tracekeybind.keyCode then
         if editorData then traceRoute(editorData.service) end
     end
 

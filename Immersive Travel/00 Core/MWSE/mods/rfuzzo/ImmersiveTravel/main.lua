@@ -81,7 +81,7 @@ local mount = nil
 local isTraveling = false
 local splineIndex = 2
 local swayTime = 0
-local currentSpline = {} ---@type PositionRecord[]
+local currentSpline = {} ---@type PositionRecord[]|nil
 local mountData = nil ---@type MountData|nil
 local lastPos = nil ---@type tes3vector3|nil
 
@@ -373,12 +373,32 @@ end
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// TRAVEL
 
+local function destinationReached()
+    cleanup()
+
+    -- reset player
+    tes3.mobilePlayer.movementCollision = true;
+    tes3.loadAnimation({reference = tes3.player})
+    tes3.playAnimation({reference = tes3.player, group = 0})
+
+    -- followers
+    local followers = getFollowers()
+    for index, follower in ipairs(followers) do
+        follower.mobile.movementCollision = true;
+        tes3.loadAnimation({reference = follower})
+        tes3.playAnimation({reference = follower, group = 0})
+    end
+
+    teleportToClosestMarker()
+end
+
 local function onTimerTick()
     -- checks
-    if mount == nil then return; end
-    if mountData == nil then return; end
-    if myTimer == nil then return; end
+    if mount == nil then return end
+    if mountData == nil then return end
+    if myTimer == nil then return end
     if isTraveling == false then return end
+    if currentSpline == nil then return end
 
     if splineIndex <= #currentSpline then
         local mountOffset = tes3vector3.new(0, 0, mountData.offset)
@@ -478,23 +498,7 @@ local function onTimerTick()
             callback = (function()
                 tes3.fadeIn({duration = 1})
 
-                cleanup()
-
-                -- reset player
-                tes3.mobilePlayer.movementCollision = true;
-                tes3.loadAnimation({reference = tes3.player})
-                tes3.playAnimation({reference = tes3.player, group = 0})
-
-                -- followers
-                local followers = getFollowers()
-                for index, follower in ipairs(followers) do
-                    follower.mobile.movementCollision = true;
-                    tes3.loadAnimation({reference = follower})
-                    tes3.playAnimation({reference = follower, group = 0})
-                end
-
-                teleportToClosestMarker();
-
+                destinationReached()
             end)
         })
     end
@@ -841,11 +845,54 @@ event.register("uiActivated", onMenuDialog, {filter = "MenuDialog"})
 local function keyDownCallback(e)
     -- move
     if e.keyCode == tes3.scanCode["w"] then
-
         if isTraveling and mountData then incrementSlot(mountData) end
     end
 end
 event.register(tes3.event.keyDown, keyDownCallback)
+
+--- @param e uiShowRestMenuEventData
+local function uiShowRestMenuCallback(e)
+    if isTraveling and currentSpline then
+
+        local buttons = {
+            {
+                text = "Rest",
+                callback = function()
+
+                    tes3.fadeOut({duration = 1})
+                    isTraveling = false
+
+                    timer.start({
+                        type = timer.simulate,
+                        iterations = 1,
+                        duration = 1,
+                        callback = (function()
+                            tes3.fadeIn({duration = 1})
+
+                            -- teleport to last marker
+                            tes3.positionCell({
+                                reference = tes3.mobilePlayer,
+                                position = vec(currentSpline[#currentSpline])
+                            })
+                            -- then to destination
+                            destinationReached()
+                        end)
+                    })
+
+                end
+            }
+        }
+
+        tes3ui.showMessageMenu {
+            message = "Rest and skip to the end of the journey?",
+            buttons = buttons,
+            cancels = true
+        }
+
+        return false
+    end
+end
+event.register(tes3.event.uiShowRestMenu, uiShowRestMenuCallback)
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// CONFIG

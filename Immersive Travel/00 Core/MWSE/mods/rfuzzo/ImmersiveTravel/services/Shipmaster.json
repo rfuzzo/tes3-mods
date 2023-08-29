@@ -6,6 +6,10 @@
   ],
   "mount": "a_longboat",
   "override_mount": {
+    "a_longboat": [
+      "Vos",
+      "Firewatch"
+    ],
     "a_DE_ship": [
       "Vos",
       "Dagon Fel",
@@ -19,7 +23,8 @@
       "Firewatch",
       "Helnim",
       "Old Ebonheart, Docks",
-      "Andothren, Docks"
+      "Andothren, Docks",
+      "Almas Thirr"
     ]
   },
   "ground_offset": 0
