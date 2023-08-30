@@ -2,10 +2,10 @@ local logger = require("logging.logger")
 
 --- Setup MCM.
 local function registerModConfig()
-    local config = require("rfuzzo.ImmersiveTravelEditor.config")
+    local config = require("rfuzzo.ImmersiveTravelAddon.config")
     local log = logger.getLogger(config.mod)
     local template = mwse.mcm.createTemplate(config.mod)
-    template:saveOnClose("ImmersiveTravelEditor", config)
+    template:saveOnClose("ImmersiveTravelAddon", config)
 
     local page = template:createSideBarPage({label = "Settings"})
     page.sidebar:createInfo{
@@ -34,71 +34,68 @@ local function registerModConfig()
         end
     }
 
+    -- //////////////////////
+
     generalCategory:createSlider({
-        label = "Editor resolution",
-        description = "Editor resolution, the higher the faster but less correct",
+        label = "Spawn Chance",
+        description = "Chance a mount is spawned in the world",
         min = 1,
         max = 100,
         step = 1,
         jump = 10,
-        variable = mwse.mcm.createTableVariable {id = "grain", table = config}
-    })
-
-    generalCategory:createKeyBinder({
-        label = "Open Editor Keybind",
-        description = "Assign a new keybind.",
         variable = mwse.mcm.createTableVariable {
-            id = "openkeybind",
-            table = config
-        },
-        allowCombinations = true
-    })
-
-    generalCategory:createKeyBinder({
-        label = "Editor Place Marker Keybind",
-        description = "Assign a new keybind.",
-        variable = mwse.mcm.createTableVariable {
-            id = "placekeybind",
-            table = config
-        },
-        allowCombinations = true
-    })
-    generalCategory:createKeyBinder({
-        label = "Editor Edit Marker Keybind",
-        description = "Assign a new keybind.",
-        variable = mwse.mcm.createTableVariable {
-            id = "editkeybind",
-            table = config
-        },
-        allowCombinations = true
-    })
-    generalCategory:createKeyBinder({
-        label = "Editor Delete Marker Keybind",
-        description = "Assign a new keybind.",
-        variable = mwse.mcm.createTableVariable {
-            id = "deletekeybind",
-            table = config
-        },
-        allowCombinations = true
-    })
-
-    generalCategory:createOnOffButton({
-        label = "Trace on Save",
-        description = "Trace on Save.",
-        variable = mwse.mcm.createTableVariable {
-            id = "traceOnSave",
+            id = "spawnChance",
             table = config
         }
     })
 
-    generalCategory:createKeyBinder({
-        label = "Trace Markers Keybind",
-        description = "Assign a new keybind.",
+    generalCategory:createSlider({
+        label = "Spawn Exlusion Radius",
+        description = "The radius a mount cannot be spawned around another mount",
+        min = 1,
+        max = 8200,
+        step = 100,
+        jump = 1000,
         variable = mwse.mcm.createTableVariable {
-            id = "tracekeybind",
+            id = "spawnExlusionRadius",
             table = config
-        },
-        allowCombinations = true
+        }
+    })
+
+    generalCategory:createSlider({
+        label = "Spawn Radius",
+        description = "Radius within which mounts are spawned around player",
+        min = 1,
+        max = 40,
+        step = 1,
+        jump = 10,
+        variable = mwse.mcm.createTableVariable {
+            id = "spawnRadius",
+            table = config
+        }
+    })
+
+    generalCategory:createSlider({
+        label = "Reference Budget",
+        description = "The amount of mounts allowed at one time",
+        min = 1,
+        max = 100,
+        step = 1,
+        jump = 10,
+        variable = mwse.mcm.createTableVariable {id = "budget", table = config}
+    })
+
+    generalCategory:createSlider({
+        label = "Cull Radius",
+        description = "The distance in cells after which mounts get destroyed",
+        min = 1,
+        max = 100,
+        step = 1,
+        jump = 10,
+        variable = mwse.mcm.createTableVariable {
+            id = "cullRadius",
+            table = config
+        }
     })
 
     template:register()

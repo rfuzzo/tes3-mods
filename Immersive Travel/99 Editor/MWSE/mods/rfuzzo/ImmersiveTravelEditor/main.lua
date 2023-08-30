@@ -15,8 +15,8 @@ local config = require("rfuzzo.ImmersiveTravelEditor.config")
 
 local logger = require("logging.logger")
 local log = logger.new {
-    name = "Immersive Travel Editor",
-    logLevel = "DEBUG",
+    name = config.mod,
+    logLevel = config.logLevel,
     logToConsole = true,
     includeTimestamp = true
 }
@@ -25,10 +25,10 @@ local log = logger.new {
 ---@field service ServiceData
 ---@field start string
 ---@field destination string
----@field mount tes3reference|nil
+---@field mount tes3reference?
 ---@field splineIndex integer
----@field editorMarkers niNode[]|nil
----@field currentMarker niNode|nil
+---@field editorMarkers niNode[]?
+---@field currentMarker niNode?
 
 --[[
 Current Usage (Debug)
@@ -47,8 +47,8 @@ local editMenuModeId = tes3ui.registerID("it:MenuEdit_Mode")
 local editMenuCancelId = tes3ui.registerID("it:MenuEdit_Cancel")
 local editMenuTeleportId = tes3ui.registerID("it:MenuEdit_Teleport")
 
-local editorMarker2 = "marker_divine.nif"
-local editorMarker = "marker_arrow.nif"
+local editorMarkerId = "marker_arrow.nif"
+local editorMarkerMesh = nil
 
 -- editor
 ---@type string | nil
@@ -94,12 +94,10 @@ local function updateMarkers()
             local direction = nextMarker.translation - marker.translation
             local rotation_matrix = common.rotationFromDirection(direction)
             marker.rotation = rotation_matrix
-
         end
     end
 
-    local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-    vfxRoot:update()
+    tes3.worldController.vfxManager.worldVFXRoot:update()
 end
 
 ---@return number|nil
@@ -139,6 +137,7 @@ end
 ---@param spline PositionRecord[]
 local function renderMarkers(spline)
     if not editorData then return nil end
+    if not editorMarkerMesh then return nil end
 
     editorData.editorMarkers = {}
     editorData.currentMarker = nil
@@ -147,16 +146,14 @@ local function renderMarkers(spline)
     vfxRoot:detachAllChildren()
 
     -- add markers
-    local mesh = tes3.loadMesh(editorMarker)
 
     for idx, v in ipairs(spline) do
-        local child = mesh:clone()
+        local child = editorMarkerMesh:clone()
         child.translation = tes3vector3.new(v.x, v.y, v.z)
         child.appCulled = false
 
         ---@diagnostic disable-next-line: param-type-mismatch
         vfxRoot:attachChild(child)
-        vfxRoot:update()
 
         ---@diagnostic disable-next-line: assign-type-mismatch
         editorData.editorMarkers[idx] = child
@@ -247,8 +244,8 @@ local function calculatePositions(startpos, mountData)
 end
 
 ---comment
----@param data ServiceData
-local function traceRoute(data)
+---@param service ServiceData
+local function traceRoute(service)
     if not editorData then return end
     if not editorData.editorMarkers then return end
     if #editorData.editorMarkers < 2 then return end
@@ -266,15 +263,12 @@ local function traceRoute(data)
     local start_pos = tes3vector3.new(start_point.x, start_point.y,
                                       start_point.z)
     local next_point = editorData.editorMarkers[2].translation
-    local next_pos = tes3vector3.new(next_point.x, next_point.y, next_point.z)
-    local d = next_pos - start_pos
-    d:normalize()
 
     -- create mount
-    local mountId = data.mount
+    local mountId = service.mount
     -- override mounts 
-    if data.override_mount then
-        for key, value in pairs(data.override_mount) do
+    if service.override_mount then
+        for key, value in pairs(service.override_mount) do
             if common.is_in(value, editorData.start) and
                 common.is_in(value, editorData.destination) then
                 mountId = key
@@ -282,31 +276,20 @@ local function traceRoute(data)
             end
         end
     end
-
     local mountData = common.loadMountData(mountId)
     if not mountData then return end
-    log:debug("loaded mount: " .. mountId)
+    editorData.mount = common.createMount(mountData, start_point, next_point,
+                                          mountId)
 
-    local startpos = start_pos
-    local newFacing = math.atan2(d.x, d.y)
-
-    -- create mount
-    local mountOffset = tes3vector3.new(0, 0, mountData.offset)
-    editorData.mount = tes3.createReference {
-        object = mountId,
-        position = start_pos + mountOffset,
-        orientation = d
-    }
-    editorData.mount.facing = newFacing
-
-    calculatePositions(startpos, mountData)
+    calculatePositions(start_pos, mountData)
 
     -- vfx
     for index, child in ipairs(arrows) do
         ---@diagnostic disable-next-line: param-type-mismatch
         vfxRoot:attachChild(child)
-        vfxRoot:update()
     end
+
+    vfxRoot:update()
 end
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
@@ -553,11 +536,11 @@ local function editor_keyDownCallback(e)
     -- insert
     if e.keyCode == config.placekeybind.keyCode then
         if not editorData then return end
+        if not editorMarkerMesh then return end
         if not editorData.editorMarkers then return end
 
         local idx = getClosestMarkerIdx()
-        local mesh = tes3.loadMesh(editorMarker)
-        local child = mesh:clone()
+        local child = editorMarkerMesh:clone()
 
         local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() *
                          256
@@ -598,6 +581,7 @@ local function editor_keyDownCallback(e)
         local instance = editorData.editorMarkers[idx]
         local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
         vfxRoot:detachChild(instance)
+        vfxRoot:update()
 
         table.remove(editorData.editorMarkers, idx)
 
@@ -616,7 +600,10 @@ event.register(tes3.event.keyDown, editor_keyDownCallback)
 
 --- Cleanup on save load
 --- @param e loadEventData
-local function editloadCallback(e) cleanup() end
+local function editloadCallback(e)
+    editorMarkerMesh = tes3.loadMesh(editorMarkerId)
+    cleanup()
+end
 event.register(tes3.event.load, editloadCallback)
 
 -- /////////////////////////////////////////////////////////////////////////////////////////

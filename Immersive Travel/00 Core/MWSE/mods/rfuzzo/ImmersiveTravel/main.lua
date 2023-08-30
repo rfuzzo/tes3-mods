@@ -73,11 +73,9 @@ local travelMenuCancelId = tes3ui.registerID("it:travel_menu_cancel")
 local npcMenu = nil
 
 local timertick = 0.01
----@type mwseTimer | nil
-local myTimer = nil
+local myTimer = nil ---@type mwseTimer | nil
 
----@type tes3reference | nil
-local mount = nil
+local mount = nil ---@type tes3reference | nil
 local isTraveling = false
 local splineIndex = 2
 local swayTime = 0
@@ -106,20 +104,6 @@ local function toWorldOrientation(localOrientation, baseOrientation)
     local worldRotationMatrix = baseRotationMatrix * localRotationMatrix
     local worldOrientation, _isUnique = worldRotationMatrix:toEulerXYZ()
     return worldOrientation
-end
-
--- Transform a local offset to world coordinates given a fixed orientation
----@param localVector tes3vector3
----@param worldOrientation tes3vector3
---- @return tes3vector3
-local function toWorld(localVector, worldOrientation)
-    -- Convert the local orientation to a rotation matrix
-    local baseRotationMatrix = tes3matrix33.new()
-    baseRotationMatrix:fromEulerXYZ(worldOrientation.x, worldOrientation.y,
-                                    worldOrientation.z)
-
-    -- Combine the rotation matrices to get the world rotation matrix
-    return baseRotationMatrix * localVector
 end
 
 -- This function loops over the references inside the
@@ -249,14 +233,15 @@ local function cleanup()
                 end
             end
         end
-
+        mountData = nil
     end
 
     -- delete the mount
-    if mount ~= nil then mount:delete() end
-    mount = nil
+    if mount then
+        mount:delete()
+        mount = nil
+    end
 
-    mountData = nil
     isTraveling = false
 end
 
@@ -450,8 +435,8 @@ local function onTimerTick()
 
         -- guide
         local guidePos = mount.position +
-                             toWorld(vec(mountData.guideSlot.position),
-                                     mount.orientation)
+                             common.toWorld(vec(mountData.guideSlot.position),
+                                            mount.orientation)
         tes3.positionCell({
             reference = mountData.guideSlot.reference,
             position = guidePos
@@ -462,7 +447,8 @@ local function onTimerTick()
         for index, slot in ipairs(mountData.slots) do
             if slot.reference then
                 local refpos = mount.position +
-                                   toWorld(vec(slot.position), mount.orientation)
+                                   common.toWorld(vec(slot.position),
+                                                  mount.orientation)
                 slot.reference.position = refpos
                 if slot.reference ~= tes3.player then
                     slot.reference.facing = mount.facing
@@ -475,8 +461,8 @@ local function onTimerTick()
             for index, slot in ipairs(mountData.clutter) do
                 if slot.reference then
                     local refpos = mount.position +
-                                       toWorld(vec(slot.position),
-                                               mount.orientation)
+                                       common.toWorld(vec(slot.position),
+                                                      mount.orientation)
                     slot.reference.position = refpos
                 end
             end

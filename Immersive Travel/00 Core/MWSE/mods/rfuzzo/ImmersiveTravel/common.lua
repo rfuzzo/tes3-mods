@@ -1,8 +1,5 @@
 local this = {}
 
--- /////////////////////////////////////////////////////////////////////////////////////////
--- ////////////// COMMON
-
 local logger = require("logging.logger")
 local log = logger.new {
     name = "Immersive Travel",
@@ -16,6 +13,23 @@ this.fullmodpath = "Data Files\\MWSE\\" .. this.localmodpath
 
 local localmodpath = this.localmodpath
 local fullmodpath = this.fullmodpath
+
+-- /////////////////////////////////////////////////////////////////////////////////////////
+-- ////////////// COMMON
+
+-- Transform a local offset to world coordinates given a fixed orientation
+---@param localVector tes3vector3
+---@param worldOrientation tes3vector3
+--- @return tes3vector3
+function this.toWorld(localVector, worldOrientation)
+    -- Convert the local orientation to a rotation matrix
+    local baseRotationMatrix = tes3matrix33.new()
+    baseRotationMatrix:fromEulerXYZ(worldOrientation.x, worldOrientation.y,
+                                    worldOrientation.z)
+
+    -- Combine the rotation matrices to get the world rotation matrix
+    return baseRotationMatrix * localVector
+end
 
 ---comment
 ---@param point tes3vector3
@@ -189,6 +203,34 @@ function this.loadRoutes(service)
         r[key] = v
     end
     service.routes = r
+end
+
+--- 
+---@param data MountData
+---@param start_point tes3vector3
+---@param next_point tes3vector3
+---@param mountId string
+---@return tes3reference
+function this.createMount(data, start_point, next_point, mountId)
+
+    local start_pos = tes3vector3.new(start_point.x, start_point.y,
+                                      start_point.z)
+    local next_pos = tes3vector3.new(next_point.x, next_point.y, next_point.z)
+    local d = next_pos - start_pos
+    d:normalize()
+
+    local newFacing = math.atan2(d.x, d.y)
+
+    -- create mount
+    local mountOffset = tes3vector3.new(0, 0, data.offset)
+    local mount = tes3.createReference {
+        object = mountId,
+        position = start_pos + mountOffset,
+        orientation = d
+    }
+    mount.facing = newFacing
+
+    return mount
 end
 
 return this

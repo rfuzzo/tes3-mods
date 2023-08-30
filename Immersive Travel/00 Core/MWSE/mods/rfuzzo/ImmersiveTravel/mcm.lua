@@ -1,9 +1,10 @@
 local logger = require("logging.logger")
-local log = logger.getLogger("Immersive Travel")
 
 --- Setup MCM.
 local function registerModConfig()
     local config = require("rfuzzo.ImmersiveTravel.config")
+    local log = logger.getLogger(config.mod)
+
     local template = mwse.mcm.createTemplate(config.mod)
     template:saveOnClose("ImmersiveTravel", config)
 
