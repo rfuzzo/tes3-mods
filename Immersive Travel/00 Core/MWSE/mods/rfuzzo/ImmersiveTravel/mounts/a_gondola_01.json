@@ -1,5 +1,6 @@
 {
   "sound": "Boat Creak",
+  "mesh": "x\\Ex_Gondola_01_rot.nif",
   "offset": 40,
   "sway": 1,
   "speed": 2,

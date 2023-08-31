@@ -1,5 +1,6 @@
 {
   "sound": "Boat Hull",
+  "mesh": "x\\Ex_DE_ship_rot.nif",
   "offset": -20,
   "sway": 3,
   "speed": 3,

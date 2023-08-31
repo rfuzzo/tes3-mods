@@ -1,5 +1,6 @@
 {
   "sound": "Silt_2",
+  "mesh": "r\\Siltstrider.nif",
   "offset": -1220,
   "sway": 1,
   "speed": 3,

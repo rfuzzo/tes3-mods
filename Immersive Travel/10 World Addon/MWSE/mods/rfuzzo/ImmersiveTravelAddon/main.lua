@@ -19,8 +19,8 @@ local log = logger.new {
     includeTimestamp = true
 }
 
-local divineMarkerId = "marker_divine.nif"
-local divineMarker = nil
+-- local divineMarkerId = "marker_divine.nif"
+-- local divineMarker = nil
 
 local splines = {} ---@type table<string, table<string, PositionRecord[]>>
 local map = {} ---@type table<string, SPointDto[]>
@@ -40,7 +40,7 @@ local tracked = {} ---@type SPointDto[]
 ---@field currentSpline PositionRecord[]?
 ---@field splineIndex number
 ---@field mountData MountData?
----@field mount tes3reference?
+-- ---@field mount tes3reference?
 ---@field node niNode? -- debug
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
@@ -55,9 +55,15 @@ local function vec(pos) return tes3vector3.new(pos.x, pos.y, pos.z) end
 
 ---@param p SPointDto
 local function destinationReached(p)
-    if p.mount then
-        p.mount:delete()
-        p.mount = nil
+    -- if p.mount then
+    --     p.mount:delete()
+    --     p.mount = nil
+    -- end
+
+    if p.node then
+        local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+        vfxRoot:detachChild(p.node)
+        p.node = nil
     end
 
     table.removevalue(tracked, p)
@@ -68,22 +74,27 @@ end
 local function simulate(p)
 
     -- checks
-    if p.mount == nil then return end
+    -- if p.mount == nil then return end
+    if p.node == nil then return end
     if p.mountData == nil then return end
     if p.currentSpline == nil then return end
 
     if p.splineIndex <= #p.currentSpline then
         local mountOffset = tes3vector3.new(0, 0, p.mountData.offset)
         local nextPos = vec(p.currentSpline[p.splineIndex])
-        local currentPos = p.mount.position - mountOffset
+        -- local currentPos = p.mount.position - mountOffset
+        local currentPos = p.node.translation - mountOffset
 
-        local v = p.mount.forwardDirection
+        -- local v = p.mount.forwardDirection
+        local v = p.node.rotation:getForwardVector()
         v:normalize()
         local d = (nextPos - currentPos):normalized()
         local lerp = v:lerp(d, p.mountData.turnspeed / 10):normalized()
 
         -- calculate heading
-        local current_facing = p.mount.facing
+        -- local current_facing = p.mount.facing
+        local current_rotation = p.node.rotation:toEulerXYZ()
+        local current_facing = current_rotation.z
         local new_facing = math.atan2(d.x, d.y)
         local facing = new_facing
         local diff = new_facing - current_facing
@@ -97,13 +108,20 @@ local function simulate(p)
         else
             facing = new_facing
         end
-        p.mount.facing = facing
-        local f = tes3vector3.new(p.mount.forwardDirection.x,
-                                  p.mount.forwardDirection.y, lerp.z):normalized()
+        -- p.mount.facing = facing
+        local m = tes3matrix33.new()
+        m:fromEulerXYZ(current_rotation.x, current_rotation.y, facing)
+        p.node.rotation = m
+        -- local f = tes3vector3.new(p.mount.forwardDirection.x,
+        --                           p.mount.forwardDirection.y, lerp.z):normalized()
+        local f = tes3vector3.new(p.node.rotation:getForwardVector().x,
+                                  p.node.rotation:getForwardVector().y, lerp.z):normalized()
         local delta = f * p.mountData.speed
         local mountPosition = currentPos + delta + mountOffset
-        tes3.positionCell({reference = p.mount, position = mountPosition})
+        -- tes3.positionCell({reference = p.mount, position = mountPosition})
+        p.node.translation = mountPosition
 
+        tes3.worldController.vfxManager.worldVFXRoot:update()
         -- -- set sway
         -- swayTime = swayTime + timertick
         -- if swayTime > (2000 * sway_frequency) then swayTime = timertick end
@@ -150,8 +168,8 @@ local function simulate(p)
         -- end
 
         -- move to next marker
-        local isBehind =
-            common.isPointBehindObject(nextPos, p.mount.position, f)
+        local isBehind = -- common.isPointBehindObject(nextPos, p.mount.position, f)
+        common.isPointBehindObject(nextPos, p.node.translation, f)
         if isBehind then p.splineIndex = p.splineIndex + 1 end
 
     else -- if i is at the end of the list
@@ -159,7 +177,10 @@ local function simulate(p)
             type = timer.simulate,
             iterations = 1,
             duration = 1,
-            callback = (function() destinationReached(p) end)
+            callback = (function()
+                destinationReached(p)
+                tes3.worldController.vfxManager.worldVFXRoot:update()
+            end)
         })
     end
 end
@@ -172,7 +193,8 @@ local function canSpawn(p)
     if #tracked >= config.budget then return false end
 
     for index, s in ipairs(tracked) do
-        local d = vec(p.point):distance(s.mount.position)
+        -- local d = vec(p.point):distance(s.mount.position)
+        local d = vec(p.point):distance(s.node.translation)
         if d < config.spawnExlusionRadius * 8192 then return false end
     end
 
@@ -183,23 +205,18 @@ local function doCull()
 
     local toremove = {}
     for index, s in ipairs(tracked) do
-        local d = tes3.player.position:distance(s.mount.position)
+        -- local d = tes3.player.position:distance(s.mount.position)
+        local d = tes3.player.position:distance(s.node.translation)
         if d > config.cullRadius * 8192 then table.insert(toremove, s) end
     end
 
-    local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
     for index, s in ipairs(toremove) do
         -- cull
         destinationReached(s)
 
-        -- if s.node then vfxRoot:detachChild(s.node) end
-        -- table.removevalue(tracked, s)
-
         log:debug("Culled ref at pos: " .. index)
         tes3.messageBox("Culled ref at pos: " .. index)
     end
-
-    vfxRoot:update()
 end
 
 local timertick = 0.01
@@ -208,16 +225,6 @@ local timertick = 0.01
 local function doSpawn(p)
 
     if not services then return end
-
-    -- debug
-    -- if not divineMarker then return end
-    -- local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-    -- local marker = divineMarker:clone()
-    -- marker.translation = vec(p.point)
-    -- marker.appCulled = false
-    -- ---@diagnostic disable-next-line: param-type-mismatch
-    -- vfxRoot:attachChild(marker)
-    -- p.node = marker
 
     local split = string.split(p.routeId, "_")
     local start = split[1]
@@ -253,7 +260,8 @@ local function doSpawn(p)
     p.splineIndex = idx
     p.currentSpline = splines[service.class][p.routeId]
     p.mountData = mountData
-    p.mount = common.createMount(p.mountData, start_point, next_point, mountId)
+    p.node =
+        common.createMountVfx(p.mountData, start_point, next_point, mountId)
 
     table.insert(tracked, p)
 
@@ -313,8 +321,6 @@ local function trySpawn(spawnCandidates)
             if canSpawn(p) then doSpawn(p) end
         end
     end
-
-    tes3.worldController.vfxManager.worldVFXRoot:update()
 end
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
@@ -323,8 +329,8 @@ end
 --- Cleanup on save load
 --- @param e loadEventData
 local function loadCallback(e)
-    -- local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-    -- vfxRoot:detachAllChildren()
+    local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+    vfxRoot:detachAllChildren()
 
     if instanceTimer then
         instanceTimer:cancel()
@@ -334,6 +340,7 @@ local function loadCallback(e)
     for index, value in ipairs(tracked) do destinationReached(value) end
     tracked = {}
 
+    vfxRoot:update()
 end
 event.register(tes3.event.load, loadCallback)
 
@@ -394,7 +401,7 @@ local function initializedCallback(e)
     json.savefile("dbg_splines", splines)
     json.savefile("dbg_map", map)
 
-    divineMarker = tes3.loadMesh(divineMarkerId)
+    -- divineMarker = tes3.loadMesh(divineMarkerId)
 end
 event.register(tes3.event.initialized, initializedCallback)
 
@@ -423,6 +430,8 @@ local function cellChangedCallback(e)
     -- log:debug("STAGE Spawning")
     trySpawn(spawnCandidates)
 
+    local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+    vfxRoot:update()
 end
 event.register(tes3.event.cellChanged, cellChangedCallback)
 

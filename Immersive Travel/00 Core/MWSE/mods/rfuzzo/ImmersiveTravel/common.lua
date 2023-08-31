@@ -228,5 +228,29 @@ function this.createMount(data, startPoint, nextPoint, mountId)
 
     return mount
 end
+--- 
+---@param data MountData
+---@param startPoint tes3vector3
+---@param nextPoint tes3vector3
+---@param mountId string
+---@return niNode
+function this.createMountVfx(data, startPoint, nextPoint, mountId)
+    local d = nextPoint - startPoint
+    d:normalize()
+
+    -- create mount
+    local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+    local mountOffset = tes3vector3.new(0, 0, data.offset)
+
+    local meshPath = data.mesh
+    local mount = tes3.loadMesh(meshPath):clone()
+    mount.translation = startPoint + mountOffset
+    mount.rotation = this.rotationFromDirection(d)
+
+    debug.log(mount)
+    vfxRoot:attachChild(mount)
+
+    return mount
+end
 
 return this

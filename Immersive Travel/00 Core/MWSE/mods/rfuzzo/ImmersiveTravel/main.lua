@@ -53,6 +53,7 @@ local log = logger.new {
 
 ---@class MountData
 ---@field sound string The mount sound id
+---@field mesh string The mount mesh path
 ---@field offset number The mount offset to ground
 ---@field sway number The sway intensity
 ---@field speed number forward speed
