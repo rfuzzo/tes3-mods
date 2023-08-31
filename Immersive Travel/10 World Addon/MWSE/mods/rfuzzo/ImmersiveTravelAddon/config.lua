@@ -8,8 +8,8 @@ local defaultConfig = {
     -- configs
     spawnChance = 10,
     spawnExlusionRadius = 2,
-    spawnRadius = 2,
-    cullRadius = 2,
+    spawnRadius = 3,
+    cullRadius = 4,
     budget = 100
 }
 

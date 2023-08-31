@@ -253,4 +253,98 @@ function this.createMountVfx(data, startPoint, nextPoint, mountId)
     return mount
 end
 
+-- sitting mod
+-- idle2 ... praying
+-- idle3 ... crossed legs
+-- idle4 ... crossed legs
+-- idle5 ... hugging legs
+-- idle6 ... sitting
+
+-- TODO if sitting: fixed facing?
+
+---@param data MountData
+---@return integer|nil index
+local function getFirstFreeSlot(data)
+    for index, value in ipairs(data.slots) do
+        if value.reference == nil then return index end
+    end
+    return nil
+end
+
+---@param data MountData
+---@param reference tes3reference|nil
+---@param idx integer
+function this.registerInSlot(data, reference, idx)
+    data.slots[idx].reference = reference
+    -- play animation
+    if reference then
+        local slot = data.slots[idx]
+
+        tes3.loadAnimation({reference = reference})
+        if slot.animationFile then
+            tes3.loadAnimation({
+                reference = reference,
+                file = slot.animationFile
+            })
+        end
+        local group = tes3.animationGroup.idle5
+        if slot.animationGroup then
+            group = tes3.animationGroup[slot.animationGroup]
+        end
+        tes3.playAnimation({reference = reference, group = group})
+
+        log:debug("registered " .. reference.id .. " in slot " .. tostring(idx))
+    end
+
+end
+
+---@param data MountData
+---@param reference tes3reference
+function this.registerRef(data, reference)
+    -- get first free slot
+    local i = getFirstFreeSlot(data)
+    if not i then return end
+
+    reference.mobile.movementCollision = false;
+    this.registerInSlot(data, reference, i)
+end
+
+---@param data MountData
+---@param reference tes3reference|nil
+---@param idx integer
+function this.registerNodeInSlot(data, reference, idx)
+    data.slots[idx].reference = reference
+
+    -- play animation
+    if reference then
+        local slot = data.slots[idx]
+
+        tes3.loadAnimation({reference = reference})
+        if slot.animationFile then
+            tes3.loadAnimation({
+                reference = reference,
+                file = slot.animationFile
+            })
+        end
+        local group = tes3.animationGroup.idle5
+        if slot.animationGroup then
+            group = tes3.animationGroup[slot.animationGroup]
+        end
+        tes3.playAnimation({reference = reference, group = group})
+
+        log:debug("registered " .. reference.id .. " in slot " .. tostring(idx))
+    end
+end
+
+---@param data MountData
+---@param reference tes3reference
+function this.registerNode(data, reference)
+    -- get first free slot
+    local i = getFirstFreeSlot(data)
+    if not i then return end
+
+    reference.mobile.movementCollision = false;
+    this.registerNodeInSlot(data, reference, i)
+end
+
 return this

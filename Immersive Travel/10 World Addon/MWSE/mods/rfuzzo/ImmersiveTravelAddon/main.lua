@@ -19,9 +19,6 @@ local log = logger.new {
     includeTimestamp = true
 }
 
--- local divineMarkerId = "marker_divine.nif"
--- local divineMarker = nil
-
 local splines = {} ---@type table<string, table<string, PositionRecord[]>>
 local map = {} ---@type table<string, SPointDto[]>
 local services = {} ---@type table<string, ServiceData>?
@@ -40,7 +37,6 @@ local tracked = {} ---@type SPointDto[]
 ---@field currentSpline PositionRecord[]?
 ---@field splineIndex number
 ---@field mountData MountData?
--- ---@field mount tes3reference?
 ---@field node niNode? -- debug
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
@@ -55,15 +51,22 @@ local function vec(pos) return tes3vector3.new(pos.x, pos.y, pos.z) end
 
 ---@param p SPointDto
 local function destinationReached(p)
-    -- if p.mount then
-    --     p.mount:delete()
-    --     p.mount = nil
-    -- end
-
     if p.node then
         local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
         vfxRoot:detachChild(p.node)
         p.node = nil
+    end
+
+    if p.mountData then
+        if p.mountData.slots then
+            for index, slot in ipairs(p.mountData.slots) do
+                if slot.reference then
+                    slot.reference:delete()
+                    slot.reference = nil
+                end
+            end
+        end
+        p.mountData = nil
     end
 
     table.removevalue(tracked, p)
@@ -74,7 +77,6 @@ end
 local function simulate(p)
 
     -- checks
-    -- if p.mount == nil then return end
     if p.node == nil then return end
     if p.mountData == nil then return end
     if p.currentSpline == nil then return end
@@ -82,17 +84,14 @@ local function simulate(p)
     if p.splineIndex <= #p.currentSpline then
         local mountOffset = tes3vector3.new(0, 0, p.mountData.offset)
         local nextPos = vec(p.currentSpline[p.splineIndex])
-        -- local currentPos = p.mount.position - mountOffset
         local currentPos = p.node.translation - mountOffset
 
-        -- local v = p.mount.forwardDirection
         local v = p.node.rotation:getForwardVector()
         v:normalize()
         local d = (nextPos - currentPos):normalized()
         local lerp = v:lerp(d, p.mountData.turnspeed / 10):normalized()
 
         -- calculate heading
-        -- local current_facing = p.mount.facing
         local current_rotation = p.node.rotation:toEulerXYZ()
         local current_facing = current_rotation.z
         local new_facing = math.atan2(d.x, d.y)
@@ -108,17 +107,13 @@ local function simulate(p)
         else
             facing = new_facing
         end
-        -- p.mount.facing = facing
         local m = tes3matrix33.new()
         m:fromEulerXYZ(current_rotation.x, current_rotation.y, facing)
         p.node.rotation = m
-        -- local f = tes3vector3.new(p.mount.forwardDirection.x,
-        --                           p.mount.forwardDirection.y, lerp.z):normalized()
         local f = tes3vector3.new(p.node.rotation:getForwardVector().x,
                                   p.node.rotation:getForwardVector().y, lerp.z):normalized()
         local delta = f * p.mountData.speed
         local mountPosition = currentPos + delta + mountOffset
-        -- tes3.positionCell({reference = p.mount, position = mountPosition})
         p.node.translation = mountPosition
 
         tes3.worldController.vfxManager.worldVFXRoot:update()
@@ -142,26 +137,24 @@ local function simulate(p)
         -- })
         -- mountData.guideSlot.reference.facing = mount.facing
 
-        -- -- position references in slots
-        -- for index, slot in ipairs(mountData.slots) do
-        --     if slot.reference then
-        --         local refpos = mount.position +
-        --                            common.toWorld(vec(slot.position),
-        --                                           mount.orientation)
-        --         slot.reference.position = refpos
-        --         if slot.reference ~= tes3.player then
-        --             slot.reference.facing = mount.facing
-        --         end
-        --     end
-        -- end
+        -- position references in slots
+        for index, slot in ipairs(p.mountData.slots) do
+            if slot.reference then
+                local refpos = mountPosition -- + vec(slot.position)
+                +
+                                   common.toWorld(vec(slot.position),
+                                                  p.node.rotation:toEulerXYZ())
+                slot.reference.position = refpos
+            end
+        end
 
-        -- -- statics
-        -- if mountData.clutter then
-        --     for index, slot in ipairs(mountData.clutter) do
+        -- statics
+        -- if p.mountData.clutter then
+        --     for index, slot in ipairs(p.mountData.clutter) do
         --         if slot.reference then
-        --             local refpos = mount.position +
+        --             local refpos = p.node.translation +
         --                                common.toWorld(vec(slot.position),
-        --                                               mount.orientation)
+        --                                               p.node.translation)
         --             slot.reference.position = refpos
         --         end
         --     end
@@ -193,7 +186,6 @@ local function canSpawn(p)
     if #tracked >= config.budget then return false end
 
     for index, s in ipairs(tracked) do
-        -- local d = vec(p.point):distance(s.mount.position)
         local d = vec(p.point):distance(s.node.translation)
         if d < config.spawnExlusionRadius * 8192 then return false end
     end
@@ -205,7 +197,6 @@ local function doCull()
 
     local toremove = {}
     for index, s in ipairs(tracked) do
-        -- local d = tes3.player.position:distance(s.mount.position)
         local d = tes3.player.position:distance(s.node.translation)
         if d > config.cullRadius * 8192 then table.insert(toremove, s) end
     end
@@ -232,14 +223,8 @@ local function doSpawn(p)
     local service = services[p.serviceId]
     local idx = p.idx
 
-    -- debug.log(p.routeId)
-    -- debug.log(start)
-    -- debug.log(destination)
-    -- debug.log(idx)
-    -- debug.log(service.class)
-
-    local start_point = vec(splines[service.class][p.routeId][idx])
-    local next_point = vec(splines[service.class][p.routeId][idx + 1])
+    local startPoint = vec(splines[service.class][p.routeId][idx])
+    local nextPoint = vec(splines[service.class][p.routeId][idx + 1])
 
     -- create mount
     local mountId = service.mount
@@ -254,14 +239,25 @@ local function doSpawn(p)
     end
     local mountData = common.loadMountData(mountId)
     if not mountData then return end
-    -- debug.log(mountId)
 
     -- simulate
     p.splineIndex = idx
     p.currentSpline = splines[service.class][p.routeId]
-    p.mountData = mountData
-    p.node =
-        common.createMountVfx(p.mountData, start_point, next_point, mountId)
+    p.mountData = table.deepcopy(mountData)
+    p.node = common.createMountVfx(p.mountData, startPoint, nextPoint, mountId)
+
+    -- register passagers
+    if p.mountData.idList then
+        for index, id in ipairs(p.mountData.idList) do
+            local ref = tes3.createReference {
+                object = id,
+                position = startPoint +
+                    tes3vector3.new(0, 0, p.mountData.offset),
+                orientation = tes3vector3.new(0, 0, 0)
+            }
+            common.registerNode(p.mountData, ref)
+        end
+    end
 
     table.insert(tracked, p)
 

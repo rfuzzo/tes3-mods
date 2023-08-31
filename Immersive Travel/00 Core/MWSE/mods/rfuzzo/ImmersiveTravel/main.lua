@@ -61,6 +61,7 @@ local log = logger.new {
 ---@field guideSlot Slot
 ---@field slots Slot[]
 ---@field clutter Clutter[]?
+---@field idList string[]?
 
 ---@class ReferenceRecord
 ---@field cell tes3cell The cell
@@ -247,51 +248,6 @@ local function cleanup()
 end
 
 ---@param data MountData
----@return integer|nil index
-local function getFirstFreeSlot(data)
-    for index, value in ipairs(data.slots) do
-        if value.reference == nil then return index end
-    end
-    return nil
-end
-
--- sitting mod
--- idle2 ... praying
--- idle3 ... crossed legs
--- idle4 ... crossed legs
--- idle5 ... hugging legs
--- idle6 ... sitting
-
--- TODO if sitting: fixed facing?
-
----@param data MountData
----@param reference tes3reference|nil
----@param idx integer
-local function registerInSlot(data, reference, idx)
-    data.slots[idx].reference = reference
-    -- play animation
-    if reference then
-        local slot = data.slots[idx]
-
-        tes3.loadAnimation({reference = reference})
-        if slot.animationFile then
-            tes3.loadAnimation({
-                reference = reference,
-                file = slot.animationFile
-            })
-        end
-        local group = tes3.animationGroup.idle5
-        if slot.animationGroup then
-            group = tes3.animationGroup[slot.animationGroup]
-        end
-        tes3.playAnimation({reference = reference, group = group})
-
-        log:debug("registered " .. reference.id .. " in slot " .. tostring(idx))
-    end
-
-end
-
----@param data MountData
 ---@param reference tes3reference
 local function registerGuide(data, reference)
     data.guideSlot.reference = reference
@@ -313,17 +269,6 @@ local function registerGuide(data, reference)
 end
 
 ---@param data MountData
----@param reference tes3reference
-local function registerRef(data, reference)
-    -- get first free slot
-    local i = getFirstFreeSlot(data)
-    if not i then return end
-
-    reference.mobile.movementCollision = false;
-    registerInSlot(data, reference, i)
-end
-
----@param data MountData
 local function incrementSlot(data)
     local playerIdx = nil
     local idx = nil
@@ -341,8 +286,8 @@ local function incrementSlot(data)
     -- register anew for anims
     if playerIdx and idx then
         local tmp = data.slots[idx].reference
-        registerInSlot(data, tmp, playerIdx)
-        registerInSlot(data, tes3.player, idx)
+        common.registerInSlot(data, tmp, playerIdx)
+        common.registerInSlot(data, tes3.player, idx)
     end
 
 end
@@ -569,7 +514,7 @@ local function startTravel(start, destination, service, guide)
             -- register refs in slots
             tes3.player.position = startPos + mountOffset
             tes3.player.facing = new_facing
-            registerRef(mountData, tes3.player)
+            common.registerRef(mountData, tes3.player)
 
             -- duplicate guide
             local guide2 = tes3.createReference {
@@ -582,7 +527,7 @@ local function startTravel(start, destination, service, guide)
             -- followers
             local followers = getFollowers()
             for index, follower in ipairs(followers) do
-                registerRef(mountData, follower)
+                common.registerRef(mountData, follower)
             end
 
             -- clutter

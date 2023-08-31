@@ -12,6 +12,11 @@
       "z": 360
     }
   },
+  "idList": [
+    "skeleton",
+    "skeleton",
+    "skeleton archer"
+  ],
   "slots": [
     {
       "position": {
