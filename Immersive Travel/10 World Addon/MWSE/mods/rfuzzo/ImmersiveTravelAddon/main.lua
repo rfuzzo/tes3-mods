@@ -26,6 +26,7 @@ local splines = {} ---@type table<string, table<string, PositionRecord[]>>
 local map = {} ---@type table<string, SPointDto[]>
 local services = {} ---@type table<string, ServiceData>?
 
+local instanceTimer = nil ---@type mwseTimer?
 local tracked = {} ---@type SPointDto[]
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
@@ -36,12 +37,11 @@ local tracked = {} ---@type SPointDto[]
 ---@field routeId string
 ---@field serviceId string
 ---@field idx number
----@field node niNode? -- debug
----@field instanceTimer mwseTimer?
 ---@field currentSpline PositionRecord[]?
 ---@field splineIndex number
 ---@field mountData MountData?
 ---@field mount tes3reference?
+---@field node niNode? -- debug
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// HELPERS
@@ -55,8 +55,6 @@ local function vec(pos) return tes3vector3.new(pos.x, pos.y, pos.z) end
 
 ---@param p SPointDto
 local function destinationReached(p)
-    if p.instanceTimer ~= nil then p.instanceTimer:cancel() end
-
     if p.mount then
         p.mount:delete()
         p.mount = nil
@@ -72,7 +70,6 @@ local function simulate(p)
     -- checks
     if p.mount == nil then return end
     if p.mountData == nil then return end
-    if p.instanceTimer == nil then return end
     if p.currentSpline == nil then return end
 
     if p.splineIndex <= #p.currentSpline then
@@ -175,8 +172,8 @@ local function canSpawn(p)
     if #tracked >= config.budget then return false end
 
     for index, s in ipairs(tracked) do
-        local d = vec(p.point):distance(vec(s.point))
-        if d < config.spawnExlusionRadius then return false end
+        local d = vec(p.point):distance(s.mount.position)
+        if d < config.spawnExlusionRadius * 8192 then return false end
     end
 
     return true
@@ -186,7 +183,7 @@ local function doCull()
 
     local toremove = {}
     for index, s in ipairs(tracked) do
-        local d = tes3.player.position:distance(vec(s.point))
+        local d = tes3.player.position:distance(s.mount.position)
         if d > config.cullRadius * 8192 then table.insert(toremove, s) end
     end
 
@@ -228,11 +225,11 @@ local function doSpawn(p)
     local service = services[p.serviceId]
     local idx = p.idx
 
-    debug.log(p.routeId)
-    debug.log(start)
-    debug.log(destination)
-    debug.log(idx)
-    debug.log(service.class)
+    -- debug.log(p.routeId)
+    -- debug.log(start)
+    -- debug.log(destination)
+    -- debug.log(idx)
+    -- debug.log(service.class)
 
     local start_point = vec(splines[service.class][p.routeId][idx])
     local next_point = vec(splines[service.class][p.routeId][idx + 1])
@@ -250,26 +247,21 @@ local function doSpawn(p)
     end
     local mountData = common.loadMountData(mountId)
     if not mountData then return end
-    debug.log(mountId)
+    -- debug.log(mountId)
 
     -- simulate
     p.splineIndex = idx
     p.currentSpline = splines[service.class][p.routeId]
     p.mountData = mountData
     p.mount = common.createMount(p.mountData, start_point, next_point, mountId)
-    p.instanceTimer = timer.start({
-        duration = timertick,
-        type = timer.simulate,
-        iterations = -1,
-        callback = onTimerTick
-    })
 
     table.insert(tracked, p)
 
-    log:debug("spawned at: " .. p.point.x .. ", " .. p.point.y .. ", " ..
-                  p.point.z)
-    tes3.messageBox("spawned at: " .. p.point.x .. ", " .. p.point.y .. ", " ..
-                        p.point.z)
+    log:debug(mountId .. " spawned at: " .. p.point.x .. ", " .. p.point.y ..
+                  ", " .. p.point.z)
+    tes3.messageBox(
+        mountId .. " spawned at: " .. p.point.x .. ", " .. p.point.y .. ", " ..
+            p.point.z)
 end
 
 ---@return SPointDto[]
@@ -331,8 +323,17 @@ end
 --- Cleanup on save load
 --- @param e loadEventData
 local function loadCallback(e)
-    local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-    vfxRoot:detachAllChildren()
+    -- local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+    -- vfxRoot:detachAllChildren()
+
+    if instanceTimer then
+        instanceTimer:cancel()
+        instanceTimer = nil
+    end
+
+    for index, value in ipairs(tracked) do destinationReached(value) end
+    tracked = {}
+
 end
 event.register(tes3.event.load, loadCallback)
 
@@ -401,17 +402,26 @@ event.register(tes3.event.initialized, initializedCallback)
 --- @param e cellChangedEventData
 local function cellChangedCallback(e)
 
+    if not instanceTimer then
+        instanceTimer = timer.start({
+            duration = timertick,
+            type = timer.simulate,
+            iterations = -1,
+            callback = onTimerTick
+        })
+    end
+
     -- /////////////////////////
-    log:debug("STAGE Cull")
+    -- log:debug("STAGE Cull")
     doCull()
 
-    -- -- /////////////////////////
+    -- /////////////////////////
     -- log:debug("STAGE Check availability")
-    -- local spawnCandidates = getSpawnCandidates()
+    local spawnCandidates = getSpawnCandidates()
 
-    -- -- /////////////////////////
+    -- /////////////////////////
     -- log:debug("STAGE Spawning")
-    -- trySpawn(spawnCandidates)
+    trySpawn(spawnCandidates)
 
 end
 event.register(tes3.event.cellChanged, cellChangedCallback)

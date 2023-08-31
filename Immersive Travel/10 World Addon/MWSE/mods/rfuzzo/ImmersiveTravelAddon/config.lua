@@ -7,7 +7,7 @@ local defaultConfig = {
     logLevel = "INFO",
     -- configs
     spawnChance = 10,
-    spawnExlusionRadius = 8200,
+    spawnExlusionRadius = 2,
     spawnRadius = 2,
     cullRadius = 2,
     budget = 100

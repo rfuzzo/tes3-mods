@@ -51,11 +51,11 @@ local function registerModConfig()
 
     generalCategory:createSlider({
         label = "Spawn Exlusion Radius",
-        description = "The radius a mount cannot be spawned around another mount",
+        description = "The radius in cells a mount cannot be spawned around another mount",
         min = 1,
-        max = 8200,
-        step = 100,
-        jump = 1000,
+        max = 40,
+        step = 1,
+        jump = 10,
         variable = mwse.mcm.createTableVariable {
             id = "spawnExlusionRadius",
             table = config

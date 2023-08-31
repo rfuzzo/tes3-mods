@@ -207,16 +207,12 @@ end
 
 --- 
 ---@param data MountData
----@param start_point tes3vector3
----@param next_point tes3vector3
+---@param startPoint tes3vector3
+---@param nextPoint tes3vector3
 ---@param mountId string
 ---@return tes3reference
-function this.createMount(data, start_point, next_point, mountId)
-
-    local start_pos = tes3vector3.new(start_point.x, start_point.y,
-                                      start_point.z)
-    local next_pos = tes3vector3.new(next_point.x, next_point.y, next_point.z)
-    local d = next_pos - start_pos
+function this.createMount(data, startPoint, nextPoint, mountId)
+    local d = nextPoint - startPoint
     d:normalize()
 
     local newFacing = math.atan2(d.x, d.y)
@@ -225,7 +221,7 @@ function this.createMount(data, start_point, next_point, mountId)
     local mountOffset = tes3vector3.new(0, 0, data.offset)
     local mount = tes3.createReference {
         object = mountId,
-        position = start_pos + mountOffset,
+        position = startPoint + mountOffset,
         orientation = d
     }
     mount.facing = newFacing
