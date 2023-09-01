@@ -34,6 +34,15 @@ local function registerModConfig()
         end
     }
 
+    generalCategory:createOnOffButton({
+        label = "Enable Mod",
+        description = "Enable Mod.",
+        variable = mwse.mcm.createTableVariable {
+            id = "modEnabled",
+            table = config
+        }
+    })
+
     -- //////////////////////
 
     generalCategory:createSlider({

@@ -19,6 +19,8 @@ local log = logger.new {
     includeTimestamp = true
 }
 
+local timertick = 0.01
+
 local splines = {} ---@type table<string, table<string, PositionRecord[]>>
 local map = {} ---@type table<string, SPointDto[]>
 local services = {} ---@type table<string, ServiceData>?
@@ -46,28 +48,89 @@ local tracked = {} ---@type SPointDto[]
 --- @return tes3vector3
 local function vec(pos) return tes3vector3.new(pos.x, pos.y, pos.z) end
 
+--- 
+---@param data MountData
+---@param startPoint tes3vector3
+---@param nextPoint tes3vector3
+---@param mountId string
+---@return niNode
+local function createMountVfx(data, startPoint, nextPoint, mountId)
+    local d = nextPoint - startPoint
+    d:normalize()
+
+    -- create mount
+    local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+    local mountOffset = tes3vector3.new(0, 0, data.offset)
+
+    local meshPath = data.mesh
+    local mount = tes3.loadMesh(meshPath):clone()
+    mount.translation = startPoint + mountOffset
+    mount.rotation = common.rotationFromDirection(d)
+
+    log:debug("Created mount: " .. mountId)
+    vfxRoot:attachChild(mount)
+
+    return mount
+end
+
+---@param data MountData
+---@param node niNode|nil
+---@param idx integer
+local function registerNodeInSlot(data, node, idx) data.slots[idx].node = node end
+
+---@param data MountData
+---@return integer|nil index
+local function getFirstFreeSlot(data)
+    for index, value in ipairs(data.slots) do
+        if value.node == nil then return index end
+    end
+    return nil
+end
+
+---@param data MountData
+---@param node niNode
+local function registerNode(data, node)
+    -- get first free slot
+    local i = getFirstFreeSlot(data)
+    if not i then return end
+    registerNodeInSlot(data, node, i)
+end
+
+---@param data MountData
+---@param node niNode
+---@param i integer
+local function registerStaticNode(data, node, i)
+    data.clutter[i].node = node
+
+    log:debug("registered " .. node.name .. " in static slot " .. tostring(i))
+end
+
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// FUNCTIONS
 
+--- cull single object
 ---@param p SPointDto
-local function destinationReached(p)
-    if p.node then
-        local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-        vfxRoot:detachChild(p.node)
-        p.node = nil
-    end
+local function cullObject(p)
+    local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
 
+    -- clean additional 
     if p.mountData then
+        if p.mountData.guideSlot.node then
+            vfxRoot:detachChild(p.mountData.guideSlot.node)
+        end
         if p.mountData.slots then
             for index, slot in ipairs(p.mountData.slots) do
-                if slot.reference then
-                    slot.reference:delete()
-                    slot.reference = nil
-                end
+                if slot.node then vfxRoot:detachChild(slot.node) end
             end
         end
-        p.mountData = nil
+        if p.mountData.clutter then
+            for index, slot in ipairs(p.mountData.clutter) do
+                if slot.node then vfxRoot:detachChild(slot.node) end
+            end
+        end
     end
+
+    if p.node then vfxRoot:detachChild(p.node) end
 
     table.removevalue(tracked, p)
 end
@@ -116,7 +179,6 @@ local function simulate(p)
         local mountPosition = currentPos + delta + mountOffset
         p.node.translation = mountPosition
 
-        tes3.worldController.vfxManager.worldVFXRoot:update()
         -- -- set sway
         -- swayTime = swayTime + timertick
         -- if swayTime > (2000 * sway_frequency) then swayTime = timertick end
@@ -127,35 +189,30 @@ local function simulate(p)
         --                              mount.orientation)
         -- mount.orientation = worldOrientation
 
-        -- -- guide
-        -- local guidePos = mount.position +
-        --                      common.toWorld(vec(mountData.guideSlot.position),
-        --                                     mount.orientation)
-        -- tes3.positionCell({
-        --     reference = mountData.guideSlot.reference,
-        --     position = guidePos
-        -- })
-        -- mountData.guideSlot.reference.facing = mount.facing
+        -- guide
+        local guidePos = mountPosition +
+                             common.toWorld(vec(p.mountData.guideSlot.position),
+                                            p.node.rotation:toEulerXYZ())
+        p.mountData.guideSlot.node.translation = guidePos
 
-        -- position references in slots
+        -- position passengers in slots
         for index, slot in ipairs(p.mountData.slots) do
-            if slot.reference then
-                local refpos = mountPosition -- + vec(slot.position)
-                +
+            if slot.node then
+                local refpos = mountPosition +
                                    common.toWorld(vec(slot.position),
                                                   p.node.rotation:toEulerXYZ())
-                slot.reference.position = refpos
+                slot.node.translation = refpos
             end
         end
 
         -- statics
         -- if p.mountData.clutter then
         --     for index, slot in ipairs(p.mountData.clutter) do
-        --         if slot.reference then
-        --             local refpos = p.node.translation +
-        --                                common.toWorld(vec(slot.position),
-        --                                               p.node.translation)
-        --             slot.reference.position = refpos
+        --         if slot.node then
+        --             local refpos = mountPosition +
+        --                                common.toWorld(vec(slot.position), p.node
+        --                                                   .rotation:toEulerXYZ())
+        --             slot.node.translation = refpos
         --         end
         --     end
         -- end
@@ -165,21 +222,25 @@ local function simulate(p)
         common.isPointBehindObject(nextPos, p.node.translation, f)
         if isBehind then p.splineIndex = p.splineIndex + 1 end
 
+        tes3.worldController.vfxManager.worldVFXRoot:update()
+
     else -- if i is at the end of the list
         timer.start({
             type = timer.simulate,
             iterations = 1,
             duration = 1,
             callback = (function()
-                destinationReached(p)
+                cullObject(p)
                 tes3.worldController.vfxManager.worldVFXRoot:update()
             end)
         })
     end
 end
 
+--- all logic for all simulated nodes on timer tick
 local function onTimerTick() for key, p in pairs(tracked) do simulate(p) end end
 
+--- check if a node can spawn
 ---@param p SPointDto
 ---@return boolean
 local function canSpawn(p)
@@ -193,6 +254,7 @@ local function canSpawn(p)
     return true
 end
 
+--- cull nodes in distance
 local function doCull()
 
     local toremove = {}
@@ -203,15 +265,14 @@ local function doCull()
 
     for index, s in ipairs(toremove) do
         -- cull
-        destinationReached(s)
+        cullObject(s)
 
         log:debug("Culled ref at pos: " .. index)
         tes3.messageBox("Culled ref at pos: " .. index)
     end
 end
 
-local timertick = 0.01
-
+--- spawn an object on the vfx node and register it
 ---@param p SPointDto
 local function doSpawn(p)
 
@@ -243,19 +304,49 @@ local function doSpawn(p)
     -- simulate
     p.splineIndex = idx
     p.currentSpline = splines[service.class][p.routeId]
-    p.mountData = table.deepcopy(mountData)
-    p.node = common.createMountVfx(p.mountData, startPoint, nextPoint, mountId)
+    p.mountData = mountData
+    p.node = createMountVfx(p.mountData, startPoint, nextPoint, mountId)
 
-    -- register passagers
+    local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+
+    -- register passengers
     if p.mountData.idList then
-        for index, id in ipairs(p.mountData.idList) do
-            local ref = tes3.createReference {
-                object = id,
-                position = startPoint +
-                    tes3vector3.new(0, 0, p.mountData.offset),
-                orientation = tes3vector3.new(0, 0, 0)
-            }
-            common.registerNode(p.mountData, ref)
+        for index, meshPath in ipairs(p.mountData.idList) do
+            local node = tes3.loadMesh(meshPath):clone()
+            node.translation = startPoint +
+                                   tes3vector3.new(0, 0, p.mountData.offset)
+            local m = tes3matrix33.new()
+            m:toIdentity()
+            node.rotation = m
+            vfxRoot:attachChild(node)
+
+            if index == 1 then
+                -- register as guide
+                p.mountData.guideSlot.node = node
+            else
+                registerNode(p.mountData, node)
+            end
+
+        end
+    end
+
+    -- register statics
+    -- statics
+    if p.mountData.clutter then
+        for index, clutter in ipairs(p.mountData.clutter) do
+            if clutter.mesh then
+                -- instantiate
+                local node = tes3.loadMesh(clutter.mesh):clone()
+                node.translation = startPoint +
+                                       tes3vector3.new(0, 0, p.mountData.offset)
+                local m = tes3matrix33.new()
+                m:toIdentity()
+                node.rotation = m
+                vfxRoot:attachChild(node)
+
+                -- register
+                registerStaticNode(p.mountData, node, index)
+            end
         end
     end
 
@@ -268,8 +359,10 @@ local function doSpawn(p)
             p.point.z)
 end
 
+--- get possible cells where objects can spawn
+---@param allowFront boolean also allow spawn in front
 ---@return SPointDto[]
-local function getSpawnCandidates()
+local function getSpawnCandidates(allowFront)
     local spawnCandidates = {} ---@type SPointDto[]
 
     -- get cells behind me in a radius
@@ -281,10 +374,13 @@ local function getSpawnCandidates()
     for i = cx - r, cx + r, 1 do
         for j = cy - r, cy + r, 1 do
             -- check if behind
-            local vtest = tes3vector3.new(i, j, 0)
-            local behind = common.isPointBehindObject(vtest, vplayer,
-                                                      tes3.player
-                                                          .forwardDirection)
+            local behind = true
+            if not allowFront then
+                local vtest = tes3vector3.new(i, j, 0)
+                behind = common.isPointBehindObject(vtest, vplayer, tes3.player
+                                                        .forwardDirection)
+            end
+
             if behind then
                 local cellKey = tostring(i) .. "," .. tostring(j)
                 -- get points
@@ -307,6 +403,7 @@ local function getSpawnCandidates()
     return spawnCandidates
 end
 
+--- try spawn an object in the world
 ---@param spawnCandidates SPointDto[]
 local function trySpawn(spawnCandidates)
     for index, p in ipairs(spawnCandidates) do
@@ -325,6 +422,8 @@ end
 --- Cleanup on save load
 --- @param e loadEventData
 local function loadCallback(e)
+    if not config.modEnabled then return end
+
     local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
     vfxRoot:detachAllChildren()
 
@@ -333,7 +432,7 @@ local function loadCallback(e)
         instanceTimer = nil
     end
 
-    for index, value in ipairs(tracked) do destinationReached(value) end
+    for index, value in ipairs(tracked) do cullObject(value) end
     tracked = {}
 
     vfxRoot:update()
@@ -344,10 +443,13 @@ event.register(tes3.event.load, loadCallback)
 --- @param e initializedEventData
 local function initializedCallback(e)
 
-    services = common.loadServices()
-    if not services then return end
+    if not config.modEnabled then return end
 
-    -- TODO disable mod
+    services = common.loadServices()
+    if not services then
+        config.modEnabled = false
+        return
+    end
 
     for key, service in pairs(services) do
         log:info(service.class)
@@ -396,14 +498,14 @@ local function initializedCallback(e)
     -- dbg
     json.savefile("dbg_splines", splines)
     json.savefile("dbg_map", map)
-
-    -- divineMarker = tes3.loadMesh(divineMarkerId)
 end
 event.register(tes3.event.initialized, initializedCallback)
 
 --- Cull and spawn on cell changed
 --- @param e cellChangedEventData
 local function cellChangedCallback(e)
+
+    if not config.modEnabled then return end
 
     if not instanceTimer then
         instanceTimer = timer.start({
@@ -420,7 +522,7 @@ local function cellChangedCallback(e)
 
     -- /////////////////////////
     -- log:debug("STAGE Check availability")
-    local spawnCandidates = getSpawnCandidates()
+    local spawnCandidates = getSpawnCandidates(false)
 
     -- /////////////////////////
     -- log:debug("STAGE Spawning")
@@ -433,26 +535,6 @@ event.register(tes3.event.cellChanged, cellChangedCallback)
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// DEBUG
-
---- @param e keyDownEventData
-local function keyDownCallback(e)
-    if e.keyCode == tes3.scanCode["6"] then
-
-        -- /////////////////////////
-        log:debug("STAGE Cull")
-        doCull()
-
-        -- /////////////////////////
-        log:debug("STAGE Check availability")
-        local spawnCandidates = getSpawnCandidates()
-
-        -- /////////////////////////
-        log:debug("STAGE Spawning")
-        trySpawn(spawnCandidates)
-
-    end
-end
-event.register(tes3.event.keyDown, keyDownCallback)
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// CONFIG

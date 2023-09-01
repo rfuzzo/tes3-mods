@@ -45,11 +45,14 @@ local log = logger.new {
 ---@field animationGroup string?
 ---@field animationFile string?
 ---@field reference tes3reference?
+---@field node niNode?
 
 ---@class Clutter
 ---@field position PositionRecord slot
----@field id string reference id
+---@field id string? reference id
+---@field mesh string? reference id
 ---@field reference tes3reference?
+---@field node niNode?
 
 ---@class MountData
 ---@field sound string The mount sound id
@@ -221,12 +224,13 @@ local function cleanup()
     if mountData then
         tes3.removeSound({sound = mountData.sound, reference = mount})
 
-        -- statics
+        -- guide
         if mountData.guideSlot.reference then
             mountData.guideSlot.reference:delete()
             mountData.guideSlot.reference = nil
         end
 
+        -- statics
         if mountData.clutter then
             for index, slot in ipairs(mountData.clutter) do
                 if slot.reference then
@@ -269,6 +273,53 @@ local function registerGuide(data, reference)
 end
 
 ---@param data MountData
+---@param reference tes3reference|nil
+---@param idx integer
+local function registerInSlot(data, reference, idx)
+    data.slots[idx].reference = reference
+    -- play animation
+    if reference then
+        local slot = data.slots[idx]
+
+        tes3.loadAnimation({reference = reference})
+        if slot.animationFile then
+            tes3.loadAnimation({
+                reference = reference,
+                file = slot.animationFile
+            })
+        end
+        local group = tes3.animationGroup.idle5
+        if slot.animationGroup then
+            group = tes3.animationGroup[slot.animationGroup]
+        end
+        tes3.playAnimation({reference = reference, group = group})
+
+        log:debug("registered " .. reference.id .. " in slot " .. tostring(idx))
+    end
+
+end
+
+---@param data MountData
+---@return integer|nil index
+local function getFirstFreeSlot(data)
+    for index, value in ipairs(data.slots) do
+        if value.reference == nil then return index end
+    end
+    return nil
+end
+
+---@param data MountData
+---@param reference tes3reference
+local function registerRef(data, reference)
+    -- get first free slot
+    local i = getFirstFreeSlot(data)
+    if not i then return end
+
+    reference.mobile.movementCollision = false;
+    registerInSlot(data, reference, i)
+end
+
+---@param data MountData
 local function incrementSlot(data)
     local playerIdx = nil
     local idx = nil
@@ -286,8 +337,8 @@ local function incrementSlot(data)
     -- register anew for anims
     if playerIdx and idx then
         local tmp = data.slots[idx].reference
-        common.registerInSlot(data, tmp, playerIdx)
-        common.registerInSlot(data, tes3.player, idx)
+        registerInSlot(data, tmp, playerIdx)
+        registerInSlot(data, tes3.player, idx)
     end
 
 end
@@ -514,7 +565,7 @@ local function startTravel(start, destination, service, guide)
             -- register refs in slots
             tes3.player.position = startPos + mountOffset
             tes3.player.facing = new_facing
-            common.registerRef(mountData, tes3.player)
+            registerRef(mountData, tes3.player)
 
             -- duplicate guide
             local guide2 = tes3.createReference {
@@ -527,20 +578,22 @@ local function startTravel(start, destination, service, guide)
             -- followers
             local followers = getFollowers()
             for index, follower in ipairs(followers) do
-                common.registerRef(mountData, follower)
+                registerRef(mountData, follower)
             end
 
-            -- clutter
+            -- statics
             if mountData.clutter then
                 for index, clutter in ipairs(mountData.clutter) do
-                    -- instantiate
-                    local inst = tes3.createReference {
-                        object = clutter.id,
-                        position = startPos + mountOffset,
-                        orientation = mount.orientation
-                    }
-                    -- register
-                    registerStatic(mountData, inst, index)
+                    if clutter.id then
+                        -- instantiate
+                        local inst = tes3.createReference {
+                            object = clutter.id,
+                            position = startPos + mountOffset,
+                            orientation = mount.orientation
+                        }
+                        -- register
+                        registerStatic(mountData, inst, index)
+                    end
                 end
             end
 
@@ -839,3 +892,12 @@ require("rfuzzo.ImmersiveTravel.mcm")
         "z": -46
       }
 --]]
+
+-- sitting mod
+-- idle2 ... praying
+-- idle3 ... crossed legs
+-- idle4 ... crossed legs
+-- idle5 ... hugging legs
+-- idle6 ... sitting
+
+-- TODO if sitting: fixed facing?

@@ -5,6 +5,7 @@ local defaultConfig = {
     author = "rfuzzo",
     -- configs
     logLevel = "INFO",
+    modEnabled = true,
     -- configs
     spawnChance = 10,
     spawnExlusionRadius = 2,

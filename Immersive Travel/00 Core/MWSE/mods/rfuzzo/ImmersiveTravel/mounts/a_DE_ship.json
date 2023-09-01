@@ -13,9 +13,10 @@
     }
   },
   "idList": [
-    "skeleton",
-    "skeleton",
-    "skeleton archer"
+    "r\\AscendedSleeper.nif",
+    "r\\Skeleton.nif",
+    "r\\Skeleton.nif",
+    "r\\Skeleton.nif"
   ],
   "slots": [
     {

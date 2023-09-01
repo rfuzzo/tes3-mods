@@ -65,6 +65,30 @@ local arrow = nil
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// FUNCTIONS
 
+--- 
+---@param data MountData
+---@param startPoint tes3vector3
+---@param nextPoint tes3vector3
+---@param mountId string
+---@return tes3reference
+local function createMount(data, startPoint, nextPoint, mountId)
+    local d = nextPoint - startPoint
+    d:normalize()
+
+    local newFacing = math.atan2(d.x, d.y)
+
+    -- create mount
+    local mountOffset = tes3vector3.new(0, 0, data.offset)
+    local mount = tes3.createReference {
+        object = mountId,
+        position = startPoint + mountOffset,
+        orientation = d
+    }
+    mount.facing = newFacing
+
+    return mount
+end
+
 --- @param from tes3vector3
 --- @return number|nil
 local function getGroundZ(from)
@@ -278,8 +302,7 @@ local function traceRoute(service)
     end
     local mountData = common.loadMountData(mountId)
     if not mountData then return end
-    editorData.mount = common.createMount(mountData, start_point, next_point,
-                                          mountId)
+    editorData.mount = createMount(mountData, start_point, next_point, mountId)
 
     calculatePositions(start_pos, mountData)
 
