@@ -257,6 +257,7 @@ local function registerGuide(data, reference)
     data.guideSlot.reference = reference
     -- tcl
     reference.mobile.movementCollision = false;
+
     -- play animation
     local slot = data.guideSlot
     tes3.loadAnimation({reference = reference})
@@ -573,6 +574,7 @@ local function startTravel(start, destination, service, guide)
                 position = startPos + mountOffset,
                 orientation = mount.orientation
             }
+            guide2.mobile.hello = 0
             registerGuide(mountData, guide2)
 
             -- followers
