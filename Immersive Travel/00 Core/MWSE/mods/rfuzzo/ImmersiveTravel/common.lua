@@ -17,6 +17,26 @@ local fullmodpath = this.fullmodpath
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// COMMON
 
+-- Translate local orientation around a base-centered coordinate system to world orientation
+---@param localOrientation tes3vector3
+---@param baseOrientation tes3vector3
+--- @return tes3vector3
+function this.toWorldOrientation(localOrientation, baseOrientation)
+    -- Convert the local orientation to a rotation matrix
+    local baseRotationMatrix = tes3matrix33.new()
+    baseRotationMatrix:fromEulerXYZ(baseOrientation.x, baseOrientation.y,
+                                    baseOrientation.z)
+
+    local localRotationMatrix = tes3matrix33.new()
+    localRotationMatrix:fromEulerXYZ(localOrientation.x, localOrientation.y,
+                                     localOrientation.z)
+
+    -- Combine the rotation matrices to get the world rotation matrix
+    local worldRotationMatrix = baseRotationMatrix * localRotationMatrix
+    local worldOrientation, _isUnique = worldRotationMatrix:toEulerXYZ()
+    return worldOrientation
+end
+
 -- Transform a local offset to world coordinates given a fixed orientation
 ---@param localVector tes3vector3
 ---@param worldOrientation tes3vector3

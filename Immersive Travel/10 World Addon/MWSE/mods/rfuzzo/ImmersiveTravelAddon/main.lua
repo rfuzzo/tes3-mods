@@ -26,7 +26,7 @@ local map = {} ---@type table<string, SPointDto[]>
 local services = {} ---@type table<string, ServiceData>?
 
 local instanceTimer = nil ---@type mwseTimer?
-local tracked = {} ---@type SPointDto[]
+local tracked = {} ---@type SPoint[]
 
 local VFX_DRAW = 1
 
@@ -37,11 +37,18 @@ local VFX_DRAW = 1
 ---@field point PositionRecord
 ---@field routeId string
 ---@field serviceId string
----@field idx number
+---@field splineIndex number
+
+---@class SPoint
+---@field point PositionRecord
+---@field routeId string
+---@field serviceId string
 ---@field currentSpline PositionRecord[]?
 ---@field splineIndex number
 ---@field mountData MountData?
----@field node niNode? -- debug
+---@field node niNode?
+---@field cachedTranslation tes3vector3?
+---@field cachedRotation tes3matrix33?
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// HELPERS
@@ -111,7 +118,7 @@ end
 -- ////////////// FUNCTIONS
 
 --- cull single object
----@param p SPointDto
+---@param p SPoint
 local function cullObject(p)
     local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
 
@@ -137,8 +144,57 @@ local function cullObject(p)
     table.removevalue(tracked, p)
 end
 
+---comment
+---@param origin tes3vector3
+---@param forwardVector tes3vector3
+---@param target tes3vector3
+---@param coneRadius number
+---@param coneAngle number
+---@return boolean
+local function isPointInCone(origin, forwardVector, target, coneRadius,
+                             coneAngle)
+    -- Calculate the vector from the origin to the target point
+    local toTarget = target - origin
+
+    -- Calculate the cosine of the angle between the forward vector and the vector to the target
+    local dotProduct = forwardVector:dot(toTarget)
+
+    -- Calculate the magnitudes of both vectors
+    local forwardMagnitude = forwardVector:length()
+    local toTargetMagnitude = toTarget:length()
+
+    -- Calculate the cosine of the angle between the vectors
+    local cosAngle = dotProduct / (forwardMagnitude * toTargetMagnitude)
+
+    -- Calculate the angle in radians
+    local angleInRadians = math.acos(cosAngle)
+
+    -- Check if the angle is less than or equal to half of the cone angle and the distance is within the cone radius
+    if angleInRadians <= coneAngle / 2 and toTargetMagnitude <= coneRadius then
+        return true
+    else
+        return false
+    end
+end
+
+---@param referenceVector tes3vector3
+---@param targetVector tes3vector3
+---@return boolean
+local function isVectorRight(referenceVector, targetVector)
+    local crossProduct =
+        referenceVector.x * targetVector.y - referenceVector.y * targetVector.x
+
+    if crossProduct > 0 then
+        return true -- "right"
+    elseif crossProduct < 0 then
+        return false -- "left"
+    else
+        return false --- "collinear"  -- The vectors are collinear
+    end
+end
+
 --- move a mount in the world
----@param p SPointDto
+---@param p SPoint
 local function simulate(p)
 
     -- checks
@@ -149,16 +205,39 @@ local function simulate(p)
     if p.splineIndex <= #p.currentSpline then
         local mountOffset = tes3vector3.new(0, 0, p.mountData.offset)
         local nextPos = vec(p.currentSpline[p.splineIndex])
-        local currentPos = p.node.translation - mountOffset
+        local currentPos = p.cachedTranslation - mountOffset
+        local v = p.cachedRotation:getForwardVector()
 
-        local v = p.node.rotation:getForwardVector()
-        v:normalize()
-        local d = (nextPos - currentPos):normalized()
-        local lerp = v:lerp(d, p.mountData.turnspeed / 10):normalized()
+        -- change position when about to collide
+        local collision = false
+        local isRight = false
+        for index, value in ipairs(tracked) do
+            if value ~= p and currentPos:distance(value.cachedTranslation) <
+                8192 then
+                local check = isPointInCone(currentPos, v,
+                                            value.cachedTranslation, 6144, 0.785)
+                if check then
+                    isRight = isVectorRight(v, value.cachedTranslation -
+                                                currentPos)
+                    collision = true
+                    break
+                end
+            end
+        end
 
         -- calculate heading
-        local current_rotation = p.node.rotation:toEulerXYZ()
-        local current_facing = current_rotation.z
+        local currentOrientation = p.cachedRotation:toEulerXYZ()
+        v:normalize()
+        local virtualPos = nextPos
+        -- if collision then
+        --     local l = common.toWorld(tes3vector3.new(1, -1, 0),
+        --                              currentOrientation)
+        --     local w = (v + l) * 1024
+        --     virtualPos = w
+        -- end
+        local d = (virtualPos - currentPos):normalized()
+        local lerp = v:lerp(d, p.mountData.turnspeed / 10):normalized()
+        local current_facing = currentOrientation.z
         local new_facing = math.atan2(d.x, d.y)
         local facing = new_facing
         local diff = new_facing - current_facing
@@ -172,68 +251,85 @@ local function simulate(p)
         else
             facing = new_facing
         end
+
+        local orientation = tes3vector3.new(currentOrientation.x,
+                                            currentOrientation.y, facing)
+
+        -- calculate delta
         local m = tes3matrix33.new()
-        m:fromEulerXYZ(current_rotation.x, current_rotation.y, facing)
+        m:fromEulerXYZ(orientation.x, orientation.y, orientation.z)
+        local delta = tes3vector3.new(v.x, v.y, lerp.z):normalized()
+        if collision then
+            -- add offset to right
+            local r = tes3vector3.new(1, 1, 0)
+            if not isRight then r = tes3vector3.new(-1, 1, 0) end
+            local w = common.toWorld(r, orientation)
+            delta = delta + w
+            -- recalculate orientation
+            -- m = common.rotationFromDirection(delta)
+        end
 
-        local f = tes3vector3.new(p.node.rotation:getForwardVector().x,
-                                  p.node.rotation:getForwardVector().y, lerp.z):normalized()
-        local delta = f * p.mountData.speed
-        local mountPosition = currentPos + delta + mountOffset
+        local mountPosition = currentPos +
+                                  (delta:normalized() * p.mountData.speed) +
+                                  mountOffset
 
-        p.node.rotation = m
-        p.node.translation = mountPosition
+        -- cache values
+        p.cachedRotation = m
+        p.cachedTranslation = mountPosition
 
-        -- position passengers in slots
-        -- don't update passengers while behind
+        -- move to next marker
+        local isBehind = -- common.isPointBehindObject(nextPos, p.mount.position, f)
+        common.isPointBehindObject(nextPos, mountPosition, delta)
+        if isBehind then p.splineIndex = p.splineIndex + 1 end
+
+        -- render
+        -- TODO render only in visible range
         local behind = common.isPointBehindObject(mountPosition,
                                                   tes3.player.position,
                                                   tes3.player.forwardDirection)
         if not behind then
+
+            p.node.rotation = m
+            p.node.translation = mountPosition
 
             -- -- set sway
             -- swayTime = swayTime + timertick
             -- if swayTime > (2000 * sway_frequency) then swayTime = timertick end
             -- local sway = (sway_amplitude * mountData.sway) *
             --                  math.sin(2 * math.pi * sway_frequency * swayTime)
-            -- local worldOrientation = toWorldOrientation(
+            -- local worldOrientation = common.toWorldOrientation(
             --                              tes3vector3.new(0.0, sway, 0.0),
             --                              mount.orientation)
             -- mount.orientation = worldOrientation
 
+            -- position passengers in slots
             local guidePos = mountPosition +
                                  common.toWorld(
                                      vec(p.mountData.guideSlot.position),
-                                     p.node.rotation:toEulerXYZ())
+                                     orientation)
             if p.mountData.guideSlot.node then
                 p.mountData.guideSlot.node.translation = guidePos
             end
             for index, slot in ipairs(p.mountData.slots) do
                 if slot.node then
                     local refpos = mountPosition +
-                                       common.toWorld(vec(slot.position), p.node
-                                                          .rotation:toEulerXYZ())
+                                       common.toWorld(vec(slot.position),
+                                                      orientation)
                     slot.node.translation = refpos
                 end
             end
+
+            -- statics
+            -- if p.mountData.clutter then
+            --     for index, slot in ipairs(p.mountData.clutter) do
+            --         if slot.node then
+            --             local refpos = mountPosition +
+            --                                common.toWorld(vec(slot.position), orientation)
+            --             slot.node.translation = refpos
+            --         end
+            --     end
+            -- end
         end
-
-        -- statics
-        -- if p.mountData.clutter then
-        --     for index, slot in ipairs(p.mountData.clutter) do
-        --         if slot.node then
-        --             local refpos = mountPosition +
-        --                                common.toWorld(vec(slot.position), p.node
-        --                                                   .rotation:toEulerXYZ())
-        --             slot.node.translation = refpos
-        --         end
-        --     end
-        -- end
-
-        -- move to next marker
-        local isBehind = -- common.isPointBehindObject(nextPos, p.mount.position, f)
-        common.isPointBehindObject(nextPos, p.node.translation, f)
-        if isBehind then p.splineIndex = p.splineIndex + 1 end
-
     else -- if i is at the end of the list
         timer.start({
             type = timer.simulate,
@@ -288,19 +384,19 @@ local function doCull()
 end
 
 --- spawn an object on the vfx node and register it
----@param p SPointDto
-local function doSpawn(p)
+---@param point SPointDto
+local function doSpawn(point)
 
     if not services then return end
 
-    local split = string.split(p.routeId, "_")
+    local split = string.split(point.routeId, "_")
     local start = split[1]
     local destination = split[2]
-    local service = services[p.serviceId]
-    local idx = p.idx
+    local service = services[point.serviceId]
+    local idx = point.splineIndex
 
-    local startPoint = vec(splines[service.class][p.routeId][idx])
-    local nr = splines[service.class][p.routeId][idx + 1]
+    local startPoint = vec(splines[service.class][point.routeId][idx])
+    local nr = splines[service.class][point.routeId][idx + 1]
     if not nr then return end
     local nextPoint = vec(nr)
 
@@ -319,10 +415,18 @@ local function doSpawn(p)
     if not mountData then return end
 
     -- simulate
-    p.splineIndex = idx
+    ---@type SPoint
+    local p = {
+        point = point.point,
+        routeId = point.routeId,
+        serviceId = point.serviceId,
+        splineIndex = idx
+    }
     p.currentSpline = splines[service.class][p.routeId]
     p.mountData = mountData
     p.node = createMountVfx(p.mountData, startPoint, nextPoint, mountId)
+    p.cachedRotation = p.node.rotation
+    p.cachedTranslation = p.node.translation
 
     local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
 
@@ -391,9 +495,8 @@ local function shuffle(tbl)
 end
 
 --- get possible cells where objects can spawn
----@param allowFront boolean also allow spawn in front
 ---@return SPointDto[]
-local function getSpawnCandidates(allowFront)
+local function getSpawnCandidates()
     local spawnCandidates = {} ---@type SPointDto[]
     local dd = config.spawnRadius
     local cx = tes3.player.cell.gridX
@@ -462,7 +565,7 @@ local function loadedCallback(e)
         })
     end
     doCull()
-    local spawnCandidates = getSpawnCandidates(true)
+    local spawnCandidates = getSpawnCandidates()
     trySpawn(spawnCandidates)
     vfxRoot:update()
 end
@@ -509,12 +612,14 @@ local function initializedCallback(e)
                                 map[cell_key] = {}
                             end
 
-                            table.insert(map[cell_key], {
+                            ---@type SPointDto
+                            local point = {
                                 point = pos,
                                 routeId = start .. "_" .. destination,
                                 serviceId = service.class,
-                                idx = idx
-                            })
+                                splineIndex = idx
+                            }
+                            table.insert(map[cell_key], point)
 
                         end
                     end
@@ -545,7 +650,7 @@ local function cellChangedCallback(e)
         })
     end
     doCull()
-    local spawnCandidates = getSpawnCandidates(false)
+    local spawnCandidates = getSpawnCandidates()
     trySpawn(spawnCandidates)
     local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
     vfxRoot:update()

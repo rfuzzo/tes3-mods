@@ -91,26 +91,6 @@ local lastPos = nil ---@type tes3vector3|nil
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// FUNCTIONS
 
--- Translate local orientation around a base-centered coordinate system to world orientation
----@param localOrientation tes3vector3
----@param baseOrientation tes3vector3
---- @return tes3vector3
-local function toWorldOrientation(localOrientation, baseOrientation)
-    -- Convert the local orientation to a rotation matrix
-    local baseRotationMatrix = tes3matrix33.new()
-    baseRotationMatrix:fromEulerXYZ(baseOrientation.x, baseOrientation.y,
-                                    baseOrientation.z)
-
-    local localRotationMatrix = tes3matrix33.new()
-    localRotationMatrix:fromEulerXYZ(localOrientation.x, localOrientation.y,
-                                     localOrientation.z)
-
-    -- Combine the rotation matrices to get the world rotation matrix
-    local worldRotationMatrix = baseRotationMatrix * localRotationMatrix
-    local worldOrientation, _isUnique = worldRotationMatrix:toEulerXYZ()
-    return worldOrientation
-end
-
 -- This function loops over the references inside the
 -- tes3referenceList and adds them to an array-style table
 ---@param list tes3referenceList
@@ -426,7 +406,7 @@ local function onTimerTick()
         if swayTime > (2000 * sway_frequency) then swayTime = timertick end
         local sway = (sway_amplitude * mountData.sway) *
                          math.sin(2 * math.pi * sway_frequency * swayTime)
-        local worldOrientation = toWorldOrientation(
+        local worldOrientation = common.toWorldOrientation(
                                      tes3vector3.new(0.0, sway, 0.0),
                                      mount.orientation)
         mount.orientation = worldOrientation
