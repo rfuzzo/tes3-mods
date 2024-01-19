@@ -1,6 +1,6 @@
 ECHO off
 
-set "location=E:\gog\Morrowind2\Data Files"
+set "location=D:\games\Morrowind2\Data Files"
 set "drive=%~d0"
 
 echo %drive%
