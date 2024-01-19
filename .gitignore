@@ -42,3 +42,4 @@ luac.out
 rftest
 .DS_Store
 omw-util/.vscode/launch.json
+*.zip
