@@ -292,10 +292,9 @@ local function traceRoute(service)
     local mountId = service.mount
     -- override mounts 
     if service.override_mount then
-        for key, value in pairs(service.override_mount) do
-            if common.is_in(value, editorData.start) and
-                common.is_in(value, editorData.destination) then
-                mountId = key
+        for _, o in ipairs(service.override_mount) do
+            if common.is_in(o.points, editorData.start) and common.is_in(o.points, editorData.destination) then
+                mountId = o.id
                 break
             end
         end

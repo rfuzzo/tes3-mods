@@ -5,27 +5,42 @@
     "Daynas Darys"
   ],
   "mount": "a_longboat",
-  "override_mount": {
-    "a_longboat": [
-      "Vos",
-      "Firewatch"
-    ],
-    "a_DE_ship": [
-      "Vos",
-      "Dagon Fel",
-      "Sadrith Mora",
-      "Ebonheart",
-      "Fort Frostmoth",
-      "Nivalis",
-      "Bal Oyra",
-      "Necrom, Waterfront",
-      "Gorne",
-      "Firewatch",
-      "Helnim",
-      "Old Ebonheart, Docks",
-      "Andothren, Docks",
-      "Almas Thirr"
-    ]
-  },
+  "override_mount": [
+    {
+      "id": "a_longboat",
+      "points": [
+        "Vos",
+        "Firewatch"
+      ]
+    },
+    {
+      "id": "a_longboat",
+      "points": [
+        "Sadrith Mora",
+        "Tel Aruhn",
+        "Helnim"
+      ]
+    },
+    {
+      "id": "a_DE_ship",
+      "points": [
+        "Vos",
+        "Sadrith Mora",
+        "Dagon Fel",
+        "Tel Branora",
+        "Ebonheart",
+        "Fort Frostmoth",
+        "Nivalis",
+        "Bal Oyra",
+        "Necrom, Waterfront",
+        "Gorne",
+        "Firewatch",
+        "Helnim",
+        "Old Ebonheart, Docks",
+        "Andothren, Docks",
+        "Almas Thirr"
+      ]
+    }
+  ],
   "ground_offset": 0
 }

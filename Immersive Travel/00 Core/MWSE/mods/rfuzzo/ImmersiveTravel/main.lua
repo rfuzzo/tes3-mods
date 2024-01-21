@@ -497,9 +497,9 @@ local function startTravel(start, destination, service, guide)
     local mountId = service.mount
     -- override mounts 
     if service.override_mount then
-        for key, value in pairs(service.override_mount) do
-            if common.is_in(value, start) and common.is_in(value, destination) then
-                mountId = key
+        for _, o in ipairs(service.override_mount) do
+            if common.is_in(o.points, start) and common.is_in(o.points, destination) then
+                mountId = o.id
                 break
             end
         end
