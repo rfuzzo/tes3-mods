@@ -455,7 +455,7 @@ local function createEditWindow()
         local m = tes3ui.findMenu(editMenuId)
         if (m) then
             if #editorData.editorMarkers > 1 then
-                local position = editorData.editorMarkers[1].translation
+                local position = editorData.editorMarkers[1].translation + tes3vector3.new(0, 0, 500)
                 tes3.positionCell({
                     reference = tes3.mobilePlayer,
                     position = position
