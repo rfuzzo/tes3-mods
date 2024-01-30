@@ -47,14 +47,14 @@ local log = logger.new {
 ---@field position PositionRecord slot
 ---@field animationGroup string?
 ---@field animationFile string?
----@field reference tes3reference?
+---@field handle mwseSafeObjectHandle?
 ---@field node niNode?
 
 ---@class Clutter
 ---@field position PositionRecord slot
 ---@field id string? reference id
 ---@field mesh string? reference id
----@field reference tes3reference?
+---@field handle mwseSafeObjectHandle?
 ---@field node niNode?
 
 ---@class MountData
@@ -214,17 +214,30 @@ local function cleanup()
         tes3.removeSound({ sound = mountData.sound, reference = mount })
 
         -- guide
-        if mountData.guideSlot.reference then
-            mountData.guideSlot.reference:delete()
-            mountData.guideSlot.reference = nil
+        if mountData.guideSlot.handle and mountData.guideSlot.handle:valid() then
+            mountData.guideSlot.handle:getObject():delete()
+            mountData.guideSlot.handle = nil
+        end
+
+        -- passengers
+        for index, slot in ipairs(mountData.slots) do
+            if slot.handle and slot.handle:valid() then
+                local ref = slot.handle:getObject()
+                if ref.mobile then
+                    if not isFollower(ref.mobile) and slot.handle:getObject() ~= tes3.player then
+                        ref:delete()
+                        slot.handle = nil
+                    end
+                end
+            end
         end
 
         -- statics
         if mountData.clutter then
-            for index, slot in ipairs(mountData.clutter) do
-                if slot.reference then
-                    slot.reference:delete()
-                    slot.reference = nil
+            for index, clutter in ipairs(mountData.clutter) do
+                if clutter.handle and clutter.handle:valid() then
+                    clutter.handle:getObject():delete()
+                    clutter.handle = nil
                 end
             end
         end
@@ -241,36 +254,40 @@ local function cleanup()
 end
 
 ---@param data MountData
----@param reference tes3reference
-local function registerGuide(data, reference)
-    data.guideSlot.reference = reference
-    -- tcl
-    reference.mobile.movementCollision = false;
+---@param handle mwseSafeObjectHandle|nil
+local function registerGuide(data, handle)
+    if handle and handle:valid() then
+        data.guideSlot.handle = handle
+        -- tcl
+        local reference = handle:getObject()
+        reference.mobile.movementCollision = false;
 
-    -- play animation
-    local slot = data.guideSlot
-    tes3.loadAnimation({ reference = reference })
-    if slot.animationFile then
-        tes3.loadAnimation({ reference = reference, file = slot.animationFile })
-    end
-    local group = tes3.animationGroup.idle5
-    if slot.animationGroup then
-        group = tes3.animationGroup[slot.animationGroup]
-    end
-    tes3.playAnimation({ reference = reference, group = group })
+        -- play animation
+        local slot = data.guideSlot
+        tes3.loadAnimation({ reference = reference })
+        if slot.animationFile then
+            tes3.loadAnimation({ reference = reference, file = slot.animationFile })
+        end
+        local group = tes3.animationGroup.idle5
+        if slot.animationGroup then
+            group = tes3.animationGroup[slot.animationGroup]
+        end
+        tes3.playAnimation({ reference = reference, group = group })
 
-    log:debug("registered " .. reference.id .. " in guide slot")
+        log:debug("registered " .. reference.id .. " in guide slot")
+    end
 end
 
 ---@param data MountData
----@param reference tes3reference|nil
+---@param handle mwseSafeObjectHandle|nil
 ---@param idx integer
-local function registerInSlot(data, reference, idx)
-    data.slots[idx].reference = reference
-    -- play animation
-    if reference then
-        local slot = data.slots[idx]
+local function registerInSlot(data, handle, idx)
+    data.slots[idx].handle = handle
 
+    -- play animation
+    if handle and handle:valid() then
+        local slot = data.slots[idx]
+        local reference = handle:getObject()
         tes3.loadAnimation({ reference = reference })
         if slot.animationFile then
             tes3.loadAnimation({
@@ -292,20 +309,42 @@ end
 ---@return integer|nil index
 local function getFirstFreeSlot(data)
     for index, value in ipairs(data.slots) do
-        if value.reference == nil then return index end
+        if value.handle == nil then return index end
     end
     return nil
 end
 
 ---@param data MountData
----@param reference tes3reference
-local function registerRef(data, reference)
-    -- get first free slot
-    local i = getFirstFreeSlot(data)
-    if not i then return end
+---@return integer|nil index
+local function getRandomFreeSlotIdx(data)
+    local nilIndices = {}
 
-    reference.mobile.movementCollision = false;
-    registerInSlot(data, reference, i)
+    -- Collect indices of nil entries
+    for index, value in ipairs(data.slots) do
+        if value.handle == nil then
+            table.insert(nilIndices, index)
+        end
+    end
+
+    -- Check if there are nil entries
+    if #nilIndices > 0 then
+        local randomIndex = math.random(1, #nilIndices)
+        return nilIndices[randomIndex]
+    else
+        return nil -- No nil entries found
+    end
+end
+
+---@param data MountData
+---@param handle mwseSafeObjectHandle|nil
+local function registerRefInRandomSlot(data, handle)
+    if handle and handle:valid() then
+        local i = getRandomFreeSlotIdx(data)
+        if not i then return end
+
+        handle:getObject().mobile.movementCollision = false;
+        registerInSlot(data, handle, i)
+    end
 end
 
 ---@param data MountData
@@ -315,7 +354,7 @@ local function incrementSlot(data)
 
     -- find index of next slot
     for index, slot in ipairs(data.slots) do
-        if slot.reference == tes3.player then
+        if slot.handle and slot.handle:getObject() == tes3.player then
             idx = index + 1
             if idx > #data.slots then idx = 1 end
             playerIdx = index
@@ -325,19 +364,21 @@ local function incrementSlot(data)
 
     -- register anew for anims
     if playerIdx and idx then
-        local tmp = data.slots[idx].reference
-        registerInSlot(data, tmp, playerIdx)
-        registerInSlot(data, tes3.player, idx)
+        local temp_handle = data.slots[idx].handle
+        registerInSlot(data, temp_handle, playerIdx)
+        registerInSlot(data, tes3.makeSafeObjectHandle(tes3.player), idx)
     end
 end
 
 ---@param data MountData
----@param reference tes3reference
+---@param handle mwseSafeObjectHandle|nil
 ---@param i integer
-local function registerStatic(data, reference, i)
-    data.clutter[i].reference = reference
+local function registerStatic(data, handle, i)
+    data.clutter[i].handle = handle
 
-    log:debug("registered " .. reference.id .. " in static slot " .. tostring(i))
+    if handle and handle:valid() then
+        log:debug("registered " .. handle:getObject().id .. " in static slot " .. tostring(i))
+    end
 end
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
@@ -449,20 +490,20 @@ local function onTimerTick()
             common.toWorld(vec(mountData.guideSlot.position),
                 mount.orientation)
         tes3.positionCell({
-            reference = mountData.guideSlot.reference,
+            reference = mountData.guideSlot.handle:getObject(),
             position = guidePos
         })
-        mountData.guideSlot.reference.facing = mount.facing
+        mountData.guideSlot.handle:getObject().facing = mount.facing
 
         -- position references in slots
         for index, slot in ipairs(mountData.slots) do
-            if slot.reference then
+            if slot.handle and slot.handle:valid() then
                 local refpos = mount.position +
                     common.toWorld(vec(slot.position),
                         mount.orientation)
-                slot.reference.position = refpos
-                if slot.reference ~= tes3.player then
-                    slot.reference.facing = mount.facing
+                slot.handle:getObject().position = refpos
+                if slot.handle:getObject() ~= tes3.player then
+                    slot.handle:getObject().facing = mount.facing
                 end
             end
         end
@@ -470,11 +511,11 @@ local function onTimerTick()
         -- statics
         if mountData.clutter then
             for index, slot in ipairs(mountData.clutter) do
-                if slot.reference then
+                if slot.handle and slot.handle:valid() then
                     local refpos = mount.position +
                         common.toWorld(vec(slot.position),
                             mount.orientation)
-                    slot.reference.position = refpos
+                    slot.handle:getObject().position = refpos
                 end
             end
         end
@@ -497,6 +538,31 @@ local function onTimerTick()
             end)
         })
     end
+end
+
+local function getRandomActorsInCell(N)
+    -- get all actors
+    local t = {} ---@type string[]
+    local cells = tes3.getActiveCells()
+    for _index, cell in ipairs(cells) do
+        local references = referenceListToTable(cell.actors)
+        for _, r in ipairs(references) do
+            if r.baseObject.objectType == tes3.objectType.npc then
+                if not common.is_in(t, r.baseObject.id) then
+                    table.insert(t, r.baseObject.id)
+                end
+            end
+        end
+    end
+
+    -- get random pick
+    local result = {}
+    for i = 1, N do
+        local randomIndex = math.random(1, #t)
+        table.insert(result, t[randomIndex])
+    end
+
+    return result
 end
 
 --- set up everything
@@ -576,7 +642,8 @@ local function startTravel(start, destination, service, guide)
             -- register refs in slots
             tes3.player.position = startPos + mountOffset
             tes3.player.facing = new_facing
-            registerRef(mountData, tes3.player)
+            log:debug("register player")
+            registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(tes3.player))
 
             -- duplicate guide
             local guide2 = tes3.createReference {
@@ -585,13 +652,30 @@ local function startTravel(start, destination, service, guide)
                 orientation = mount.orientation
             }
             guide2.mobile.hello = 0
-            registerGuide(mountData, guide2)
+            log:debug("register guide")
+            registerGuide(mountData, tes3.makeSafeObjectHandle(guide2))
 
             -- followers
+            log:debug("register followers")
             local followers = getFollowers()
             for index, follower in ipairs(followers) do
-                registerRef(mountData, follower)
+                registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(follower))
             end
+
+            -- register a random number of passengers
+            local n = math.random(#mountData.slots - 2);
+            log:debug("try register " .. n .. " / " .. #mountData.slots .. " passengers")
+            local actors = getRandomActorsInCell(n)
+            for _i, value in ipairs(actors) do
+                local passenger = tes3.createReference {
+                    object = value,
+                    position = startPos + mountOffset,
+                    orientation = mount.orientation
+                }
+                local refHandle = tes3.makeSafeObjectHandle(passenger)
+                registerRefInRandomSlot(mountData, refHandle)
+            end
+
 
             -- statics
             if mountData.clutter then
@@ -604,7 +688,7 @@ local function startTravel(start, destination, service, guide)
                             orientation = mount.orientation
                         }
                         -- register
-                        registerStatic(mountData, inst, index)
+                        registerStatic(mountData, tes3.makeSafeObjectHandle(inst), index)
                     end
                 end
             end
@@ -762,8 +846,10 @@ local function activateCallback(e)
     if mount == nil then return; end
     if mountData == nil then return; end
     if myTimer == nil then return; end
+    if mountData.guideSlot.handle == nil then return; end
+    if not mountData.guideSlot.handle:valid() then return; end
 
-    if e.target.id == mountData.guideSlot.reference.id then return false end
+    if e.target.id == mountData.guideSlot.handle:getObject().id then return false end
     if e.target.id == mount.id then return false end
 end
 event.register(tes3.event.activate, activateCallback)
@@ -775,8 +861,10 @@ local function uiObjectTooltipCallback(e)
     if mount == nil then return; end
     if myTimer == nil then return; end
     if mountData == nil then return; end
+    if mountData.guideSlot.handle == nil then return; end
+    if not mountData.guideSlot.handle:valid() then return; end
 
-    if e.object.id == mountData.guideSlot.reference.id then
+    if e.object.id == mountData.guideSlot.handle:getObject().id then
         e.tooltip.visible = false
         return false
     end
@@ -846,6 +934,15 @@ local function keyDownCallback(e)
     end
 end
 event.register(tes3.event.keyDown, keyDownCallback)
+
+-- always allow resting on a mount
+--- @param e preventRestEventData
+local function preventRestCallback(e)
+    if isTraveling and currentSpline then
+        return false
+    end
+end
+event.register(tes3.event.preventRest, preventRestCallback)
 
 --- @param e uiShowRestMenuEventData
 local function uiShowRestMenuCallback(e)

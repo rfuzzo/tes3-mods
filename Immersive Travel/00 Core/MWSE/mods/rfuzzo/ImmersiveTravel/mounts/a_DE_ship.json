@@ -20,6 +20,7 @@
   ],
   "slots": [
     {
+      "animationGroup": "idle2",
       "position": {
         "x": 0,
         "y": 438,
@@ -27,6 +28,7 @@
       }
     },
     {
+      "animationGroup": "idle3",
       "position": {
         "x": 0,
         "y": 29,
@@ -34,6 +36,7 @@
       }
     },
     {
+      "animationGroup": "idle4",
       "position": {
         "x": -181,
         "y": 139,
@@ -41,6 +44,7 @@
       }
     },
     {
+      "animationGroup": "idle5",
       "position": {
         "x": 181,
         "y": -139,
@@ -48,6 +52,7 @@
       }
     },
     {
+      "animationGroup": "idle6",
       "position": {
         "x": 115,
         "y": -466,
