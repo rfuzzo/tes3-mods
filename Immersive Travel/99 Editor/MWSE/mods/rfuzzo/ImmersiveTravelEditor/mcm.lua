@@ -44,6 +44,16 @@ local function registerModConfig()
         variable = mwse.mcm.createTableVariable {id = "grain", table = config}
     })
 
+    generalCategory:createSlider({
+        label = "Editor resolution max",
+        description = "Editor resolution, the higher longer the load time",
+        min = 1,
+        max = 100,
+        step = 1,
+        jump = 10,
+        variable = mwse.mcm.createTableVariable {id = "tracemax", table = config}
+    })
+
     generalCategory:createKeyBinder({
         label = "Open Editor Keybind",
         description = "Assign a new keybind.",

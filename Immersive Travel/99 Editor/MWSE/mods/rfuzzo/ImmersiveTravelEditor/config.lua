@@ -6,6 +6,7 @@ local defaultConfig = {
     -- configs
     logLevel = "INFO",
     grain = 20,
+    tracemax = 6,
     traceOnSave = true,
     -- keybinds
     placekeybind = {keyCode = tes3.scanCode["keyRight"]},

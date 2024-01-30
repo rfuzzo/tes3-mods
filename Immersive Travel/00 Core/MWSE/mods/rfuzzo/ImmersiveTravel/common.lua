@@ -160,11 +160,12 @@ function this.loadServices()
     for fileName in lfs.dir(fullmodpath .. "services") do
         if (string.endswith(fileName, ".json")) then
             -- parse
-            local r = json.loadfile(localmodpath .. "services\\" .. fileName)
+            local fullpath = localmodpath .. "services\\" .. fileName
+            local r = json.loadfile(fullpath)
             if r then
                 services[fileName:sub(0, -6)] = r
 
-                log:debug("Loaded " .. fileName)
+                log:debug("Loaded " .. fullpath)
             else
                 log:error("!!! failed to load " .. fileName)
             end

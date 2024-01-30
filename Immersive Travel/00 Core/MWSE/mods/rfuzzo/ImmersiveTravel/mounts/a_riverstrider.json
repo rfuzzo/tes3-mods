@@ -1,6 +1,5 @@
 {
   "sound": "T_SndCrea_Riverstrider1",
-  "mesh": "tr\\cr\\a_riverstrider_rot.nif",
   "offset": 74,
   "sway": 4,
   "speed": 4,

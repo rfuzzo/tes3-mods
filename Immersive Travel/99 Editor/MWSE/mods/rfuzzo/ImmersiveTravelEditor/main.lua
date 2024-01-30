@@ -6,7 +6,8 @@ by rfuzzo
 mwse real-time travel mod
 
 
---]] -- 
+--]]
+--
 local common = require("rfuzzo.ImmersiveTravel.common")
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
@@ -46,6 +47,7 @@ local editMenuPrintId = tes3ui.registerID("it:MenuEdit_Print")
 local editMenuModeId = tes3ui.registerID("it:MenuEdit_Mode")
 local editMenuCancelId = tes3ui.registerID("it:MenuEdit_Cancel")
 local editMenuTeleportId = tes3ui.registerID("it:MenuEdit_Teleport")
+local editMenuSearchId = tes3ui.registerID("it:MenuEdit_Search")
 
 local editorMarkerId = "marker_arrow.nif"
 local editorMarkerMesh = nil
@@ -58,14 +60,14 @@ local editorData = nil
 local editmode = false
 
 -- tracing
-local eN = 6000
+local filter_text = ""
 local arrows = {}
 local arrow = nil
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// FUNCTIONS
 
---- 
+---
 ---@param data MountData
 ---@param startPoint tes3vector3
 ---@param nextPoint tes3vector3
@@ -193,6 +195,10 @@ local function cleanup()
     editorData = nil
 end
 
+local last_position = nil ---@type tes3vector3|nil
+local last_forwardDirection = nil ---@type tes3vector3|nil
+local last_facing = nil ---@type number|nil
+
 ---comment
 ---@param startpos tes3vector3
 ---@param mountData MountData
@@ -201,27 +207,30 @@ local function calculatePositions(startpos, mountData)
     if not editorData.editorMarkers then return end
 
     editorData.splineIndex = 2
+    last_position = editorData.mount.position
+    last_forwardDirection = editorData.mount.forwardDirection
+    last_facing = editorData.mount.facing
 
     -- local positions = {} ---@type tes3vector3[]
     arrows = {}
     -- table.insert(positions, 1, startpos)
 
-    for idx = 1, eN, 1 do
+    for idx = 1, config.tracemax * 1000, 1 do
         if editorData.splineIndex <= #editorData.editorMarkers then
             local mountOffset = tes3vector3.new(0, 0, mountData.offset)
             local point = editorData.editorMarkers[editorData.splineIndex]
-                              .translation
+                .translation
             local nextPos = tes3vector3.new(point.x, point.y, point.z)
-            local currentPos = editorData.mount.position - mountOffset
+            local currentPos = last_position - mountOffset
 
-            local v = editorData.mount.forwardDirection
+            local forwardDirection = last_forwardDirection
             -- if idx > 1 then v = currentPos - positions[idx - 1] end
-            v:normalize()
+            forwardDirection:normalize()
             local d = (nextPos - currentPos):normalized()
-            local lerp = v:lerp(d, mountData.turnspeed / 10):normalized()
+            local lerp = forwardDirection:lerp(d, mountData.turnspeed / 10):normalized()
 
             -- calculate heading
-            local current_facing = editorData.mount.facing
+            local current_facing = last_facing
             local new_facing = math.atan2(d.x, d.y)
             local facing = new_facing
             local diff = new_facing - current_facing
@@ -236,25 +245,33 @@ local function calculatePositions(startpos, mountData)
                 facing = new_facing
             end
             editorData.mount.facing = facing
-            local f = tes3vector3.new(editorData.mount.forwardDirection.x,
-                                      editorData.mount.forwardDirection.y,
-                                      lerp.z):normalized()
-            local delta = f * mountData.speed * config.grain
+
+            -- calculate position
+            local forward = tes3vector3.new(editorData.mount.forwardDirection.x,
+                editorData.mount.forwardDirection.y,
+                lerp.z):normalized()
+            local delta = forward * mountData.speed * config.grain
             local mountPosition = currentPos + delta + mountOffset
             editorData.mount.position = mountPosition
+
+            -- save
+            last_position = editorData.mount.position
+            last_forwardDirection = editorData.mount.forwardDirection
+            last_facing = editorData.mount.facing
+
 
             -- draw vfx lines
             if arrow then
                 local child = arrow:clone()
                 child.translation = mountPosition - mountOffset
                 child.appCulled = false
-                child.rotation = common.rotationFromDirection(f)
+                child.rotation = common.rotationFromDirection(forward)
                 table.insert(arrows, child)
             end
 
             -- move to next marker
             local isBehind = common.isPointBehindObject(nextPos, mountPosition,
-                                                        f)
+                forward)
             if isBehind then
                 editorData.splineIndex = editorData.splineIndex + 1
             end
@@ -277,7 +294,7 @@ local function traceRoute(service)
     log:debug("Tracing " .. editorData.start .. " > " .. editorData.destination)
 
     arrow = tes3.loadMesh("mwse\\arrow.nif"):getObjectByName("unitArrow")
-                :clone()
+        :clone()
     arrow.scale = 40
     local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
     for index, value in ipairs(arrows) do vfxRoot:detachChild(value) end
@@ -285,12 +302,12 @@ local function traceRoute(service)
     -- trace the route
     local start_point = editorData.editorMarkers[1].translation
     local start_pos = tes3vector3.new(start_point.x, start_point.y,
-                                      start_point.z)
+        start_point.z)
     local next_point = editorData.editorMarkers[2].translation
 
     -- create mount
     local mountId = service.mount
-    -- override mounts 
+    -- override mounts
     if service.override_mount then
         for _, o in ipairs(service.override_mount) do
             if common.is_in(o.points, editorData.start) and common.is_in(o.points, editorData.destination) then
@@ -347,23 +364,45 @@ local function createEditWindow()
     menu.height = 500
     if editorData then
         menu.text = "Editor " .. editorData.start .. "_" ..
-                        editorData.destination
+            editorData.destination
     else
         menu.text = "Editor"
     end
 
+    local input = menu:createTextInput { text = filter_text, id = editMenuSearchId }
+    input.widget.lengthLimit = 31
+    input.widget.eraseOnFirstKey = true
+    input:register(tes3.uiEvent.keyEnter, function()
+        local m = tes3ui.findMenu(editMenuId)
+        if (m) then
+            local text = menu:findChild(editMenuSearchId).text
+            filter_text = text
+            cleanup()
+            m:destroy()
+            createEditWindow()
+        end
+    end)
+
     -- Create layout
-    local label = menu:createLabel{text = "Loaded routes"}
+    local label = menu:createLabel { text = "Loaded routes (" .. currentServiceName .. ")" }
     label.borderBottom = 5
 
     -- get destinations
     local destinations = service.routes
     if destinations then
-        local pane = menu:createVerticalScrollPane{id = "sortedPane"}
+        local pane = menu:createVerticalScrollPane { id = "sortedPane" }
         for _i, start in ipairs(table.keys(destinations)) do
             for _j, destination in ipairs(destinations[start]) do
+                -- filter
+                local filter = filter_text:lower()
+                if filter_text ~= "" then
+                    if (not string.find(start:lower(), filter) and not string.find(destination:lower(), filter)) then
+                        goto continue
+                    end
+                end
+
                 local text = start .. " - " .. destination
-                local button = pane:createButton{
+                local button = pane:createButton {
                     id = "button_spline" .. text,
                     text = text
                 }
@@ -382,14 +421,15 @@ local function createEditWindow()
                     local spline =
                         common.loadSpline(start, destination, service)
                     tes3.messageBox("loaded spline: " .. start .. " -> " ..
-                                        destination)
+                        destination)
 
                     renderMarkers(spline)
                     if config.traceOnSave then
                         traceRoute(service)
                     end
-
                 end)
+
+                ::continue::
             end
         end
         pane:getContentElement():sortChildren(function(a, b)
@@ -397,28 +437,28 @@ local function createEditWindow()
         end)
     end
 
-    local button_block = menu:createBlock{}
+    local button_block = menu:createBlock {}
     button_block.widthProportional = 1.0 -- width is 100% parent width
     button_block.autoHeight = true
-    button_block.childAlignX = 1.0 -- right content alignment
+    button_block.childAlignX = 1.0       -- right content alignment
 
-    local button_mode = button_block:createButton{
+    local button_mode = button_block:createButton {
         id = editMenuModeId,
         text = currentServiceName
     }
-    local button_teleport = button_block:createButton{
+    local button_teleport = button_block:createButton {
         id = editMenuTeleportId,
         text = "Teleport"
     }
-    local button_save = button_block:createButton{
+    local button_save = button_block:createButton {
         id = editMenuSaveId,
         text = "Save"
     }
-    local button_print = button_block:createButton{
+    local button_print = button_block:createButton {
         id = editMenuPrintId,
         text = "Print"
     }
-    local button_cancel = button_block:createButton{
+    local button_cancel = button_block:createButton {
         id = editMenuCancelId,
         text = "Exit"
     }
@@ -426,7 +466,7 @@ local function createEditWindow()
     button_mode:register(tes3.uiEvent.mouseClick, function()
         local m = tes3ui.findMenu(editMenuId)
         if (m) then
-            -- go to next 
+            -- go to next
             local idx = table.find(table.keys(services), currentServiceName)
             local nextIdx = idx + 1
             if nextIdx > #table.keys(services) then nextIdx = 1 end
@@ -434,7 +474,6 @@ local function createEditWindow()
 
             cleanup()
             m:destroy()
-
             createEditWindow()
         end
     end)
@@ -442,7 +481,6 @@ local function createEditWindow()
     button_cancel:register(tes3.uiEvent.mouseClick, function()
         local m = tes3ui.findMenu(editMenuId)
         if (m) then
-
             tes3ui.leaveMenuMode()
             m:destroy()
         end
@@ -474,15 +512,15 @@ local function createEditWindow()
 
         -- print to log
         local current_editor_route = editorData.start .. "_" ..
-                                         editorData.destination
+            editorData.destination
         mwse.log("============================================")
         mwse.log(current_editor_route)
         mwse.log("============================================")
         for i, value in ipairs(editorData.editorMarkers) do
             local t = value.translation
             mwse.log("{ \"x\": " .. math.round(t.x) .. ", \"y\": " ..
-                         math.round(t.y) .. ", \"z\": " .. math.round(t.z) ..
-                         " },")
+                math.round(t.y) .. ", \"z\": " .. math.round(t.z) ..
+                " },")
         end
         mwse.log("============================================")
         tes3.messageBox("printed spline: " .. current_editor_route)
@@ -503,20 +541,20 @@ local function createEditWindow()
                 y = math.round(t.y),
                 z = math.round(t.z)
             })
-
         end
 
         -- save to file
         local current_editor_route = editorData.start .. "_" ..
-                                         editorData.destination
+            editorData.destination
         local filename = common.localmodpath .. service.class .. "\\" ..
-                             current_editor_route
+            current_editor_route
         json.savefile(filename, tempSpline)
 
         tes3.messageBox("saved spline: " .. current_editor_route)
     end)
 
     -- Final setup
+    tes3ui.acquireTextInput(input)
     menu:updateLayout()
     tes3ui.enterMenuMode(editMenuId)
 end
@@ -565,7 +603,7 @@ local function editor_keyDownCallback(e)
         local child = editorMarkerMesh:clone()
 
         local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() *
-                         256
+            256
 
         child.translation = tes3vector3.new(from.x, from.y, from.z)
         child.appCulled = false
@@ -616,7 +654,6 @@ local function editor_keyDownCallback(e)
     if e.keyCode == config.tracekeybind.keyCode then
         if editorData then traceRoute(editorData.service) end
     end
-
 end
 event.register(tes3.event.keyDown, editor_keyDownCallback)
 
