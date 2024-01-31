@@ -5,9 +5,6 @@ by rfuzzo
 
 mwse real-time travel mod
 
-TODO
--
-
 --]]
 --
 local common = require("rfuzzo.ImmersiveTravel.common")
@@ -96,6 +93,8 @@ local last_position = nil ---@type tes3vector3|nil
 local last_forwardDirection = nil ---@type tes3vector3|nil
 local last_facing = nil ---@type number|nil
 local last_sway = 0 ---@type number
+
+local free_movement = false
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// FUNCTIONS
@@ -452,8 +451,7 @@ local function onTimerTick()
         local forward = tes3vector3.new(mount.forwardDirection.x,
             mount.forwardDirection.y, lerp.z):normalized()
         local delta = forward * mountData.speed
-        local mountPosition = currentPos + delta + mountOffset
-        mount.position = mountPosition
+        mount.position = currentPos + delta + mountOffset
 
         -- save
         last_position = mount.position
@@ -486,6 +484,16 @@ local function onTimerTick()
             tes3vector3.new(0.0, sway, 0.0),
             mount.orientation)
         mount.orientation = worldOrientation
+
+        if free_movement then
+            -- this is needed to enable collisions :todd:
+            tes3.dataHandler:updateCollisionGroupsForActiveCells {}
+            -- todo account for sway
+            -- tes3.mobilePlayer.position = tes3.mobilePlayer.position + delta
+            tes3.mobilePlayer.position = tes3.mobilePlayer.position + common.toWorldOrientation(
+                delta,
+                mount.orientation)
+        end
 
         -- guide
         local guidePos = mount.position +
@@ -642,10 +650,15 @@ local function startTravel(start, destination, service, guide)
             mount.facing = new_facing
 
             -- register refs in slots
-            tes3.player.position = startPos + mountOffset
+            if config.freemovement then
+                tes3.player.position = mount.position +
+                    common.toWorld(vec(mountData.slots[1].position), mount.orientation)
+            else
+                log:debug("register player")
+                tes3.player.position = startPos + mountOffset
+                registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(tes3.player))
+            end
             tes3.player.facing = new_facing
-            log:debug("register player")
-            registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(tes3.player))
 
             -- duplicate guide
             local guide2 = tes3.createReference {
@@ -696,6 +709,7 @@ local function startTravel(start, destination, service, guide)
             end
 
             -- start timer
+            free_movement = config.freemovement
             last_position = mount.position
             last_forwardDirection = mount.forwardDirection
             last_facing = mount.facing
@@ -931,11 +945,13 @@ event.register("uiActivated", onMenuDialog, { filter = "MenuDialog" })
 --- @param e keyDownEventData
 local function keyDownCallback(e)
     -- move
-    if e.keyCode == tes3.scanCode["w"] or
-        e.keyCode == tes3.scanCode["a"] or
-        e.keyCode == tes3.scanCode["s"] or
-        e.keyCode == tes3.scanCode["d"] then
-        if isTraveling and mountData then incrementSlot(mountData) end
+    if not free_movement and isTraveling and mountData then
+        if e.keyCode == tes3.scanCode["w"] or
+            e.keyCode == tes3.scanCode["a"] or
+            e.keyCode == tes3.scanCode["s"] or
+            e.keyCode == tes3.scanCode["d"] then
+            incrementSlot(mountData)
+        end
     end
 end
 event.register(tes3.event.keyDown, keyDownCallback)
@@ -1024,5 +1040,3 @@ require("rfuzzo.ImmersiveTravel.mcm")
 -- idle4 ... crossed legs
 -- idle5 ... hugging legs
 -- idle6 ... sitting
-
--- TODO if sitting: fixed facing?

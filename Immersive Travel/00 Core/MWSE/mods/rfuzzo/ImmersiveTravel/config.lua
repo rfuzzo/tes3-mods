@@ -4,6 +4,7 @@ local defaultConfig = {
     version = 1.0,
     author = "rfuzzo",
     -- configs
+    freemovement = true,
     logLevel = "INFO"
 }
 

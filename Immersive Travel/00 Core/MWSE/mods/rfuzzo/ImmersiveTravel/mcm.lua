@@ -8,23 +8,32 @@ local function registerModConfig()
     local template = mwse.mcm.createTemplate(config.mod)
     template:saveOnClose("ImmersiveTravel", config)
 
-    local page = template:createSideBarPage({label = "Settings"})
-    page.sidebar:createInfo{
+    local page = template:createSideBarPage({ label = "Settings" })
+    page.sidebar:createInfo {
         text = ("%s v%.1f\n\nBy %s"):format(config.mod, config.version,
-                                            config.author)
+            config.author)
     }
 
     local settingsPage = page:createCategory("Settings")
     local generalCategory = settingsPage:createCategory("General")
 
-    generalCategory:createDropdown{
+    generalCategory:createOnOffButton({
+        label = "Free movement",
+        description = "Allow free movement while on a mount.",
+        variable = mwse.mcm.createTableVariable {
+            id = "freemovement",
+            table = config
+        }
+    })
+
+    generalCategory:createDropdown {
         label = "Logging Level",
         description = "Set the log level.",
         options = {
-            {label = "TRACE", value = "TRACE"},
-            {label = "DEBUG", value = "DEBUG"},
-            {label = "INFO", value = "INFO"}, {label = "WARN", value = "WARN"},
-            {label = "ERROR", value = "ERROR"}, {label = "NONE", value = "NONE"}
+            { label = "TRACE", value = "TRACE" },
+            { label = "DEBUG", value = "DEBUG" },
+            { label = "INFO",  value = "INFO" }, { label = "WARN", value = "WARN" },
+            { label = "ERROR", value = "ERROR" }, { label = "NONE", value = "NONE" }
         },
         variable = mwse.mcm.createTableVariable {
             id = "logLevel",
@@ -36,7 +45,6 @@ local function registerModConfig()
     }
 
     template:register()
-
 end
 
 event.register("modConfigReady", registerModConfig)
