@@ -5,6 +5,8 @@ by rfuzzo
 
 mwse real-time travel mod
 
+TODO
+-
 
 --]]
 --
@@ -663,7 +665,7 @@ local function startTravel(start, destination, service, guide)
             end
 
             -- register a random number of passengers
-            local n = math.random(#mountData.slots - 2);
+            local n = math.random(math.max(1, #mountData.slots - 2));
             log:debug("try register " .. n .. " / " .. #mountData.slots .. " passengers")
             local actors = getRandomActorsInCell(n)
             for _i, value in ipairs(actors) do
@@ -929,13 +931,26 @@ event.register("uiActivated", onMenuDialog, { filter = "MenuDialog" })
 --- @param e keyDownEventData
 local function keyDownCallback(e)
     -- move
-    if e.keyCode == tes3.scanCode["w"] then
+    if e.keyCode == tes3.scanCode["w"] or
+        e.keyCode == tes3.scanCode["a"] or
+        e.keyCode == tes3.scanCode["s"] or
+        e.keyCode == tes3.scanCode["d"] then
         if isTraveling and mountData then incrementSlot(mountData) end
     end
 end
 event.register(tes3.event.keyDown, keyDownCallback)
 
--- always allow resting on a mount
+-- prevent saving while travelling
+--- @param e saveEventData
+local function saveCallback(e)
+    if isTraveling and currentSpline then
+        tes3.messageBox("You cannot save the game while travelling")
+        return false
+    end
+end
+event.register(tes3.event.save, saveCallback)
+
+-- always allow resting on a mount even with enemies near
 --- @param e preventRestEventData
 local function preventRestCallback(e)
     if isTraveling and currentSpline then
