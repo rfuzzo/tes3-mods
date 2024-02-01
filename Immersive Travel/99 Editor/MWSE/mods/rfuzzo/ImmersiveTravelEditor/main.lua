@@ -622,11 +622,13 @@ local function editor_keyDownCallback(e)
     -- marker edit mode
     if e.keyCode == config.editkeybind.keyCode then
         local idx = getClosestMarkerIdx()
-        editmode = not editmode
-        tes3.messageBox("Marker index: " .. idx)
-        if not editmode then
-            if editorData and config.traceOnSave then
-                traceRoute(editorData.service)
+        if idx then
+            editmode = not editmode
+            tes3.messageBox("Marker index: " .. idx)
+            if not editmode then
+                if editorData and config.traceOnSave then
+                    traceRoute(editorData.service)
+                end
             end
         end
     end
@@ -637,16 +639,17 @@ local function editor_keyDownCallback(e)
         if not editorData.editorMarkers then return end
 
         local idx = getClosestMarkerIdx()
+        if idx then
+            local instance = editorData.editorMarkers[idx]
+            local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+            vfxRoot:detachChild(instance)
+            vfxRoot:update()
 
-        local instance = editorData.editorMarkers[idx]
-        local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-        vfxRoot:detachChild(instance)
-        vfxRoot:update()
+            table.remove(editorData.editorMarkers, idx)
 
-        table.remove(editorData.editorMarkers, idx)
-
-        if editorData and config.traceOnSave then
-            traceRoute(editorData.service)
+            if editorData and config.traceOnSave then
+                traceRoute(editorData.service)
+            end
         end
     end
 

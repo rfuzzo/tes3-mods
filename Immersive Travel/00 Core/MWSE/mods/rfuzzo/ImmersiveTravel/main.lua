@@ -83,10 +83,9 @@ local timertick = 0.01
 local myTimer = nil ---@type mwseTimer | nil
 
 local mount = nil ---@type tes3reference | nil
-local isTraveling = false
 local splineIndex = 2
 local swayTime = 0
-local currentSpline = {} ---@type PositionRecord[]|nil
+local currentSpline = nil ---@type PositionRecord[]|nil
 local mountData = nil ---@type MountData|nil
 
 local last_position = nil ---@type tes3vector3|nil
@@ -98,6 +97,57 @@ local free_movement = false
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// FUNCTIONS
+
+
+---@return boolean
+local function isOnMount()
+    if not mount then
+        return false
+    end
+
+    if not mountData then
+        return false
+    end
+
+    local inside = true
+
+    local volumeHeight = 200
+
+    local bbox = mount.object.boundingBox
+
+    local pos = tes3.player.position
+    local surfaceOffset = mountData.slots[1].position.z
+    local mountSurface = mount.position + tes3vector3.new(0, 0, surfaceOffset)
+
+    if pos.z < (mountSurface.z - volumeHeight) then
+        inside = false
+    end
+    if pos.z > (mountSurface.z + volumeHeight) then
+        inside = false
+    end
+
+    local max_xy_d = tes3vector3.new(bbox.max.x, bbox.max.y, 0):length()
+    local min_xy_d = tes3vector3.new(bbox.min.x, bbox.min.y, 0):length()
+    local dist = mountSurface:distance(pos)
+
+    if dist > math.max(min_xy_d, max_xy_d) then
+        inside = false
+    end
+
+    return inside
+end
+
+local function isTraveling()
+    if not currentSpline then
+        return false
+    end
+
+    if not isOnMount() then
+        return false
+    end
+
+    return true
+end
 
 -- This function loops over the references inside the
 -- tes3referenceList and adds them to an array-style table
@@ -205,6 +255,7 @@ local function cleanup()
     last_position = nil
     last_forwardDirection = nil
     last_facing = nil
+    currentSpline = nil
     last_sway = 0
 
     -- cleanup
@@ -250,8 +301,6 @@ local function cleanup()
         mount:delete()
         mount = nil
     end
-
-    isTraveling = false
 end
 
 ---@param data MountData
@@ -386,14 +435,15 @@ end
 -- ////////////// TRAVEL
 
 local function destinationReached()
-    cleanup()
-
     -- reset player
-    tes3.mobilePlayer.movementCollision = true;
-    tes3.loadAnimation({ reference = tes3.player })
-    tes3.playAnimation({ reference = tes3.player, group = 0 })
+    if not free_movement then
+        tes3.mobilePlayer.movementCollision = true;
+        tes3.loadAnimation({ reference = tes3.player })
+        tes3.playAnimation({ reference = tes3.player, group = 0 })
+    end
 
     -- followers
+    -- TODO teleport followers?
     local followers = getFollowers()
     for index, follower in ipairs(followers) do
         follower.mobile.movementCollision = true;
@@ -401,15 +451,20 @@ local function destinationReached()
         tes3.playAnimation({ reference = follower, group = 0 })
     end
 
-    teleportToClosestMarker()
+    if isTraveling() then
+        teleportToClosestMarker()
+    end
+
+    cleanup()
 end
+
+
 
 local function onTimerTick()
     -- checks
     if mount == nil then return end
     if mountData == nil then return end
     if myTimer == nil then return end
-    if isTraveling == false then return end
     if currentSpline == nil then return end
 
     if last_position == nil then return end
@@ -485,14 +540,12 @@ local function onTimerTick()
             mount.orientation)
         mount.orientation = worldOrientation
 
-        if free_movement then
+        if free_movement and isOnMount() then
             -- this is needed to enable collisions :todd:
             tes3.dataHandler:updateCollisionGroupsForActiveCells {}
             -- todo account for sway
-            -- tes3.mobilePlayer.position = tes3.mobilePlayer.position + delta
-            tes3.mobilePlayer.position = tes3.mobilePlayer.position + common.toWorldOrientation(
-                delta,
-                mount.orientation)
+            local newPosition = tes3.mobilePlayer.position + delta
+            tes3.mobilePlayer.position = newPosition
         end
 
         -- guide
@@ -535,7 +588,6 @@ local function onTimerTick()
         if isBehind then splineIndex = splineIndex + 1 end
     else -- if i is at the end of the list
         tes3.fadeOut({ duration = 1 })
-        isTraveling = false
 
         timer.start({
             type = timer.simulate,
@@ -543,7 +595,6 @@ local function onTimerTick()
             duration = 1,
             callback = (function()
                 tes3.fadeIn({ duration = 1 })
-
                 destinationReached()
             end)
         })
@@ -650,11 +701,18 @@ local function startTravel(start, destination, service, guide)
             mount.facing = new_facing
 
             -- register refs in slots
+            log:debug("register player")
             if config.freemovement then
-                tes3.player.position = mount.position +
-                    common.toWorld(vec(mountData.slots[1].position), mount.orientation)
+                local slotIdx = getFirstFreeSlot(mountData)
+                if slotIdx then
+                    tes3.player.position = mount.position +
+                        common.toWorld(vec(mountData.slots[slotIdx].position), mount.orientation)
+                else
+                    -- fallback to slot 1
+                    tes3.player.position = mount.position +
+                        common.toWorld(vec(mountData.slots[1].position), mount.orientation)
+                end
             else
-                log:debug("register player")
                 tes3.player.position = startPos + mountOffset
                 registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(tes3.player))
             end
@@ -715,7 +773,6 @@ local function startTravel(start, destination, service, guide)
             last_facing = mount.facing
             last_sway = 0
             splineIndex = 2
-            isTraveling = true
             tes3.playSound({
                 sound = mountData.sound,
                 reference = mount,
@@ -851,29 +908,28 @@ end
 
 --- Disable combat while in travel
 --- @param e combatStartEventData
-local function forcedPacifism(e) if (isTraveling == true) then return false end end
+local function forcedPacifism(e) if (isTraveling()) then return false end end
 event.register(tes3.event.combatStart, forcedPacifism)
 
---- Disable activate of mount and guide while in travel
+--- Disable all activate while in travel
 --- @param e activateEventData
 local function activateCallback(e)
     if (e.activator ~= tes3.player) then return end
-    if not isTraveling then return end
+    if not isTraveling() then return end
     if mount == nil then return; end
     if mountData == nil then return; end
     if myTimer == nil then return; end
     if mountData.guideSlot.handle == nil then return; end
     if not mountData.guideSlot.handle:valid() then return; end
 
-    if e.target.id == mountData.guideSlot.handle:getObject().id then return false end
-    if e.target.id == mount.id then return false end
+    return false
 end
 event.register(tes3.event.activate, activateCallback)
 
 --- Disable tooltips of mount and guide while in travel
 --- @param e uiObjectTooltipEventData
 local function uiObjectTooltipCallback(e)
-    if not isTraveling then return end
+    if not isTraveling() then return end
     if mount == nil then return; end
     if myTimer == nil then return; end
     if mountData == nil then return; end
@@ -896,7 +952,7 @@ event.register(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
 local function loadCallback(e) cleanup() end
 event.register(tes3.event.load, loadCallback)
 
--- upon entering the dialog menu, create the hot tea button
+-- upon entering the dialog menu, create the travel menu
 ---@param e uiActivatedEventData
 local function onMenuDialog(e)
     local menuDialog = e.element
@@ -945,7 +1001,7 @@ event.register("uiActivated", onMenuDialog, { filter = "MenuDialog" })
 --- @param e keyDownEventData
 local function keyDownCallback(e)
     -- move
-    if not free_movement and isTraveling and mountData then
+    if not free_movement and isTraveling() then
         if e.keyCode == tes3.scanCode["w"] or
             e.keyCode == tes3.scanCode["a"] or
             e.keyCode == tes3.scanCode["s"] or
@@ -959,7 +1015,7 @@ event.register(tes3.event.keyDown, keyDownCallback)
 -- prevent saving while travelling
 --- @param e saveEventData
 local function saveCallback(e)
-    if isTraveling and currentSpline then
+    if isTraveling() then
         tes3.messageBox("You cannot save the game while travelling")
         return false
     end
@@ -969,7 +1025,7 @@ event.register(tes3.event.save, saveCallback)
 -- always allow resting on a mount even with enemies near
 --- @param e preventRestEventData
 local function preventRestCallback(e)
-    if isTraveling and currentSpline then
+    if isTraveling() then
         return false
     end
 end
@@ -977,7 +1033,7 @@ event.register(tes3.event.preventRest, preventRestCallback)
 
 --- @param e uiShowRestMenuEventData
 local function uiShowRestMenuCallback(e)
-    if isTraveling and currentSpline then
+    if isTraveling() and currentSpline then
         -- always allow resting on a mount
         e.allowRest = true
 
@@ -987,7 +1043,6 @@ local function uiShowRestMenuCallback(e)
                 text = "Rest",
                 callback = function()
                     tes3.fadeOut({ duration = 1 })
-                    isTraveling = false
 
                     timer.start({
                         type = timer.simulate,
