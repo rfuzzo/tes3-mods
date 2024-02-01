@@ -535,11 +535,10 @@ local function onTimerTick()
             end
         end
         last_sway = sway
-        local worldOrientation = common.toWorldOrientation(
-            tes3vector3.new(0.0, sway, 0.0),
-            mount.orientation)
+        local worldOrientation = common.toWorldOrientation(tes3vector3.new(0.0, sway, 0.0), mount.orientation)
         mount.orientation = worldOrientation
 
+        -- player
         if free_movement and isOnMount() then
             -- this is needed to enable collisions :todd:
             tes3.dataHandler:updateCollisionGroupsForActiveCells {}
@@ -549,9 +548,7 @@ local function onTimerTick()
         end
 
         -- guide
-        local guidePos = mount.position +
-            common.toWorld(vec(mountData.guideSlot.position),
-                mount.orientation)
+        local guidePos = mount.position + common.toWorld(vec(mountData.guideSlot.position), mount.orientation)
         tes3.positionCell({
             reference = mountData.guideSlot.handle:getObject(),
             position = guidePos
@@ -561,9 +558,7 @@ local function onTimerTick()
         -- position references in slots
         for index, slot in ipairs(mountData.slots) do
             if slot.handle and slot.handle:valid() then
-                local refpos = mount.position +
-                    common.toWorld(vec(slot.position),
-                        mount.orientation)
+                local refpos = mount.position + common.toWorld(vec(slot.position), mount.orientation)
                 slot.handle:getObject().position = refpos
                 if slot.handle:getObject() ~= tes3.player then
                     slot.handle:getObject().facing = mount.facing
@@ -575,9 +570,7 @@ local function onTimerTick()
         if mountData.clutter then
             for index, slot in ipairs(mountData.clutter) do
                 if slot.handle and slot.handle:valid() then
-                    local refpos = mount.position +
-                        common.toWorld(vec(slot.position),
-                            mount.orientation)
+                    local refpos = mount.position + common.toWorld(vec(slot.position), mount.orientation)
                     slot.handle:getObject().position = refpos
                 end
             end
@@ -679,20 +672,19 @@ local function startTravel(start, destination, service, guide)
         callback = (function()
             tes3.fadeIn({ duration = 1 })
 
+            -- calculate positions
             local startPoint = currentSpline[1]
             local startPos = tes3vector3.new(startPoint.x, startPoint.y,
                 startPoint.z)
-
-            -- set initial facing of mount
             local next_point = currentSpline[2]
             local next_pos = tes3vector3.new(next_point.x, next_point.y,
                 next_point.z)
             local d = next_pos - startPos
             d:normalize()
             local new_facing = math.atan2(d.x, d.y)
+            local mountOffset = tes3vector3.new(0, 0, mountData.offset)
 
             -- create mount
-            local mountOffset = tes3vector3.new(0, 0, mountData.offset)
             mount = tes3.createReference {
                 object = mountId,
                 position = startPos + mountOffset,
@@ -700,7 +692,7 @@ local function startTravel(start, destination, service, guide)
             }
             mount.facing = new_facing
 
-            -- register refs in slots
+            -- register player
             log:debug("register player")
             if config.freemovement then
                 local slotIdx = getFirstFreeSlot(mountData)
@@ -718,7 +710,7 @@ local function startTravel(start, destination, service, guide)
             end
             tes3.player.facing = new_facing
 
-            -- duplicate guide
+            -- register guide
             local guide2 = tes3.createReference {
                 object = guide.baseObject.id,
                 position = startPos + mountOffset,
@@ -728,14 +720,14 @@ local function startTravel(start, destination, service, guide)
             log:debug("register guide")
             registerGuide(mountData, tes3.makeSafeObjectHandle(guide2))
 
-            -- followers
+            -- register followers
             log:debug("register followers")
             local followers = getFollowers()
             for index, follower in ipairs(followers) do
                 registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(follower))
             end
 
-            -- register a random number of passengers
+            -- register passengers
             local n = math.random(math.max(1, #mountData.slots - 2));
             log:debug("try register " .. n .. " / " .. #mountData.slots .. " passengers")
             local actors = getRandomActorsInCell(n)
@@ -750,7 +742,7 @@ local function startTravel(start, destination, service, guide)
             end
 
 
-            -- statics
+            -- register statics
             if mountData.clutter then
                 for index, clutter in ipairs(mountData.clutter) do
                     if clutter.id then
