@@ -13,6 +13,7 @@ local common = require("rfuzzo.ImmersiveTravel.common")
 -- ////////////// CONFIGURATION
 local config = require("rfuzzo.ImmersiveTravel.config")
 
+local ANIM_CHANGE_FREQ = 10        -- change animations every 10 seconds
 local sway_max_amplitude = 3       -- how much the ship can sway in a turn
 local sway_amplitude_change = 0.01 -- how much the ship can sway in a turn
 local sway_frequency = 0.12        -- how fast the mount sways
@@ -44,7 +45,7 @@ local log = logger.new {
 
 ---@class Slot
 ---@field position PositionRecord slot
----@field animationGroup string?
+---@field animationGroup string[]?
 ---@field animationFile string?
 ---@field handle mwseSafeObjectHandle?
 ---@field node niNode?
@@ -63,6 +64,7 @@ local log = logger.new {
 ---@field sway number The sway intensity
 ---@field speed number forward speed
 ---@field turnspeed number turning speed
+---@field hasFreeMovement boolean turning speed
 ---@field guideSlot Slot
 ---@field slots Slot[]
 ---@field clutter Clutter[]?
@@ -304,6 +306,32 @@ local function cleanup()
     end
 end
 
+---@param slot Slot
+---@return integer
+local function get_random_anim_group(slot)
+    local group = tes3.animationGroup.idle5
+    if slot.animationGroup then
+        -- choose a random animation
+        if #slot.animationGroup > 0 then
+            local randomIndex = math.random(1, #slot.animationGroup)
+            local animkey = slot.animationGroup[randomIndex]
+            group = tes3.animationGroup[animkey]
+        else
+            -- if len is 0 then we pick one of the idles
+            local index = { "idle", "idle2", "idle3", "idle4", "idle5", "idle6", "idle7", "idle8" }
+            local randomIndex = math.random(1, #index)
+            local randomkey = index[randomIndex]
+            group = tes3.animationGroup[randomkey]
+        end
+    end
+
+    if group == nil then
+        group = tes3.animationGroup.idle5
+    end
+
+    return group
+end
+
 ---@param data MountData
 ---@param handle mwseSafeObjectHandle|nil
 local function registerGuide(data, handle)
@@ -315,17 +343,15 @@ local function registerGuide(data, handle)
 
         -- play animation
         local slot = data.guideSlot
+
+        local group = get_random_anim_group(slot)
         tes3.loadAnimation({ reference = reference })
         if slot.animationFile then
             tes3.loadAnimation({ reference = reference, file = slot.animationFile })
         end
-        local group = tes3.animationGroup.idle5
-        if slot.animationGroup then
-            group = tes3.animationGroup[slot.animationGroup]
-        end
         tes3.playAnimation({ reference = reference, group = group })
 
-        log:debug("registered " .. reference.id .. " in guide slot")
+        log:debug("registered " .. reference.id .. " in guide slot with animgroup " .. tostring(group))
     end
 end
 
@@ -339,20 +365,15 @@ local function registerInSlot(data, handle, idx)
     if handle and handle:valid() then
         local slot = data.slots[idx]
         local reference = handle:getObject()
+
+        local group = get_random_anim_group(slot)
         tes3.loadAnimation({ reference = reference })
         if slot.animationFile then
-            tes3.loadAnimation({
-                reference = reference,
-                file = slot.animationFile
-            })
-        end
-        local group = tes3.animationGroup.idle5
-        if slot.animationGroup then
-            group = tes3.animationGroup[slot.animationGroup]
+            tes3.loadAnimation({ reference = reference, file = slot.animationFile })
         end
         tes3.playAnimation({ reference = reference, group = group })
 
-        log:debug("registered " .. reference.id .. " in slot " .. tostring(idx))
+        log:debug("registered " .. reference.id .. " in slot " .. tostring(idx) .. " with animgroup " .. tostring(group))
     end
 end
 
@@ -521,8 +542,19 @@ local function onTimerTick()
         -- set sway
         local amplitude = sway_amplitude * mountData.sway
         local sway_change = amplitude * sway_amplitude_change
+        local changeAnims = false
         swayTime = swayTime + timertick
-        if swayTime > (2000 * sway_frequency) then swayTime = timertick end
+        if swayTime > (2000 * sway_frequency) then
+            swayTime = timertick
+        end
+
+        -- periodically change anims
+        local i, f = math.modf(swayTime)
+        if i > 0 and f < timertick and math.fmod(i, ANIM_CHANGE_FREQ) == 0 then
+            changeAnims = true
+        end
+
+
         local sway = amplitude * math.sin(2 * math.pi * sway_frequency * swayTime)
         -- offset roll during turns
         if turn > 0 then
@@ -544,7 +576,7 @@ local function onTimerTick()
         mount.orientation = newOrientation
 
         -- player
-        if free_movement and isOnMount() then
+        if free_movement == true and isOnMount() then
             -- this is needed to enable collisions :todd:
             tes3.dataHandler:updateCollisionGroupsForActiveCells {}
             mount.sceneNode:update() -- TODO needed?
@@ -552,18 +584,51 @@ local function onTimerTick()
         end
 
         -- guide
+
+        local guide = mountData.guideSlot.handle:getObject()
         tes3.positionCell({
-            reference = mountData.guideSlot.handle:getObject(),
+            reference = guide,
             position = mount.sceneNode.worldTransform * vec(mountData.guideSlot.position)
         })
-        mountData.guideSlot.handle:getObject().facing = mount.facing
+        guide.facing = mount.facing
+        -- only change anims if behind player
+        if changeAnims and common.isPointBehindObject(guide.position, tes3.player.position, tes3.player.forwardDirection) then
+            local group = get_random_anim_group(mountData.guideSlot)
+            local currentAnimationGroup = guide.mobile.animationController.animationData.currentAnimGroups
+                [tes3.animationBodySection.upper]
+
+            if group ~= currentAnimationGroup then
+                tes3.loadAnimation({ reference = guide })
+                if mountData.guideSlot.animationFile then
+                    tes3.loadAnimation({ reference = guide, file = mountData.guideSlot.animationFile })
+                end
+                tes3.playAnimation({ reference = guide, group = group })
+                log:debug(guide.id .. " switching to animgroup " .. tostring(group))
+            end
+        end
 
         -- position references in slots
         for index, slot in ipairs(mountData.slots) do
             if slot.handle and slot.handle:valid() then
+                local obj = slot.handle:getObject()
                 slot.handle:getObject().position = mount.sceneNode.worldTransform * vec(slot.position)
-                if slot.handle:getObject() ~= tes3.player then
-                    slot.handle:getObject().facing = mount.facing
+                if obj ~= tes3.player then
+                    obj.facing = mount.facing
+                    -- only change anims if behind player
+                    if changeAnims and common.isPointBehindObject(obj.position, tes3.player.position, tes3.player.forwardDirection) then
+                        local group = get_random_anim_group(slot)
+                        local currentAnimationGroup = guide.mobile.animationController.animationData.currentAnimGroups
+                            [tes3.animationBodySection.upper]
+
+                        if group ~= currentAnimationGroup then
+                            tes3.loadAnimation({ reference = obj })
+                            if slot.animationFile then
+                                tes3.loadAnimation({ reference = obj, file = slot.animationFile })
+                            end
+                            tes3.playAnimation({ reference = obj, group = group })
+                            log:debug(obj.id .. " switching to animgroup " .. tostring(group))
+                        end
+                    end
                 end
             end
         end
@@ -693,7 +758,8 @@ local function startTravel(start, destination, service, guide)
             }
             mount.facing = new_facing
 
-
+            -- on gondolas we always disable free movement
+            free_movement = config.freemovement and mountData.hasFreeMovement
 
             -- register guide
             local guide2 = tes3.createReference {
@@ -727,16 +793,19 @@ local function startTravel(start, destination, service, guide)
             end
 
             -- register player
-            log:debug("register player")
-            if config.freemovement then
+            if free_movement then
+                log:debug("move player to slot")
                 local slotIdx = getFirstFreeSlot(mountData)
                 if slotIdx then
-                    tes3.player.position = mount.sceneNode.worldTransform * vec(mountData.slots[slotIdx].position)
+                    tes3.player.position = mount.position +
+                        common.toWorld(vec(mountData.slots[slotIdx].position), mount.orientation)
                 else
                     -- fallback to slot 1
-                    tes3.player.position = mount.sceneNode.worldTransform * vec(mountData.slots[1].position)
+                    tes3.player.position = mount.position +
+                        common.toWorld(vec(mountData.slots[1].position), mount.orientation)
                 end
             else
+                log:debug("register player")
                 tes3.player.position = startPos + mountOffset
                 registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(tes3.player))
             end
@@ -761,7 +830,8 @@ local function startTravel(start, destination, service, guide)
             end
 
             -- start timer
-            free_movement = config.freemovement
+
+
             last_position = mount.position
             last_forwardDirection = mount.forwardDirection
             last_facing = mount.facing

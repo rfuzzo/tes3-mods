@@ -5,6 +5,7 @@
   "speed": 4,
   "turnspeed": 30,
   "guideSlot": {
+    "animationGroup": [],
     "position": {
       "x": 0,
       "y": 533,
@@ -13,6 +14,7 @@
   },
   "slots": [
     {
+      "animationGroup": [],
       "position": {
         "x": 0,
         "y": 240,
@@ -20,6 +22,7 @@
       }
     },
     {
+      "animationGroup": [],
       "position": {
         "x": -215,
         "y": -89,
@@ -27,6 +30,7 @@
       }
     },
     {
+      "animationGroup": [],
       "position": {
         "x": 215,
         "y": -89,
@@ -34,6 +38,7 @@
       }
     },
     {
+      "animationGroup": [],
       "position": {
         "x": 0,
         "y": -543,

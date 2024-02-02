@@ -5,7 +5,9 @@
   "sway": 3,
   "speed": 3,
   "turnspeed": 10,
+  "hasFreeMovement": true,
   "guideSlot": {
+    "animationGroup": [],
     "position": {
       "x": -25,
       "y": -823,
@@ -20,7 +22,7 @@
   ],
   "slots": [
     {
-      "animationGroup": "idle2",
+      "animationGroup": [],
       "position": {
         "x": 0,
         "y": 438,
@@ -28,7 +30,7 @@
       }
     },
     {
-      "animationGroup": "idle3",
+      "animationGroup": [],
       "position": {
         "x": 0,
         "y": 29,
@@ -36,7 +38,7 @@
       }
     },
     {
-      "animationGroup": "idle4",
+      "animationGroup": [],
       "position": {
         "x": -181,
         "y": 139,
@@ -44,7 +46,7 @@
       }
     },
     {
-      "animationGroup": "idle5",
+      "animationGroup": [],
       "position": {
         "x": 181,
         "y": -139,
@@ -52,7 +54,7 @@
       }
     },
     {
-      "animationGroup": "idle6",
+      "animationGroup": [],
       "position": {
         "x": 115,
         "y": -466,

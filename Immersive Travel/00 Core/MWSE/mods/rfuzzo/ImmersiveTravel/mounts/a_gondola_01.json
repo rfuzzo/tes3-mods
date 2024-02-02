@@ -6,7 +6,9 @@
   "speed": 2,
   "turnspeed": 40,
   "guideSlot": {
-    "animationGroup": "idle6",
+    "animationGroup": [
+      "idle6"
+    ],
     "position": {
       "x": 0,
       "y": -171,
@@ -15,7 +17,9 @@
   },
   "slots": [
     {
-      "animationGroup": "idle6",
+      "animationGroup": [
+        "idle6"
+      ],
       "animationFile": "VA_sitting.nif",
       "position": {
         "x": 0,
@@ -24,7 +28,9 @@
       }
     },
     {
-      "animationGroup": "idle6",
+      "animationGroup": [
+        "idle6"
+      ],
       "animationFile": "VA_sitting.nif",
       "position": {
         "x": 0,
@@ -33,6 +39,7 @@
       }
     },
     {
+      "animationGroup": [],
       "position": {
         "x": 0,
         "y": 106,
@@ -40,6 +47,7 @@
       }
     },
     {
+      "animationGroup": [],
       "position": {
         "x": 0,
         "y": 7,
@@ -47,6 +55,7 @@
       }
     },
     {
+      "animationGroup": [],
       "position": {
         "x": 0,
         "y": -63,

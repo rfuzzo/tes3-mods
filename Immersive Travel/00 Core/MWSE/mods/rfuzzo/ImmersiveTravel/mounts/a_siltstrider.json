@@ -15,6 +15,7 @@
   },
   "slots": [
     {
+      "animationGroup": [],
       "position": {
         "x": 0,
         "y": -34,
@@ -22,6 +23,7 @@
       }
     },
     {
+      "animationGroup": [],
       "position": {
         "x": -81,
         "y": 0,
@@ -29,6 +31,7 @@
       }
     },
     {
+      "animationGroup": [],
       "position": {
         "x": 81,
         "y": 0,
@@ -36,6 +39,7 @@
       }
     },
     {
+      "animationGroup": [],
       "position": {
         "x": 0,
         "y": -86,
