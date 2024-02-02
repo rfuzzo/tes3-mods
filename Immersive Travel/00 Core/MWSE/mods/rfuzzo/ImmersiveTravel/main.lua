@@ -95,6 +95,7 @@ local last_sway = 0 ---@type number
 
 local free_movement = false
 
+
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// FUNCTIONS
 
@@ -482,6 +483,13 @@ local function onTimerTick()
         local d = (nextPos - currentPos):normalized()
         local lerp = forwardDirection:lerp(d, mountData.turnspeed / 10):normalized()
 
+        -- calculate position
+        local forward = tes3vector3.new(mount.forwardDirection.x,
+            mount.forwardDirection.y, lerp.z):normalized()
+        local delta = forward * mountData.speed
+
+        local playerShipLocal = mount.sceneNode.worldTransform:invert() * tes3.player.position
+
         -- calculate facing
         local turn = 0
         local current_facing = last_facing
@@ -500,12 +508,9 @@ local function onTimerTick()
         else
             facing = new_facing
         end
-        mount.facing = facing
 
-        -- calculate position
-        local forward = tes3vector3.new(mount.forwardDirection.x,
-            mount.forwardDirection.y, lerp.z):normalized()
-        local delta = forward * mountData.speed
+        -- move ship
+        mount.facing = facing
         mount.position = currentPos + delta + mountOffset
 
         -- save
@@ -535,31 +540,28 @@ local function onTimerTick()
             end
         end
         last_sway = sway
-        local worldOrientation = common.toWorldOrientation(tes3vector3.new(0.0, sway, 0.0), mount.orientation)
-        mount.orientation = worldOrientation
+        local newOrientation = common.toWorldOrientation(tes3vector3.new(0.0, sway, 0.0), mount.orientation)
+        mount.orientation = newOrientation
 
         -- player
         if free_movement and isOnMount() then
             -- this is needed to enable collisions :todd:
             tes3.dataHandler:updateCollisionGroupsForActiveCells {}
-            -- todo account for sway
-            local newPosition = tes3.mobilePlayer.position + delta
-            tes3.mobilePlayer.position = newPosition
+            mount.sceneNode:update() -- TODO needed?
+            tes3.player.position = mount.sceneNode.worldTransform * playerShipLocal
         end
 
         -- guide
-        local guidePos = mount.position + common.toWorld(vec(mountData.guideSlot.position), mount.orientation)
         tes3.positionCell({
             reference = mountData.guideSlot.handle:getObject(),
-            position = guidePos
+            position = mount.sceneNode.worldTransform * vec(mountData.guideSlot.position)
         })
         mountData.guideSlot.handle:getObject().facing = mount.facing
 
         -- position references in slots
         for index, slot in ipairs(mountData.slots) do
             if slot.handle and slot.handle:valid() then
-                local refpos = mount.position + common.toWorld(vec(slot.position), mount.orientation)
-                slot.handle:getObject().position = refpos
+                slot.handle:getObject().position = mount.sceneNode.worldTransform * vec(slot.position)
                 if slot.handle:getObject() ~= tes3.player then
                     slot.handle:getObject().facing = mount.facing
                 end
@@ -570,8 +572,7 @@ local function onTimerTick()
         if mountData.clutter then
             for index, slot in ipairs(mountData.clutter) do
                 if slot.handle and slot.handle:valid() then
-                    local refpos = mount.position + common.toWorld(vec(slot.position), mount.orientation)
-                    slot.handle:getObject().position = refpos
+                    slot.handle:getObject().position = mount.sceneNode.worldTransform * vec(slot.position)
                 end
             end
         end
@@ -692,23 +693,7 @@ local function startTravel(start, destination, service, guide)
             }
             mount.facing = new_facing
 
-            -- register player
-            log:debug("register player")
-            if config.freemovement then
-                local slotIdx = getFirstFreeSlot(mountData)
-                if slotIdx then
-                    tes3.player.position = mount.position +
-                        common.toWorld(vec(mountData.slots[slotIdx].position), mount.orientation)
-                else
-                    -- fallback to slot 1
-                    tes3.player.position = mount.position +
-                        common.toWorld(vec(mountData.slots[1].position), mount.orientation)
-                end
-            else
-                tes3.player.position = startPos + mountOffset
-                registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(tes3.player))
-            end
-            tes3.player.facing = new_facing
+
 
             -- register guide
             local guide2 = tes3.createReference {
@@ -729,7 +714,7 @@ local function startTravel(start, destination, service, guide)
 
             -- register passengers
             local n = math.random(math.max(1, #mountData.slots - 2));
-            log:debug("try register " .. n .. " / " .. #mountData.slots .. " passengers")
+            log:debug("register " .. n .. " / " .. #mountData.slots .. " passengers")
             local actors = getRandomActorsInCell(n)
             for _i, value in ipairs(actors) do
                 local passenger = tes3.createReference {
@@ -741,8 +726,25 @@ local function startTravel(start, destination, service, guide)
                 registerRefInRandomSlot(mountData, refHandle)
             end
 
+            -- register player
+            log:debug("register player")
+            if config.freemovement then
+                local slotIdx = getFirstFreeSlot(mountData)
+                if slotIdx then
+                    tes3.player.position = mount.sceneNode.worldTransform * vec(mountData.slots[slotIdx].position)
+                else
+                    -- fallback to slot 1
+                    tes3.player.position = mount.sceneNode.worldTransform * vec(mountData.slots[1].position)
+                end
+            else
+                tes3.player.position = startPos + mountOffset
+                registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(tes3.player))
+            end
+            tes3.player.facing = new_facing
+
 
             -- register statics
+            log:debug("register statics")
             if mountData.clutter then
                 for index, clutter in ipairs(mountData.clutter) do
                     if clutter.id then

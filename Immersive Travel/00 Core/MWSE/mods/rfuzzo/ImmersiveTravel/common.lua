@@ -25,11 +25,11 @@ function this.toWorldOrientation(localOrientation, baseOrientation)
     -- Convert the local orientation to a rotation matrix
     local baseRotationMatrix = tes3matrix33.new()
     baseRotationMatrix:fromEulerXYZ(baseOrientation.x, baseOrientation.y,
-                                    baseOrientation.z)
+        baseOrientation.z)
 
     local localRotationMatrix = tes3matrix33.new()
     localRotationMatrix:fromEulerXYZ(localOrientation.x, localOrientation.y,
-                                     localOrientation.z)
+        localOrientation.z)
 
     -- Combine the rotation matrices to get the world rotation matrix
     local worldRotationMatrix = baseRotationMatrix * localRotationMatrix
@@ -39,13 +39,13 @@ end
 
 -- Transform a local offset to world coordinates given a fixed orientation
 ---@param localVector tes3vector3
----@param worldOrientation tes3vector3
+---@param orientation tes3vector3
 --- @return tes3vector3
-function this.toWorld(localVector, worldOrientation)
+function this.toWorld(localVector, orientation)
     -- Convert the local orientation to a rotation matrix
     local baseRotationMatrix = tes3matrix33.new()
-    baseRotationMatrix:fromEulerXYZ(worldOrientation.x, worldOrientation.y,
-                                    worldOrientation.z)
+    baseRotationMatrix:fromEulerXYZ(orientation.x, orientation.y,
+        orientation.z)
 
     -- Combine the rotation matrices to get the world rotation matrix
     return baseRotationMatrix * localVector
@@ -80,8 +80,8 @@ function this.rotationFromDirection(forward)
     up = right:cross(forward)
 
     local rotation_matrix = tes3matrix33.new(right.x, forward.x, up.x, right.y,
-                                             forward.y, up.y, right.z,
-                                             forward.z, up.z)
+        forward.y, up.y, right.z,
+        forward.z, up.z)
 
     return rotation_matrix
 end
@@ -125,13 +125,10 @@ function this.loadSpline(start, destination, data)
                 log:error("!!! failed to load spline: " .. fileName)
                 return nil
             end
-
         else
             log:error("!!! failed to find any file: " .. fileName)
         end
-
     end
-
 end
 
 --- load json static mount data
@@ -170,7 +167,6 @@ function this.loadServices()
                 log:error("!!! failed to load " .. fileName)
             end
         end
-
     end
     return services
 end
