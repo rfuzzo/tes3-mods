@@ -13,7 +13,7 @@ local common = require("rfuzzo.ImmersiveTravel.common")
 -- ////////////// CONFIGURATION
 local config = require("rfuzzo.ImmersiveTravel.config")
 
-local ANIM_CHANGE_FREQ = 10        -- change animations every 10 seconds
+local ANIM_CHANGE_FREQ = 10        -- change passenger animations every 10 seconds
 local sway_max_amplitude = 3       -- how much the ship can sway in a turn
 local sway_amplitude_change = 0.01 -- how much the ship can sway in a turn
 local sway_frequency = 0.12        -- how fast the mount sways
@@ -132,8 +132,8 @@ local function isOnMount()
     local max_xy_d = tes3vector3.new(bbox.max.x, bbox.max.y, 0):length()
     local min_xy_d = tes3vector3.new(bbox.min.x, bbox.min.y, 0):length()
     local dist = mountSurface:distance(pos)
-
-    if dist > math.max(min_xy_d, max_xy_d) then
+    local r = math.max(min_xy_d, max_xy_d) + 50
+    if dist > r then
         inside = false
     end
 
@@ -795,7 +795,7 @@ local function startTravel(start, destination, service, guide)
             -- register player
             if free_movement then
                 log:debug("move player to slot")
-                local slotIdx = getFirstFreeSlot(mountData)
+                local slotIdx = getRandomFreeSlotIdx(mountData)
                 if slotIdx then
                     tes3.player.position = mount.position +
                         common.toWorld(vec(mountData.slots[slotIdx].position), mount.orientation)
@@ -996,6 +996,7 @@ local function activateCallback(e)
                     callback = function()
                         free_movement = false
                         log:debug("register player")
+                        tes3.player.facing = mount.facing
                         registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(tes3.player))
                     end
                 }
