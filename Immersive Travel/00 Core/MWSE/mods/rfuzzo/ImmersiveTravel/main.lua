@@ -986,6 +986,26 @@ local function activateCallback(e)
     if mountData.guideSlot.handle == nil then return; end
     if not mountData.guideSlot.handle:valid() then return; end
 
+    if e.target.id == mountData.guideSlot.handle:getObject().id and free_movement then
+        -- register player in slot
+        tes3ui.showMessageMenu {
+            message = "Do you want to sit down?",
+            buttons = {
+                {
+                    text = "Yes",
+                    callback = function()
+                        free_movement = false
+                        log:debug("register player")
+                        registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(tes3.player))
+                    end
+                }
+            },
+            cancels = true
+        }
+
+        return false
+    end
+
     return false
 end
 event.register(tes3.event.activate, activateCallback)
@@ -1000,10 +1020,6 @@ local function uiObjectTooltipCallback(e)
     if mountData.guideSlot.handle == nil then return; end
     if not mountData.guideSlot.handle:valid() then return; end
 
-    if e.object.id == mountData.guideSlot.handle:getObject().id then
-        e.tooltip.visible = false
-        return false
-    end
     if e.object.id == mount.id then
         e.tooltip.visible = false
         return false
@@ -1068,9 +1084,27 @@ local function keyDownCallback(e)
     if not free_movement and isTraveling() then
         if e.keyCode == tes3.scanCode["w"] or
             e.keyCode == tes3.scanCode["a"] or
-            e.keyCode == tes3.scanCode["s"] or
             e.keyCode == tes3.scanCode["d"] then
             incrementSlot(mountData)
+        end
+
+        if e.keyCode == tes3.scanCode["s"] then
+            if mountData == nil then return; end
+            if mountData.hasFreeMovement then
+                -- get up
+                log:debug("un register player")
+                -- remove from slot
+                for index, slot in ipairs(mountData.slots) do
+                    if slot.handle and slot.handle:valid() and slot.handle:getObject() == tes3.player then
+                        slot.handle = nil
+                        free_movement = true
+                        -- free animations
+                        tes3.mobilePlayer.movementCollision = true;
+                        tes3.loadAnimation({ reference = tes3.player })
+                        tes3.playAnimation({ reference = tes3.player, group = 0 })
+                    end
+                end
+            end
         end
     end
 end
@@ -1102,35 +1136,33 @@ local function uiShowRestMenuCallback(e)
         e.allowRest = true
 
         -- custom UI
-        local buttons = {
-            {
-                text = "Rest",
-                callback = function()
-                    tes3.fadeOut({ duration = 1 })
-
-                    timer.start({
-                        type = timer.simulate,
-                        iterations = 1,
-                        duration = 1,
-                        callback = (function()
-                            tes3.fadeIn({ duration = 1 })
-
-                            -- teleport to last marker
-                            tes3.positionCell({
-                                reference = tes3.mobilePlayer,
-                                position = vec(currentSpline[#currentSpline])
-                            })
-                            -- then to destination
-                            destinationReached()
-                        end)
-                    })
-                end
-            }
-        }
-
         tes3ui.showMessageMenu {
             message = "Rest and skip to the end of the journey?",
-            buttons = buttons,
+            buttons = {
+                {
+                    text = "Rest",
+                    callback = function()
+                        tes3.fadeOut({ duration = 1 })
+
+                        timer.start({
+                            type = timer.simulate,
+                            iterations = 1,
+                            duration = 1,
+                            callback = (function()
+                                tes3.fadeIn({ duration = 1 })
+
+                                -- teleport to last marker
+                                tes3.positionCell({
+                                    reference = tes3.mobilePlayer,
+                                    position = vec(currentSpline[#currentSpline])
+                                })
+                                -- then to destination
+                                destinationReached()
+                            end)
+                        })
+                    end
+                }
+            },
             cancels = true
         }
 
