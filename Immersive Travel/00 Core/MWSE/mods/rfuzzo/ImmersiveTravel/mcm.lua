@@ -17,15 +17,6 @@ local function registerModConfig()
     local settingsPage = page:createCategory("Settings")
     local generalCategory = settingsPage:createCategory("General")
 
-    generalCategory:createOnOffButton({
-        label = "Free movement",
-        description = "Allow free movement while on a mount.",
-        variable = mwse.mcm.createTableVariable {
-            id = "freemovement",
-            table = config
-        }
-    })
-
     generalCategory:createDropdown {
         label = "Logging Level",
         description = "Set the log level.",

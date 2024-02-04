@@ -758,8 +758,8 @@ local function startTravel(start, destination, service, guide)
             }
             mount.facing = new_facing
 
-            -- on gondolas we always disable free movement
-            free_movement = config.freemovement and mountData.hasFreeMovement
+            -- always start slotted
+            free_movement = false
 
             -- register guide
             local guide2 = tes3.createReference {
