@@ -793,22 +793,9 @@ local function startTravel(start, destination, service, guide)
             end
 
             -- register player
-            if free_movement then
-                log:debug("move player to slot")
-                local slotIdx = getRandomFreeSlotIdx(mountData)
-                if slotIdx then
-                    tes3.player.position = mount.position +
-                        common.toWorld(vec(mountData.slots[slotIdx].position), mount.orientation)
-                else
-                    -- fallback to slot 1
-                    tes3.player.position = mount.position +
-                        common.toWorld(vec(mountData.slots[1].position), mount.orientation)
-                end
-            else
-                log:debug("register player")
-                tes3.player.position = startPos + mountOffset
-                registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(tes3.player))
-            end
+            log:debug("register player")
+            tes3.player.position = startPos + mountOffset
+            registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(tes3.player))
             tes3.player.facing = new_facing
 
 
@@ -830,8 +817,6 @@ local function startTravel(start, destination, service, guide)
             end
 
             -- start timer
-
-
             last_position = mount.position
             last_forwardDirection = mount.forwardDirection
             last_facing = mount.facing
