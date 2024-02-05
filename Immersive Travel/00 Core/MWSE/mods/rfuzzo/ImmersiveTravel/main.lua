@@ -474,6 +474,14 @@ local function destinationReached(force)
         tes3.playAnimation({ reference = tes3.player, group = 0 })
     end
 
+    if force then
+        teleportToClosestMarker()
+    else
+        if isTraveling() then
+            teleportToClosestMarker()
+        end
+    end
+
     -- followers
     for index, slot in ipairs(mountData.slots) do
         if slot.handle and slot.handle:valid() then
@@ -492,14 +500,6 @@ local function destinationReached(force)
                     slot.handle = nil
                 end
             end
-        end
-    end
-
-    if force then
-        teleportToClosestMarker()
-    else
-        if isTraveling() then
-            teleportToClosestMarker()
         end
     end
 
