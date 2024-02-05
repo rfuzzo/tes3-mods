@@ -244,13 +244,8 @@ local function findClosestTravelMarker()
 end
 
 local function teleportToClosestMarker()
-    debug.log("teleportToClosestMarker")
-
     local marker = findClosestTravelMarker()
-
-
     if marker ~= nil then
-        debug.log("marker")
         tes3.positionCell({
             reference = tes3.mobilePlayer,
             cell = marker.cell,
@@ -1169,7 +1164,6 @@ local function uiShowRestMenuCallback(e)
                                     position = vec(currentSpline[#currentSpline])
                                 })
                                 -- then to destination
-                                debug.log("then to destination")
                                 destinationReached(true)
                             end)
                         })
