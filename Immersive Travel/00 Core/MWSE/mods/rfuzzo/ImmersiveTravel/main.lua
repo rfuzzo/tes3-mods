@@ -1,6 +1,6 @@
 --[[
 Immersive Travel Mod
-v 1.0
+v 1.0.1
 by rfuzzo
 
 mwse real-time travel mod
@@ -244,8 +244,13 @@ local function findClosestTravelMarker()
 end
 
 local function teleportToClosestMarker()
+    debug.log("teleportToClosestMarker")
+
     local marker = findClosestTravelMarker()
+
+
     if marker ~= nil then
+        debug.log("marker")
         tes3.positionCell({
             reference = tes3.mobilePlayer,
             cell = marker.cell,
@@ -456,7 +461,12 @@ end
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// TRAVEL
 
-local function destinationReached()
+---@param force boolean
+local function destinationReached(force)
+    if not mountData then
+        return
+    end
+
     -- reset player
     if not free_movement then
         tes3.mobilePlayer.movementCollision = true;
@@ -465,16 +475,32 @@ local function destinationReached()
     end
 
     -- followers
-    -- TODO teleport followers?
-    local followers = getFollowers()
-    for index, follower in ipairs(followers) do
-        follower.mobile.movementCollision = true;
-        tes3.loadAnimation({ reference = follower })
-        tes3.playAnimation({ reference = follower, group = 0 })
+    for index, slot in ipairs(mountData.slots) do
+        if slot.handle and slot.handle:valid() then
+            local ref = slot.handle:getObject()
+            if ref.mobile then
+                if isFollower(ref.mobile) and slot.handle:getObject() ~= tes3.player then
+                    slot.handle:getObject().mobile.movementCollision = true;
+                    tes3.loadAnimation({ reference = slot.handle:getObject() })
+                    tes3.playAnimation({ reference = slot.handle:getObject(), group = 0 })
+
+                    tes3.positionCell({
+                        reference = slot.handle:getObject(),
+                        position = tes3.player.position
+                    })
+
+                    slot.handle = nil
+                end
+            end
+        end
     end
 
-    if isTraveling() then
+    if force then
         teleportToClosestMarker()
+    else
+        if isTraveling() then
+            teleportToClosestMarker()
+        end
     end
 
     cleanup()
@@ -654,7 +680,7 @@ local function onTimerTick()
             duration = 1,
             callback = (function()
                 tes3.fadeIn({ duration = 1 })
-                destinationReached()
+                destinationReached(false)
             end)
         })
     end
@@ -1143,7 +1169,8 @@ local function uiShowRestMenuCallback(e)
                                     position = vec(currentSpline[#currentSpline])
                                 })
                                 -- then to destination
-                                destinationReached()
+                                debug.log("then to destination")
+                                destinationReached(true)
                             end)
                         })
                     end

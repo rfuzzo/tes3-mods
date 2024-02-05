@@ -1,6 +1,6 @@
 # Immersive Travel - MWSE
 
-A mod that adds real-time travel between the vanilla travel points. Real time travel is done along pre-defined routes on ships, longboats, silt striders, gondolas or - with the Tamriel Rebuilt addon - also on river striders.
+A mod that adds real-time travel with smooth movement on striders, boats, ships, gondolas and river striders (with TR). The mod also has many quality of life features.
 
 ➡️ To start a trip talk to a Caravaner or Shipmaster and select the "Take me to..." dialogue option.
 
@@ -34,6 +34,7 @@ Patches are available for:
 
 * ☑️ Beautiful Cities of Morrowind
 * ☑️ Tamriel Rebuilt
+* ☑️ TOTSP
 * ☑️ Gnisis Docks
 
 ## Installation
