@@ -25,32 +25,32 @@
       "animationGroup": [],
       "position": {
         "x": 0,
-        "y": 324,
+        "y": 411,
         "z": -63
       }
     },
     {
       "animationGroup": [],
       "position": {
-        "x": 0,
-        "y": 90,
+        "x": -132,
+        "y": 67,
         "z": -63
       }
     },
     {
       "animationGroup": [],
       "position": {
-        "x": -111,
-        "y": 0,
+        "x": 160,
+        "y": -145,
         "z": -63
       }
     },
     {
       "animationGroup": [],
       "position": {
-        "x": 111,
-        "y": 0,
-        "z": -63
+        "x": -79,
+        "y": -390,
+        "z": -67
       }
     },
     {
@@ -60,8 +60,8 @@
       "animationFile": "VA_sitting.nif",
       "position": {
         "x": 0,
-        "y": 298,
-        "z": -25
+        "y": 133,
+        "z": -26
       }
     },
     {
@@ -70,8 +70,8 @@
       ],
       "animationFile": "VA_sitting.nif",
       "position": {
-        "x": 0,
-        "y": 130,
+        "x": -122,
+        "y": -181,
         "z": -27
       }
     },
@@ -81,31 +81,9 @@
       ],
       "animationFile": "VA_sitting.nif",
       "position": {
-        "x": 0,
-        "y": 15,
-        "z": -26
-      }
-    },
-    {
-      "animationGroup": [
-        "idle6"
-      ],
-      "animationFile": "VA_sitting.nif",
-      "position": {
-        "x": -130,
-        "y": 126,
-        "z": -26
-      }
-    },
-    {
-      "animationGroup": [
-        "idle6"
-      ],
-      "animationFile": "VA_sitting.nif",
-      "position": {
-        "x": 127,
-        "y": 43,
-        "z": -28
+        "x": 87,
+        "y": -259,
+        "z": -27
       }
     }
   ],

@@ -22,6 +22,9 @@ local log = logger.new {
     includeTimestamp = true
 }
 
+---@class SPreviewData
+---@field mount tes3reference?
+
 ---@class SEditorData
 ---@field service ServiceData
 ---@field start string
@@ -47,6 +50,8 @@ local editMenuPrintId = tes3ui.registerID("it:MenuEdit_Print")
 local editMenuModeId = tes3ui.registerID("it:MenuEdit_Mode")
 local editMenuCancelId = tes3ui.registerID("it:MenuEdit_Cancel")
 local editMenuTeleportId = tes3ui.registerID("it:MenuEdit_Teleport")
+local editMenuTeleportEndId = tes3ui.registerID("it:MenuEdit_TeleportEnd")
+local editMenuPreviewId = tes3ui.registerID("it:MenuEdit_Preview")
 local editMenuSearchId = tes3ui.registerID("it:MenuEdit_Search")
 
 local editorMarkerId = "marker_arrow.nif"
@@ -59,6 +64,10 @@ local currentServiceName = nil
 local editorData = nil
 local editmode = false
 
+-- preview
+---@type SPreviewData | nil
+local preview = nil
+
 -- tracing
 local filter_text = ""
 local arrows = {}
@@ -67,7 +76,10 @@ local arrow = nil
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// FUNCTIONS
 
----
+---@param pos PositionRecord
+--- @return tes3vector3
+local function vec(pos) return tes3vector3.new(pos.x, pos.y, pos.z) end
+
 ---@param data MountData
 ---@param startPoint tes3vector3
 ---@param nextPoint tes3vector3
@@ -293,8 +305,7 @@ local function traceRoute(service)
 
     log:debug("Tracing " .. editorData.start .. " > " .. editorData.destination)
 
-    arrow = tes3.loadMesh("mwse\\arrow.nif"):getObjectByName("unitArrow")
-        :clone()
+    arrow = tes3.loadMesh("mwse\\arrow.nif"):getObjectByName("unitArrow"):clone()
     arrow.scale = 40
     local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
     for index, value in ipairs(arrows) do vfxRoot:detachChild(value) end
@@ -448,20 +459,29 @@ local function createEditWindow()
     }
     local button_teleport = button_block:createButton {
         id = editMenuTeleportId,
-        text = "Teleport"
+        text = "Start"
+    }
+    local button_teleportEnd = button_block:createButton {
+        id = editMenuTeleportEndId,
+        text = "End"
+    }
+    local button_preview = button_block:createButton {
+        id = editMenuPreviewId,
+        text = "Preview"
     }
     local button_save = button_block:createButton {
         id = editMenuSaveId,
         text = "Save"
     }
-    local button_print = button_block:createButton {
-        id = editMenuPrintId,
-        text = "Print"
-    }
+    -- local button_print = button_block:createButton {
+    --     id = editMenuPrintId,
+    --     text = "Print"
+    -- }
     local button_cancel = button_block:createButton {
         id = editMenuCancelId,
         text = "Exit"
     }
+
     -- Switch mode
     button_mode:register(tes3.uiEvent.mouseClick, function()
         local m = tes3ui.findMenu(editMenuId)
@@ -493,10 +513,9 @@ local function createEditWindow()
         local m = tes3ui.findMenu(editMenuId)
         if (m) then
             if #editorData.editorMarkers > 1 then
-                local position = editorData.editorMarkers[1].translation + tes3vector3.new(0, 0, 500)
                 tes3.positionCell({
                     reference = tes3.mobilePlayer,
-                    position = position
+                    position = editorData.editorMarkers[1].translation
                 })
 
                 tes3ui.leaveMenuMode()
@@ -505,26 +524,105 @@ local function createEditWindow()
         end
     end)
 
-    -- log current spline
-    button_print:register(tes3.uiEvent.mouseClick, function()
+    button_teleportEnd:register(tes3.uiEvent.mouseClick, function()
         if not editorData then return end
         if not editorData.editorMarkers then return end
 
-        -- print to log
-        local current_editor_route = editorData.start .. "_" ..
-            editorData.destination
-        mwse.log("============================================")
-        mwse.log(current_editor_route)
-        mwse.log("============================================")
-        for i, value in ipairs(editorData.editorMarkers) do
-            local t = value.translation
-            mwse.log("{ \"x\": " .. math.round(t.x) .. ", \"y\": " ..
-                math.round(t.y) .. ", \"z\": " .. math.round(t.z) ..
-                " },")
+        local m = tes3ui.findMenu(editMenuId)
+        if (m) then
+            if #editorData.editorMarkers > 1 then
+                tes3.positionCell({
+                    reference = tes3.mobilePlayer,
+                    position = editorData.editorMarkers[#editorData.editorMarkers].translation
+                })
+
+                tes3ui.leaveMenuMode()
+                m:destroy()
+            end
         end
-        mwse.log("============================================")
-        tes3.messageBox("printed spline: " .. current_editor_route)
     end)
+
+    button_preview:register(tes3.uiEvent.mouseClick, function()
+        if not editorData then return end
+
+        local m = tes3ui.findMenu(editMenuId)
+        if (m) then
+            -- delete preview
+            if preview then
+                preview.mount:delete()
+                preview.mount = nil
+                preview = nil
+                local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+                vfxRoot:detachAllChildren()
+                return
+            end
+
+            local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
+
+            -- create mount
+            local mountId = service.mount
+            if service.override_mount then
+                for _, o in ipairs(service.override_mount) do
+                    if common.is_in(o.points, editorData.start) and common.is_in(o.points, editorData.destination) then
+                        mountId = o.id
+                        break
+                    end
+                end
+            end
+
+            local mount = tes3.createReference {
+                object = mountId,
+                position = from,
+                orientation = tes3.player.orientation
+            }
+
+            preview = {
+                mount = mount
+            }
+
+            -- preview slots
+            local mountData = common.loadMountData(mountId)
+            if not mountData then return end
+
+            local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+            -- local marker = tes3.loadMesh("marker_divine.nif")
+            local marker = tes3.loadMesh("marker_arrow.nif")
+            for _index, slot in ipairs(mountData.slots) do
+                local child = marker:clone()
+                child.scale = 0.5
+                child.translation = mount.sceneNode.worldTransform * vec(slot.position)
+                child.rotation = mount.sceneNode.worldTransform.rotation
+                child.appCulled = false
+                vfxRoot:attachChild(child, true)
+            end
+
+            vfxRoot:update()
+
+            tes3ui.leaveMenuMode()
+            m:destroy()
+        end
+    end)
+
+    -- log current spline
+    -- button_print:register(tes3.uiEvent.mouseClick, function()
+    --     if not editorData then return end
+    --     if not editorData.editorMarkers then return end
+
+    --     -- print to log
+    --     local current_editor_route = editorData.start .. "_" ..
+    --         editorData.destination
+    --     mwse.log("============================================")
+    --     mwse.log(current_editor_route)
+    --     mwse.log("============================================")
+    --     for i, value in ipairs(editorData.editorMarkers) do
+    --         local t = value.translation
+    --         mwse.log("{ \"x\": " .. math.round(t.x) .. ", \"y\": " ..
+    --             math.round(t.y) .. ", \"z\": " .. math.round(t.z) ..
+    --             " },")
+    --     end
+    --     mwse.log("============================================")
+    --     tes3.messageBox("printed spline: " .. current_editor_route)
+    -- end)
 
     --- save to file
     button_save:register(tes3.uiEvent.mouseClick, function()
@@ -552,6 +650,8 @@ local function createEditWindow()
 
         tes3.messageBox("saved spline: " .. current_editor_route)
     end)
+
+
 
     -- Final setup
     tes3ui.acquireTextInput(input)

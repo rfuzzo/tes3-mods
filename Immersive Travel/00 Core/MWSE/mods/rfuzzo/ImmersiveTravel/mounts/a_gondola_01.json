@@ -42,24 +42,8 @@
       "animationGroup": [],
       "position": {
         "x": 0,
-        "y": 106,
-        "z": -36
-      }
-    },
-    {
-      "animationGroup": [],
-      "position": {
-        "x": 0,
         "y": 7,
-        "z": -40
-      }
-    },
-    {
-      "animationGroup": [],
-      "position": {
-        "x": 0,
-        "y": -63,
-        "z": -37
+        "z": -15
       }
     }
   ],
