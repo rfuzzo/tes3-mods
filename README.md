@@ -4,13 +4,13 @@ My TES3 Morrowind mods and modding utility tools.
 
 ## Mods
 
-### 🚧 Immersive Travel
+### ✅ Immersive Travel
 >
-> nightly link: <https://rfuzzo.github.io/tes3-mods/ImmersiveTravel.zip>
+> nightly link: https://rfuzzo.github.io/tes3-mods/ImmersiveTravel.zip
 >
-> nexus link:
+> nexus link: https://www.nexusmods.com/morrowind/mods/54063
 
-Real-time travel with smooth movement.
+Real-time travel with smooth movement. [Readme](/Immersive%20Travel/README.md)
 
 ### ✅ Lockpick Minigame
 >
@@ -22,7 +22,7 @@ Implements a gothic-like lockpicking minigame.
 >
 > nexus link: <https://www.nexusmods.com/morrowind/mods/52794>
 
-On levelup, simply carry over unused attributes. If you pick an attribute when leveling up, all skill levelups for that attributes are lost.
+On level up, simply carry over unused attributes. If you pick an attribute when levelling up, all skill level ups for that attributes are lost.
 
 ### ✅ Pickpocket Minigame
 >
