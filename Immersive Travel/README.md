@@ -47,6 +47,7 @@ Patches are available for:
 ![screenshot](/_assets/immersive%20travel/Morrowind%202023-08-23%2015.48.51.900.png)
 ![screenshot](/_assets/immersive%20travel/Morrowind%202024-02-02%2013.45.52.755.png)
 ![screenshot](/_assets/immersive%20travel/Morrowind%202023-08-22%2011.11.23.347.png)
+![screenshot](/_assets/immersive%20travel/tr_travel.png)
 
 
 ## Special thanks to
