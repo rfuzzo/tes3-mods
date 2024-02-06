@@ -1,6 +1,6 @@
 --[[
 Immersive Travel Mod
-v 1.0.1
+v 1.0.2
 by rfuzzo
 
 mwse real-time travel mod

@@ -1,0 +1,13 @@
+[package]
+name = "Immersive Travel"
+description = "A mod that adds real-time travel with smooth movement on striders, boats, ships, gondolas and river striders (with TR). The mod also has many quality of life features."
+homepage = "https://www.nexusmods.com/morrowind/mods/54063"
+repository = "https://github.com/rfuzzo/tes3-mods"
+authors = ["rfuzzo"]
+version = "1.0.2"
+
+[tools.mwse]
+lua-mod = "rfuzzo.ImmersiveTravel"
+
+[dependencies.mwse]
+buildnumber = 3676
