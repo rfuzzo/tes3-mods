@@ -248,46 +248,43 @@ local function teleportToClosestMarker()
     if marker ~= nil then
         tes3.positionCell({
             reference = tes3.mobilePlayer,
-            cell = marker.cell,
-            position = marker.position
+            position = marker.position,
+            suppressFader = true
         })
     end
 end
 
 local function cleanup()
+    -- reset global vars
     last_position = nil
     last_forwardDirection = nil
     last_facing = nil
     currentSpline = nil
     last_sway = 0
-
-    -- cleanup
     if myTimer ~= nil then myTimer:cancel() end
     splineIndex = 2
 
     if mountData then
         tes3.removeSound({ sound = mountData.sound, reference = mount })
 
-        -- guide
+        -- delete guide
         if mountData.guideSlot.handle and mountData.guideSlot.handle:valid() then
             mountData.guideSlot.handle:getObject():delete()
             mountData.guideSlot.handle = nil
         end
 
-        -- passengers
+        -- delete passengers
         for index, slot in ipairs(mountData.slots) do
             if slot.handle and slot.handle:valid() then
                 local ref = slot.handle:getObject()
-                if ref.mobile then
-                    if not isFollower(ref.mobile) and slot.handle:getObject() ~= tes3.player then
-                        ref:delete()
-                        slot.handle = nil
-                    end
+                if ref ~= tes3.player and ref.mobile and not isFollower(ref.mobile) then
+                    ref:delete()
+                    slot.handle = nil
                 end
             end
         end
 
-        -- statics
+        -- delete statics
         if mountData.clutter then
             for index, clutter in ipairs(mountData.clutter) do
                 if clutter.handle and clutter.handle:valid() then
@@ -463,7 +460,7 @@ local function destinationReached(force)
     end
 
     -- reset player
-    if not free_movement then
+    if isTraveling() and not free_movement then
         tes3.mobilePlayer.movementCollision = true;
         tes3.loadAnimation({ reference = tes3.player })
         tes3.playAnimation({ reference = tes3.player, group = 0 })
@@ -477,23 +474,21 @@ local function destinationReached(force)
         end
     end
 
-    -- followers
+    -- teleport followers
     for index, slot in ipairs(mountData.slots) do
         if slot.handle and slot.handle:valid() then
             local ref = slot.handle:getObject()
-            if ref.mobile then
-                if isFollower(ref.mobile) and slot.handle:getObject() ~= tes3.player then
-                    slot.handle:getObject().mobile.movementCollision = true;
-                    tes3.loadAnimation({ reference = slot.handle:getObject() })
-                    tes3.playAnimation({ reference = slot.handle:getObject(), group = 0 })
+            if ref ~= tes3.player and ref.mobile and isFollower(ref.mobile) then
+                ref.mobile.movementCollision = true;
+                tes3.loadAnimation({ reference = ref })
+                tes3.playAnimation({ reference = ref, group = 0 })
 
-                    tes3.positionCell({
-                        reference = slot.handle:getObject(),
-                        position = tes3.player.position
-                    })
+                tes3.positionCell({
+                    reference = ref,
+                    position = tes3.player.position
+                })
 
-                    slot.handle = nil
-                end
+                slot.handle = nil
             end
         end
     end
@@ -667,14 +662,14 @@ local function onTimerTick()
         local isBehind = common.isPointBehindObject(nextPos, mount.position, forward)
         if isBehind then splineIndex = splineIndex + 1 end
     else -- if i is at the end of the list
-        tes3.fadeOut({ duration = 1 })
+        tes3.fadeOut()
+        if myTimer ~= nil then myTimer:cancel() end
 
         timer.start({
             type = timer.simulate,
-            iterations = 1,
             duration = 1,
             callback = (function()
-                tes3.fadeIn({ duration = 1 })
+                tes3.fadeIn()
                 destinationReached(false)
             end)
         })
@@ -800,17 +795,19 @@ local function startTravel(start, destination, service, guide)
             end
 
             -- register passengers
-            local n = math.random(math.max(1, #mountData.slots - 2));
+            local n = math.random(math.max(0, #mountData.slots - 2));
             log:debug("register " .. n .. " / " .. #mountData.slots .. " passengers")
-            local actors = getRandomActorsInCell(n)
-            for _i, value in ipairs(actors) do
-                local passenger = tes3.createReference {
-                    object = value,
-                    position = startPos + mountOffset,
-                    orientation = mount.orientation
-                }
-                local refHandle = tes3.makeSafeObjectHandle(passenger)
-                registerRefInRandomSlot(mountData, refHandle)
+            if n > 0 then
+                local actors = getRandomActorsInCell(n)
+                for _i, value in ipairs(actors) do
+                    local passenger = tes3.createReference {
+                        object = value,
+                        position = startPos + mountOffset,
+                        orientation = mount.orientation
+                    }
+                    local refHandle = tes3.makeSafeObjectHandle(passenger)
+                    registerRefInRandomSlot(mountData, refHandle)
+                end
             end
 
             -- register player
