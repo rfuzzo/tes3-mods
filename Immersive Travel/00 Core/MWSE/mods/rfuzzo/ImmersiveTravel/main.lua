@@ -337,6 +337,7 @@ local function registerGuide(data, handle)
         -- tcl
         local reference = handle:getObject()
         reference.mobile.movementCollision = false;
+        reference.data.rfuzzo_invincible = true;
 
         -- play animation
         local slot = data.guideSlot
@@ -362,6 +363,10 @@ local function registerInSlot(data, handle, idx)
     if handle and handle:valid() then
         local slot = data.slots[idx]
         local reference = handle:getObject()
+        reference.mobile.movementCollision = false;
+        if reference ~= tes3.player then
+            reference.data.rfuzzo_invincible = true;
+        end
 
         local group = get_random_anim_group(slot)
         tes3.loadAnimation({ reference = reference })
@@ -372,15 +377,6 @@ local function registerInSlot(data, handle, idx)
 
         log:debug("registered " .. reference.id .. " in slot " .. tostring(idx) .. " with animgroup " .. tostring(group))
     end
-end
-
----@param data MountData
----@return integer|nil index
-local function getFirstFreeSlot(data)
-    for index, value in ipairs(data.slots) do
-        if value.handle == nil then return index end
-    end
-    return nil
 end
 
 ---@param data MountData
@@ -411,7 +407,6 @@ local function registerRefInRandomSlot(data, handle)
         local i = getRandomFreeSlotIdx(data)
         if not i then return end
 
-        handle:getObject().mobile.movementCollision = false;
         registerInSlot(data, handle, i)
     end
 end
@@ -973,9 +968,22 @@ end
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// EVENTS
 
+-- Disable damage on select characters in travel, thanks Null
+--- @param e damageEventData
+local function damageInvincibilityGate(e)
+    if (e.reference.data and e.reference.data.rfuzzo_invincible) then
+        return false
+    end
+end
+event.register(tes3.event.damage, damageInvincibilityGate)
+
 --- Disable combat while in travel
 --- @param e combatStartEventData
-local function forcedPacifism(e) if (isTraveling()) then return false end end
+local function forcedPacifism(e)
+    if (isTraveling()) then
+        return false
+    end
+end
 event.register(tes3.event.combatStart, forcedPacifism)
 
 --- Disable all activate while in travel
@@ -1014,7 +1022,7 @@ local function activateCallback(e)
 end
 event.register(tes3.event.activate, activateCallback)
 
---- Disable tooltips of mount and guide while in travel
+--- Disable tooltips while in travel
 --- @param e uiObjectTooltipEventData
 local function uiObjectTooltipCallback(e)
     if not isTraveling() then return end
@@ -1024,16 +1032,16 @@ local function uiObjectTooltipCallback(e)
     if mountData.guideSlot.handle == nil then return; end
     if not mountData.guideSlot.handle:valid() then return; end
 
-    if e.object.id == mount.id then
-        e.tooltip.visible = false
-        return false
-    end
+    e.tooltip.visible = false
+    return false
 end
 event.register(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
 
 --- Cleanup on save load
 --- @param e loadEventData
-local function loadCallback(e) cleanup() end
+local function loadCallback(e)
+    cleanup()
+end
 event.register(tes3.event.load, loadCallback)
 
 -- upon entering the dialog menu, create the travel menu
