@@ -410,11 +410,9 @@ local function destinationReached(force)
     end
 
     -- reset player
-    if isTraveling() and not free_movement then
-        tes3.mobilePlayer.movementCollision = true;
-        tes3.loadAnimation({ reference = tes3.player })
-        tes3.playAnimation({ reference = tes3.player, group = 0 })
-    end
+    tes3.mobilePlayer.movementCollision = true;
+    tes3.loadAnimation({ reference = tes3.player })
+    tes3.playAnimation({ reference = tes3.player, group = 0 })
 
     if force then
         teleportToClosestMarker()
@@ -1060,8 +1058,6 @@ local function keyDownCallback(e)
         if e.keyCode == tes3.scanCode["s"] then
             if mountData == nil then return; end
             if mountData.hasFreeMovement then
-                -- get up
-                log:debug("unregister player")
                 -- remove from slot
                 for index, slot in ipairs(mountData.slots) do
                     if slot.handle and slot.handle:valid() and slot.handle:getObject() == tes3.player then
