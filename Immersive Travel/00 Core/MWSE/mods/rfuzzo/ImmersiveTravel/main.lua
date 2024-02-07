@@ -152,26 +152,7 @@ local function isTraveling()
     return true
 end
 
--- This function loops over the references inside the
--- tes3referenceList and adds them to an array-style table
----@param list tes3referenceList
----@return tes3reference[]
-local function referenceListToTable(list)
-    local references = {} ---@type tes3reference[]
-    local i = 1
-    if list.size == 0 then return {} end
-    local ref = list.head
 
-    while ref.nextNode do
-        references[i] = ref
-        i = i + 1
-        ref = ref.nextNode
-    end
-
-    -- Add the last reference
-    references[i] = ref
-    return references
-end
 
 ---@param pos PositionRecord
 --- @return tes3vector3
@@ -215,36 +196,10 @@ local function getFollowers()
     return followers
 end
 
----@return ReferenceRecord|nil
-local function findClosestTravelMarker()
-    ---@type table<ReferenceRecord>
-    local results = {}
-    local cells = tes3.getActiveCells()
-    for _index, cell in ipairs(cells) do
-        local references = referenceListToTable(cell.activators)
-        for _, r in ipairs(references) do
-            if r.baseObject.isLocationMarker and r.baseObject.id ==
-                "TravelMarker" then
-                table.insert(results, { cell = cell, position = r.position })
-            end
-        end
-    end
 
-    local last_distance = 8000
-    local last_index = 1
-    for index, marker in ipairs(results) do
-        local dist = tes3.mobilePlayer.position:distance(marker.position)
-        if dist < last_distance then
-            last_index = index
-            last_distance = dist
-        end
-    end
-
-    return results[last_index]
-end
 
 local function teleportToClosestMarker()
-    local marker = findClosestTravelMarker()
+    local marker = common.findClosestTravelMarker()
     if marker ~= nil then
         tes3.positionCell({
             reference = tes3.mobilePlayer,
@@ -315,7 +270,7 @@ local function get_random_anim_group(slot)
             group = tes3.animationGroup[animkey]
         else
             -- if len is 0 then we pick one of the idles
-            local index = { "idle", "idle2", "idle3", "idle4", "idle5", "idle6", "idle7", "idle8" }
+            local index = { "idle2", "idle3", "idle4", "idle5", "idle6", "idle7", "idle8" }
             local randomIndex = math.random(1, #index)
             local randomkey = index[randomIndex]
             group = tes3.animationGroup[randomkey]
@@ -478,9 +433,12 @@ local function destinationReached(force)
                 tes3.loadAnimation({ reference = ref })
                 tes3.playAnimation({ reference = ref, group = 0 })
 
+                local f = tes3.player.forwardDirection
+                f:normalize()
+                local offset = f * 60.0
                 tes3.positionCell({
                     reference = ref,
-                    position = tes3.player.position
+                    position = tes3.player.position + offset
                 })
 
                 slot.handle = nil
@@ -595,7 +553,6 @@ local function onTimerTick()
         end
 
         -- guide
-
         local guide = mountData.guideSlot.handle:getObject()
         tes3.positionCell({
             reference = guide,
@@ -618,13 +575,13 @@ local function onTimerTick()
             end
         end
 
-        -- position references in slots
+        -- passengers
         for index, slot in ipairs(mountData.slots) do
             if slot.handle and slot.handle:valid() then
                 local obj = slot.handle:getObject()
                 slot.handle:getObject().position = mount.sceneNode.worldTransform * vec(slot.position)
                 if obj ~= tes3.player then
-                    obj.facing = mount.facing
+                    --- obj.facing = mount.facing
                     -- only change anims if behind player
                     if changeAnims and common.isPointBehindObject(obj.position, tes3.player.position, tes3.player.forwardDirection) then
                         local group = get_random_anim_group(slot)
@@ -676,7 +633,7 @@ local function getRandomActorsInCell(N)
     local t = {} ---@type string[]
     local cells = tes3.getActiveCells()
     for _index, cell in ipairs(cells) do
-        local references = referenceListToTable(cell.actors)
+        local references = common.referenceListToTable(cell.actors)
         for _, r in ipairs(references) do
             if r.baseObject.objectType == tes3.objectType.npc then
                 if not common.is_in(t, r.baseObject.id) then
@@ -688,7 +645,7 @@ local function getRandomActorsInCell(N)
 
     -- get random pick
     local result = {}
-    for i = 1, N do
+    for i = 1, math.min(N, #t) do
         local randomIndex = math.random(1, #t)
         table.insert(result, t[randomIndex])
     end
@@ -1104,7 +1061,7 @@ local function keyDownCallback(e)
             if mountData == nil then return; end
             if mountData.hasFreeMovement then
                 -- get up
-                log:debug("un register player")
+                log:debug("unregister player")
                 -- remove from slot
                 for index, slot in ipairs(mountData.slots) do
                     if slot.handle and slot.handle:valid() and slot.handle:getObject() == tes3.player then

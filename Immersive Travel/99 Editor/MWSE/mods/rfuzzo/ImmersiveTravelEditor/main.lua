@@ -55,7 +55,10 @@ local editMenuPreviewId = tes3ui.registerID("it:MenuEdit_Preview")
 local editMenuSearchId = tes3ui.registerID("it:MenuEdit_Search")
 
 local editorMarkerId = "marker_arrow.nif"
+local divineMarkerId = "marker_divine.nif"
+
 local editorMarkerMesh = nil
+local divineMarkerMesh = nil
 
 -- editor
 ---@type string | nil
@@ -176,6 +179,7 @@ end
 local function renderMarkers(spline)
     if not editorData then return nil end
     if not editorMarkerMesh then return nil end
+    if not divineMarkerMesh then return nil end
 
     editorData.editorMarkers = {}
     editorData.currentMarker = nil
@@ -196,6 +200,8 @@ local function renderMarkers(spline)
         ---@diagnostic disable-next-line: assign-type-mismatch
         editorData.editorMarkers[idx] = child
     end
+
+    -- at end
 
     updateMarkers()
 end
@@ -585,7 +591,7 @@ local function createEditWindow()
             if not mountData then return end
 
             local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-            -- local marker = tes3.loadMesh("marker_divine.nif")
+
             local marker = tes3.loadMesh("marker_arrow.nif")
             for _index, slot in ipairs(mountData.slots) do
                 local child = marker:clone()
@@ -764,6 +770,7 @@ event.register(tes3.event.keyDown, editor_keyDownCallback)
 --- @param e loadEventData
 local function editloadCallback(e)
     editorMarkerMesh = tes3.loadMesh(editorMarkerId)
+    divineMarkerMesh = tes3.loadMesh(divineMarkerId)
     cleanup()
 end
 event.register(tes3.event.load, editloadCallback)

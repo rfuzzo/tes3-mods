@@ -17,6 +17,60 @@ local fullmodpath = this.fullmodpath
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// COMMON
 
+-- This function loops over the references inside the
+-- tes3referenceList and adds them to an array-style table
+---@param list tes3referenceList
+---@return tes3reference[]
+function this.referenceListToTable(list)
+    local references = {} ---@type tes3reference[]
+    local i = 1
+    if list.size == 0 then return {} end
+    local ref = list.head
+
+    while ref.nextNode do
+        references[i] = ref
+        i = i + 1
+        ref = ref.nextNode
+    end
+
+    -- Add the last reference
+    references[i] = ref
+    return references
+end
+
+---@return ReferenceRecord|nil
+function this.findClosestTravelMarker()
+    ---@type table<ReferenceRecord>
+    local results = {}
+    local cells = tes3.getActiveCells()
+    for _index, cell in ipairs(cells) do
+        local references = this.referenceListToTable(cell.activators)
+        for _, r in ipairs(references) do
+            if r.baseObject.isLocationMarker and r.baseObject.id ==
+                "TravelMarker" then
+                table.insert(results, { cell = cell, position = r.position })
+            end
+        end
+    end
+
+    local last_distance = 8000
+    local last_index = 1
+    for index, marker in ipairs(results) do
+        local dist = tes3.mobilePlayer.position:distance(marker.position)
+        if dist < last_distance then
+            last_index = index
+            last_distance = dist
+        end
+    end
+
+    local result = results[last_index]
+    if not result then
+        log:warn("No TravelMarker found to teleport to")
+    end
+
+    return results[last_index]
+end
+
 -- Translate local orientation around a base-centered coordinate system to world orientation
 ---@param localOrientation tes3vector3
 ---@param baseOrientation tes3vector3
