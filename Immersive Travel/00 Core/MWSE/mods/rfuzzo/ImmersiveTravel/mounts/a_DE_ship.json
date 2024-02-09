@@ -14,12 +14,13 @@
       "z": 360
     }
   },
-  "idList": [
-    "r\\AscendedSleeper.nif",
-    "r\\Skeleton.nif",
-    "r\\Skeleton.nif",
-    "r\\Skeleton.nif"
-  ],
+  "hiddenSlot": {
+    "position": {
+      "x": 0,
+      "y": 0,
+      "z": 40
+    }
+  },
   "slots": [
     {
       "animationGroup": [],
@@ -59,6 +60,16 @@
         "x": 115,
         "y": -466,
         "z": 208
+      }
+    }
+  ],
+  "clutter": [
+    {
+      "id": "Ex_DE_ship_cabindoor",
+      "position": {
+        "x": 92,
+        "y": -617,
+        "z": 261
       }
     }
   ]

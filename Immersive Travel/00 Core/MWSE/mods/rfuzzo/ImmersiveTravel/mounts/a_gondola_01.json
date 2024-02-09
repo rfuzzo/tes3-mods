@@ -15,6 +15,13 @@
       "z": -18
     }
   },
+  "hiddenSlot": {
+    "position": {
+      "x": 0,
+      "y": 0,
+      "z": -200
+    }
+  },
   "slots": [
     {
       "animationGroup": [

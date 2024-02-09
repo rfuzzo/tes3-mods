@@ -14,12 +14,13 @@
       "z": -65
     }
   },
-  "idList": [
-    "r\\AscendedSleeper.nif",
-    "r\\Skeleton.nif",
-    "r\\Skeleton.nif",
-    "r\\Skeleton.nif"
-  ],
+  "hiddenSlot": {
+    "position": {
+      "x": 0,
+      "y": 0,
+      "z": -200
+    }
+  },
   "slots": [
     {
       "animationGroup": [],
