@@ -583,16 +583,19 @@ local function onTimerTick()
                     -- only change anims if behind player
                     if changeAnims and common.isPointBehindObject(obj.position, tes3.player.position, tes3.player.forwardDirection) then
                         local group = get_random_anim_group(slot)
-                        local currentAnimationGroup = guide.mobile.animationController.animationData.currentAnimGroups
-                            [tes3.animationBodySection.upper]
+                        local animController = obj.mobile.animationController
+                        if animController then
+                            local currentAnimationGroup = animController.animationData.currentAnimGroups
+                                [tes3.animationBodySection.upper]
 
-                        if group ~= currentAnimationGroup then
-                            tes3.loadAnimation({ reference = obj })
-                            if slot.animationFile then
-                                tes3.loadAnimation({ reference = obj, file = slot.animationFile })
+                            if group ~= currentAnimationGroup then
+                                tes3.loadAnimation({ reference = obj })
+                                if slot.animationFile then
+                                    tes3.loadAnimation({ reference = obj, file = slot.animationFile })
+                                end
+                                tes3.playAnimation({ reference = obj, group = group })
+                                log:debug(obj.id .. " switching to animgroup " .. tostring(group))
                             end
-                            tes3.playAnimation({ reference = obj, group = group })
-                            log:debug(obj.id .. " switching to animgroup " .. tostring(group))
                         end
                     end
                 end
