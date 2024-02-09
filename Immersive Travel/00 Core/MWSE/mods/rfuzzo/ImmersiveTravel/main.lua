@@ -56,6 +56,7 @@ local log = logger.new {
 
 ---@class Clutter
 ---@field position PositionRecord slot
+---@field orientation PositionRecord? slot
 ---@field id string? reference id
 ---@field mesh string? reference id
 ---@field handle mwseSafeObjectHandle?
@@ -162,6 +163,13 @@ end
 ---@param pos PositionRecord
 --- @return tes3vector3
 local function vec(pos) return tes3vector3.new(pos.x, pos.y, pos.z) end
+
+---@param pos PositionRecord
+--- @return tes3vector3
+local function radvec(pos)
+    return
+        tes3vector3.new(math.rad(pos.x), math.rad(pos.y), math.rad(pos.z))
+end
 
 --- This function returns `true` if a given mobile has
 --- follow ai package with player as its target
@@ -710,9 +718,13 @@ local function onTimerTick()
 
         -- statics
         if mountData.clutter then
-            for index, slot in ipairs(mountData.clutter) do
-                if slot.handle and slot.handle:valid() then
-                    slot.handle:getObject().position = mount.sceneNode.worldTransform * vec(slot.position)
+            for index, clutter in ipairs(mountData.clutter) do
+                if clutter.handle and clutter.handle:valid() then
+                    clutter.handle:getObject().position = mount.sceneNode.worldTransform * vec(clutter.position)
+                    if clutter.orientation then
+                        clutter.handle:getObject().orientation = common.toWorldOrientation(radvec(clutter.orientation),
+                            mount.orientation)
+                    end
                 end
             end
         end
@@ -886,13 +898,21 @@ local function startTravel(start, destination, service, guide)
                 for index, clutter in ipairs(mountData.clutter) do
                     if clutter.id then
                         -- instantiate
-                        local inst = tes3.createReference {
-                            object = clutter.id,
-                            position = startPos + mountOffset,
-                            orientation = mount.orientation
-                        }
-                        -- register
-                        registerStatic(mountData, tes3.makeSafeObjectHandle(inst), index)
+                        if clutter.orientation then
+                            local inst = tes3.createReference {
+                                object = clutter.id,
+                                position = startPos + mountOffset,
+                                orientation = common.toWorldOrientation(radvec(clutter.orientation), mount.orientation)
+                            }
+                            registerStatic(mountData, tes3.makeSafeObjectHandle(inst), index)
+                        else
+                            local inst = tes3.createReference {
+                                object = clutter.id,
+                                position = startPos + mountOffset,
+                                orientation = mount.orientation
+                            }
+                            registerStatic(mountData, tes3.makeSafeObjectHandle(inst), index)
+                        end
                     end
                 end
             end
