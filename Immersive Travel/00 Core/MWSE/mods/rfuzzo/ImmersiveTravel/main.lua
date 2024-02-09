@@ -360,7 +360,10 @@ end
 local function registerRefInRandomSlot(data, handle)
     if handle and handle:valid() then
         local i = getRandomFreeSlotIdx(data)
-        if not i then return end
+        if not i then
+            log:debug("Could not register ref: " .. handle:getObject().id)
+            return
+        end
 
         registerInSlot(data, handle, i)
     end
@@ -562,14 +565,13 @@ local function onTimerTick()
             local group = get_random_anim_group(mountData.guideSlot)
             local currentAnimationGroup = guide.mobile.animationController.animationData.currentAnimGroups
                 [tes3.animationBodySection.upper]
-
+            log:debug(guide.id .. " switching to animgroup " .. tostring(group))
             if group ~= currentAnimationGroup then
                 tes3.loadAnimation({ reference = guide })
                 if mountData.guideSlot.animationFile then
                     tes3.loadAnimation({ reference = guide, file = mountData.guideSlot.animationFile })
                 end
                 tes3.playAnimation({ reference = guide, group = group })
-                log:debug(guide.id .. " switching to animgroup " .. tostring(group))
             end
         end
 
@@ -583,6 +585,7 @@ local function onTimerTick()
                     -- only change anims if behind player
                     if changeAnims and common.isPointBehindObject(obj.position, tes3.player.position, tes3.player.forwardDirection) then
                         local group = get_random_anim_group(slot)
+                        log:debug(obj.id .. " switching to animgroup " .. tostring(group))
                         local animController = obj.mobile.animationController
                         if animController then
                             local currentAnimationGroup = animController.animationData.currentAnimGroups
@@ -594,7 +597,6 @@ local function onTimerTick()
                                     tes3.loadAnimation({ reference = obj, file = slot.animationFile })
                                 end
                                 tes3.playAnimation({ reference = obj, group = group })
-                                log:debug(obj.id .. " switching to animgroup " .. tostring(group))
                             end
                         end
                     end
