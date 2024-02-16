@@ -5,19 +5,19 @@ by rfuzzo
 
 mwse real-time travel mod
 
---]]
---
+--]] --
 local common = require("rfuzzo.ImmersiveTravel.common")
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// CONFIGURATION
 local config = require("rfuzzo.ImmersiveTravel.config")
 
-local ANIM_CHANGE_FREQ = 10        -- change passenger animations every 10 seconds
-local sway_max_amplitude = 3       -- how much the ship can sway in a turn
+local ANIM_CHANGE_FREQ = 10 -- change passenger animations every 10 seconds
+local sway_max_amplitude = 3 -- how much the ship can sway in a turn
 local sway_amplitude_change = 0.01 -- how much the ship can sway in a turn
-local sway_frequency = 0.12        -- how fast the mount sways
-local sway_amplitude = 0.014       -- how much the mount sways
+local sway_frequency = 0.12 -- how fast the mount sways
+local sway_amplitude = 0.014 -- how much the mount sways
+local timertick = 0.01
 
 local logger = require("logging.logger")
 local log = logger.new {
@@ -87,130 +87,43 @@ local travelMenuId = tes3ui.registerID("it:travel_menu")
 local travelMenuCancelId = tes3ui.registerID("it:travel_menu_cancel")
 local npcMenu = nil
 
-local timertick = 0.01
 local myTimer = nil ---@type mwseTimer | nil
+local currentSpline = nil ---@type PositionRecord[]|nil
 
-local mount = nil ---@type tes3reference | nil
 local splineIndex = 2
 local swayTime = 0
-local currentSpline = nil ---@type PositionRecord[]|nil
-local mountData = nil ---@type MountData|nil
-
 local last_position = nil ---@type tes3vector3|nil
 local last_forwardDirection = nil ---@type tes3vector3|nil
 local last_facing = nil ---@type number|nil
 local last_sway = 0 ---@type number
 
-local free_movement = false
+local mountData = nil ---@type MountData|nil
+local mount = nil ---@type tes3reference | nil
 
+local free_movement = false
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// FUNCTIONS
 
+local function vec(pos) return common.vec(pos) end
+local function radvec(pos) return common.radvec(pos) end
 
+-- /////////////////////////////////////////////////////////////////////////////////////////
+-- ////////////// TES3
+
+--- This function returns `true` if given NPC
+--- or creature offers traveling service.
+---@param actor tes3npc|tes3npcInstance|tes3creature|tes3creatureInstance
 ---@return boolean
-local function isOnMount()
-    if not mount then
-        return false
-    end
+local function offersTraveling(actor)
+    local travelDestinations = actor.aiConfig.travelDestinations
 
-    if not mountData then
-        return false
-    end
-
-    local inside = true
-
-    local volumeHeight = 200
-
-    local bbox = mount.object.boundingBox
-
-    local pos = tes3.player.position
-    local surfaceOffset = mountData.slots[1].position.z
-    local mountSurface = mount.position + tes3vector3.new(0, 0, surfaceOffset)
-
-    if pos.z < (mountSurface.z - volumeHeight) then
-        inside = false
-    end
-    if pos.z > (mountSurface.z + volumeHeight) then
-        inside = false
-    end
-
-    local max_xy_d = tes3vector3.new(bbox.max.x, bbox.max.y, 0):length()
-    local min_xy_d = tes3vector3.new(bbox.min.x, bbox.min.y, 0):length()
-    local dist = mountSurface:distance(pos)
-    local r = math.max(min_xy_d, max_xy_d) + 50
-    if dist > r then
-        inside = false
-    end
-
-    return inside
+    -- Actors that can't transport the player
+    -- have travelDestinations equal to `nil`
+    return travelDestinations ~= nil
 end
 
-local function isTraveling()
-    if not currentSpline then
-        return false
-    end
-
-    if not isOnMount() then
-        return false
-    end
-
-    return true
-end
-
-
-
----@param pos PositionRecord
---- @return tes3vector3
-local function vec(pos) return tes3vector3.new(pos.x, pos.y, pos.z) end
-
----@param pos PositionRecord
---- @return tes3vector3
-local function radvec(pos)
-    return
-        tes3vector3.new(math.rad(pos.x), math.rad(pos.y), math.rad(pos.z))
-end
-
---- This function returns `true` if a given mobile has
---- follow ai package with player as its target
----@param mobile tes3mobileNPC|tes3mobileCreature
----@return boolean isFollower
-local function isFollower(mobile)
-    local planner = mobile.aiPlanner
-    if not planner then return false end
-
-    local package = planner:getActivePackage()
-    if not package then return false end
-    if package.type == tes3.aiPackage.follow then
-        local target = package.targetActor
-
-        if target.objectType == tes3.objectType.mobilePlayer then
-            return true
-        end
-    end
-    return false
-end
-
---- With the above function we can build a function that
---- creates a table with all of the player's followers
----@return tes3reference[] followerList
-local function getFollowers()
-    local followers = {}
-    local i = 1
-
-    for _, mobile in pairs(tes3.mobilePlayer.friendlyActors) do
-        ---@cast mobile tes3mobileNPC|tes3mobileCreature
-        if isFollower(mobile) then
-            followers[i] = mobile.reference
-            i = i + 1
-        end
-    end
-
-    return followers
-end
-
-
-
+-- teleport player to closest travel marker
 local function teleportToClosestMarker()
     local marker = common.findClosestTravelMarker()
     if marker ~= nil then
@@ -222,24 +135,94 @@ local function teleportToClosestMarker()
     end
 end
 
-local function cancel_timer()
-    if myTimer ~= nil then myTimer:cancel() end
+--- get a table of N actors in the current 9 cells
+--- @param N integer
+---@return string[]
+local function getRandomActorsInCell(N)
+    -- get all actors
+    local t = {} ---@type string[]
+    local cells = tes3.getActiveCells()
+    for _index, cell in ipairs(cells) do
+        local references = common.referenceListToTable(cell.actors)
+        for _, r in ipairs(references) do
+            if r.baseObject.objectType == tes3.objectType.npc then
+                if not common.is_in(t, r.baseObject.id) then
+                    table.insert(t, r.baseObject.id)
+                end
+            end
+        end
+    end
+
+    -- get random pick
+    local result = {} ---@type string[]
+    for i = 1, math.min(N, #t) do
+        local randomIndex = math.random(1, #t)
+        table.insert(result, t[randomIndex])
+    end
+
+    return result
 end
 
+-- /////////////////////////////////////////////////////////////////////////////////////////
+-- ////////////// MOD
+
+-- player is within the surface of the mount
+---@return boolean
+local function isOnMount()
+    if not mount then return false end
+
+    if not mountData then return false end
+
+    local inside = true
+
+    local volumeHeight = 200
+
+    local bbox = mount.object.boundingBox
+
+    local pos = tes3.player.position
+    local surfaceOffset = mountData.slots[1].position.z
+    local mountSurface = mount.position + tes3vector3.new(0, 0, surfaceOffset)
+
+    if pos.z < (mountSurface.z - volumeHeight) then inside = false end
+    if pos.z > (mountSurface.z + volumeHeight) then inside = false end
+
+    local max_xy_d = tes3vector3.new(bbox.max.x, bbox.max.y, 0):length()
+    local min_xy_d = tes3vector3.new(bbox.min.x, bbox.min.y, 0):length()
+    local dist = mountSurface:distance(pos)
+    local r = math.max(min_xy_d, max_xy_d) + 50
+    if dist > r then inside = false end
+
+    return inside
+end
+
+-- convenience method to check if player is currently travelling
+local function isTraveling()
+    if not currentSpline then return false end
+
+    if not isOnMount() then return false end
+
+    return true
+end
+
+local function safeCancelTimer() if myTimer ~= nil then myTimer:cancel() end end
+
+-- cleanup all variables
 local function cleanup()
     log:debug("cleanup")
 
     -- reset global vars
+    safeCancelTimer()
+    currentSpline = nil
+
+    splineIndex = 2
+    swayTime = 0
     last_position = nil
     last_forwardDirection = nil
     last_facing = nil
-    currentSpline = nil
     last_sway = 0
-    if myTimer ~= nil then myTimer:cancel() end
-    splineIndex = 2
 
     if mountData then
-        tes3.removeSound({ sound = mountData.sound, reference = mount })
+        tes3.removeSound({sound = mountData.sound, reference = mount})
 
         -- delete guide
         if mountData.guideSlot.handle and mountData.guideSlot.handle:valid() then
@@ -251,7 +234,8 @@ local function cleanup()
         for index, slot in ipairs(mountData.slots) do
             if slot.handle and slot.handle:valid() then
                 local ref = slot.handle:getObject()
-                if ref ~= tes3.player and ref.mobile and not isFollower(ref.mobile) then
+                if ref ~= tes3.player and ref.mobile and
+                    not common.isFollower(ref.mobile) then
                     ref:delete()
                     slot.handle = nil
                 end
@@ -267,44 +251,16 @@ local function cleanup()
                 end
             end
         end
-        mountData = nil
+
     end
+    mountData = nil
 
     -- delete the mount
-    if mount then
-        mount:delete()
-        mount = nil
-    end
-
-    cancel_timer()
+    if mount then mount:delete() end
+    mount = nil
 end
 
----@param slot Slot
----@return integer
-local function get_random_anim_group(slot)
-    local group = tes3.animationGroup.idle5
-    if slot.animationGroup then
-        -- choose a random animation
-        if #slot.animationGroup > 0 then
-            local randomIndex = math.random(1, #slot.animationGroup)
-            local animkey = slot.animationGroup[randomIndex]
-            group = tes3.animationGroup[animkey]
-        else
-            -- if len is 0 then we pick one of the idles
-            local index = { "idle2", "idle3", "idle4", "idle5", "idle6", "idle7", "idle8" }
-            local randomIndex = math.random(1, #index)
-            local randomkey = index[randomIndex]
-            group = tes3.animationGroup[randomkey]
-        end
-    end
-
-    if group == nil then
-        group = tes3.animationGroup.idle5
-    end
-
-    return group
-end
-
+-- register a ref in the dedicated guide slot
 ---@param data MountData
 ---@param handle mwseSafeObjectHandle|nil
 local function registerGuide(data, handle)
@@ -318,70 +274,26 @@ local function registerGuide(data, handle)
         -- play animation
         local slot = data.guideSlot
 
-        local group = get_random_anim_group(slot)
-        tes3.loadAnimation({ reference = reference })
+        local group = common.getRandomAnimGroup(slot)
+        tes3.loadAnimation({reference = reference})
         if slot.animationFile then
-            tes3.loadAnimation({ reference = reference, file = slot.animationFile })
+            tes3.loadAnimation({
+                reference = reference,
+                file = slot.animationFile
+            })
         end
-        tes3.playAnimation({ reference = reference, group = group })
+        tes3.playAnimation({reference = reference, group = group})
 
-        log:debug("registered " .. reference.id .. " in guide slot with animgroup " .. tostring(group))
+        log:debug("registered " .. reference.id ..
+                      " in guide slot with animgroup " .. tostring(group))
     end
 end
 
----@param data MountData
----@param handle mwseSafeObjectHandle|nil
----@param idx integer
-local function registerInSlot(data, handle, idx)
-    data.slots[idx].handle = handle
-
-    -- play animation
-    if handle and handle:valid() then
-        local slot = data.slots[idx]
-        local reference = handle:getObject()
-        reference.mobile.movementCollision = false;
-        if reference ~= tes3.player then
-            reference.data.rfuzzo_invincible = true;
-        end
-
-        local group = get_random_anim_group(slot)
-        tes3.loadAnimation({ reference = reference })
-        if slot.animationFile then
-            tes3.loadAnimation({ reference = reference, file = slot.animationFile })
-        end
-        tes3.playAnimation({ reference = reference, group = group })
-
-        log:debug("registered " .. reference.id .. " in slot " .. tostring(idx) .. " with animgroup " .. tostring(group))
-    end
-end
-
----@param data MountData
----@return integer|nil index
-local function getRandomFreeSlotIdx(data)
-    local nilIndices = {}
-
-    -- Collect indices of nil entries
-    for index, value in ipairs(data.slots) do
-        if value.handle == nil then
-            table.insert(nilIndices, index)
-        end
-    end
-
-    -- Check if there are nil entries
-    if #nilIndices > 0 then
-        local randomIndex = math.random(1, #nilIndices)
-        return nilIndices[randomIndex]
-    else
-        return nil -- No nil entries found
-    end
-end
-
+-- register a ref in the hidden slot container
 ---@param data MountData
 ---@param handle mwseSafeObjectHandle|nil
 local function registerRefInHiddenSlot(data, handle)
-    if data.hiddenSlot.handles == nil then
-        data.hiddenSlot.handles = {}
-    end
+    if data.hiddenSlot.handles == nil then data.hiddenSlot.handles = {} end
 
     if handle and handle:valid() then
         local idx = #data.hiddenSlot.handles + 1
@@ -395,24 +307,7 @@ local function registerRefInHiddenSlot(data, handle)
     end
 end
 
----@param data MountData
----@param handle mwseSafeObjectHandle|nil
----@return boolean
-local function registerRefInRandomSlot(data, handle)
-    if handle and handle:valid() then
-        local i = getRandomFreeSlotIdx(data)
-        if not i then
-            log:debug("Could not register " .. handle:getObject().id .. " in normal slot")
-            return false
-        end
-
-        registerInSlot(data, handle, i)
-        return true
-    end
-
-    return false
-end
-
+-- move player to next slot and rotate registered refs in slots
 ---@param data MountData
 local function incrementSlot(data)
     local playerIdx = nil
@@ -431,56 +326,43 @@ local function incrementSlot(data)
     -- register anew for anims
     if playerIdx and idx then
         local temp_handle = data.slots[idx].handle
-        registerInSlot(data, temp_handle, playerIdx)
-        registerInSlot(data, tes3.makeSafeObjectHandle(tes3.player), idx)
-    end
-end
-
----@param data MountData
----@param handle mwseSafeObjectHandle|nil
----@param i integer
-local function registerStatic(data, handle, i)
-    data.clutter[i].handle = handle
-
-    if handle and handle:valid() then
-        log:debug("registered " .. handle:getObject().id .. " in static slot " .. tostring(i))
+        common.registerInSlot(data, temp_handle, playerIdx)
+        common.registerInSlot(data, tes3.makeSafeObjectHandle(tes3.player), idx)
     end
 end
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// TRAVEL
 
+-- what happens when we reach the destination
 ---@param force boolean
 local function destinationReached(force)
-    if not mountData then
-        return
-    end
+    if not mountData then return end
 
     log:debug("destinationReached")
 
     -- reset player
     tes3.mobilePlayer.movementCollision = true;
-    tes3.loadAnimation({ reference = tes3.player })
-    tes3.playAnimation({ reference = tes3.player, group = 0 })
+    tes3.loadAnimation({reference = tes3.player})
+    tes3.playAnimation({reference = tes3.player, group = 0})
 
     if force then
         teleportToClosestMarker()
     else
-        if isTraveling() then
-            teleportToClosestMarker()
-        end
+        if isTraveling() then teleportToClosestMarker() end
     end
 
     -- teleport followers
     for index, slot in ipairs(mountData.slots) do
         if slot.handle and slot.handle:valid() then
             local ref = slot.handle:getObject()
-            if ref ~= tes3.player and ref.mobile and isFollower(ref.mobile) then
+            if ref ~= tes3.player and ref.mobile and
+                common.isFollower(ref.mobile) then
                 log:debug("teleporting follower " .. ref.id)
 
                 ref.mobile.movementCollision = true;
-                tes3.loadAnimation({ reference = ref })
-                tes3.playAnimation({ reference = ref, group = 0 })
+                tes3.loadAnimation({reference = ref})
+                tes3.playAnimation({reference = ref, group = 0})
 
                 local f = tes3.player.forwardDirection
                 f:normalize()
@@ -499,12 +381,13 @@ local function destinationReached(force)
         for index, handle in ipairs(mountData.hiddenSlot.handles) do
             if handle and handle:valid() then
                 local ref = handle:getObject()
-                if ref ~= tes3.player and ref.mobile and isFollower(ref.mobile) then
+                if ref ~= tes3.player and ref.mobile and
+                    common.isFollower(ref.mobile) then
                     log:debug("teleporting follower " .. ref.id)
 
                     ref.mobile.movementCollision = true;
-                    tes3.loadAnimation({ reference = ref })
-                    tes3.playAnimation({ reference = ref, group = 0 })
+                    tes3.loadAnimation({reference = ref})
+                    tes3.playAnimation({reference = ref, group = 0})
 
                     local f = tes3.player.forwardDirection
                     f:normalize()
@@ -522,8 +405,7 @@ local function destinationReached(force)
     cleanup()
 end
 
-
-
+-- main loop
 local function onTimerTick()
     -- checks
     if mount == nil then
@@ -569,14 +451,16 @@ local function onTimerTick()
         local forwardDirection = last_forwardDirection
         forwardDirection:normalize()
         local d = (nextPos - currentPos):normalized()
-        local lerp = forwardDirection:lerp(d, mountData.turnspeed / 10):normalized()
+        local lerp = forwardDirection:lerp(d, mountData.turnspeed / 10)
+                         :normalized()
 
         -- calculate position
         local forward = tes3vector3.new(mount.forwardDirection.x,
-            mount.forwardDirection.y, lerp.z):normalized()
+                                        mount.forwardDirection.y, lerp.z):normalized()
         local delta = forward * mountData.speed
 
-        local playerShipLocal = mount.sceneNode.worldTransform:invert() * tes3.player.position
+        local playerShipLocal = mount.sceneNode.worldTransform:invert() *
+                                    tes3.player.position
 
         -- calculate facing
         local turn = 0
@@ -611,9 +495,7 @@ local function onTimerTick()
         local sway_change = amplitude * sway_amplitude_change
         local changeAnims = false
         swayTime = swayTime + timertick
-        if swayTime > (2000 * sway_frequency) then
-            swayTime = timertick
-        end
+        if swayTime > (2000 * sway_frequency) then swayTime = timertick end
 
         -- periodically change anims
         local i, f = math.modf(swayTime)
@@ -621,33 +503,36 @@ local function onTimerTick()
             changeAnims = true
         end
 
-
-        local sway = amplitude * math.sin(2 * math.pi * sway_frequency * swayTime)
+        local sway = amplitude *
+                         math.sin(2 * math.pi * sway_frequency * swayTime)
         -- offset roll during turns
         if turn > 0 then
             local max = (sway_max_amplitude * amplitude)
-            sway = math.clamp(last_sway - sway_change, -max, max) --+ sway
+            sway = math.clamp(last_sway - sway_change, -max, max) -- + sway
         elseif turn < 0 then
             local max = (sway_max_amplitude * amplitude)
-            sway = math.clamp(last_sway + sway_change, -max, max) --+ sway
+            sway = math.clamp(last_sway + sway_change, -max, max) -- + sway
         else
             -- normalize back
             if last_sway < (sway - sway_change) then
-                sway = last_sway + sway_change --+ sway
+                sway = last_sway + sway_change -- + sway
             elseif last_sway > (sway + sway_change) then
-                sway = last_sway - sway_change --+ sway
+                sway = last_sway - sway_change -- + sway
             end
         end
         last_sway = sway
-        local newOrientation = common.toWorldOrientation(tes3vector3.new(0.0, sway, 0.0), mount.orientation)
+        local newOrientation = common.toWorldOrientation(
+                                   tes3vector3.new(0.0, sway, 0.0),
+                                   mount.orientation)
         mount.orientation = newOrientation
 
         -- player
         if free_movement == true and isOnMount() then
             -- this is needed to enable collisions :todd:
-            tes3.dataHandler:updateCollisionGroupsForActiveCells {}
+            tes3.dataHandler:updateCollisionGroupsForActiveCells{}
             mount.sceneNode:update() -- TODO needed?
-            tes3.player.position = mount.sceneNode.worldTransform * playerShipLocal
+            tes3.player.position = mount.sceneNode.worldTransform *
+                                       playerShipLocal
         end
 
         -- hidden slot
@@ -656,7 +541,8 @@ local function onTimerTick()
                 if handle and handle:valid() then
                     tes3.positionCell({
                         reference = handle:getObject(),
-                        position = mount.sceneNode.worldTransform * vec(mountData.hiddenSlot.position)
+                        position = mount.sceneNode.worldTransform *
+                            vec(mountData.hiddenSlot.position)
                     })
                 end
             end
@@ -666,23 +552,31 @@ local function onTimerTick()
         local guide = mountData.guideSlot.handle:getObject()
         tes3.positionCell({
             reference = guide,
-            position = mount.sceneNode.worldTransform * vec(mountData.guideSlot.position)
+            position = mount.sceneNode.worldTransform *
+                vec(mountData.guideSlot.position)
         })
         guide.facing = mount.facing
         -- only change anims if behind player
-        if changeAnims and common.isPointBehindObject(guide.position, tes3.player.position, tes3.player.forwardDirection) then
-            local group = get_random_anim_group(mountData.guideSlot)
+        if changeAnims and
+            common.isPointBehindObject(guide.position, tes3.player.position,
+                                       tes3.player.forwardDirection) then
+            local group = common.getRandomAnimGroup(mountData.guideSlot)
             local animController = guide.mobile.animationController
             if animController then
-                local currentAnimationGroup = animController.animationData.currentAnimGroups
-                    [tes3.animationBodySection.upper]
-                log:debug(guide.id .. " switching to animgroup " .. tostring(group))
+                local currentAnimationGroup =
+                    animController.animationData.currentAnimGroups[tes3.animationBodySection
+                        .upper]
+                log:debug(guide.id .. " switching to animgroup " ..
+                              tostring(group))
                 if group ~= currentAnimationGroup then
-                    tes3.loadAnimation({ reference = guide })
+                    tes3.loadAnimation({reference = guide})
                     if mountData.guideSlot.animationFile then
-                        tes3.loadAnimation({ reference = guide, file = mountData.guideSlot.animationFile })
+                        tes3.loadAnimation({
+                            reference = guide,
+                            file = mountData.guideSlot.animationFile
+                        })
                     end
-                    tes3.playAnimation({ reference = guide, group = group })
+                    tes3.playAnimation({reference = guide, group = group})
                 end
             end
         end
@@ -691,24 +585,37 @@ local function onTimerTick()
         for index, slot in ipairs(mountData.slots) do
             if slot.handle and slot.handle:valid() then
                 local obj = slot.handle:getObject()
-                slot.handle:getObject().position = mount.sceneNode.worldTransform * vec(slot.position)
+                slot.handle:getObject().position = mount.sceneNode
+                                                       .worldTransform *
+                                                       vec(slot.position)
                 if obj ~= tes3.player then
                     --- obj.facing = mount.facing
                     -- only change anims if behind player
-                    if changeAnims and common.isPointBehindObject(obj.position, tes3.player.position, tes3.player.forwardDirection) then
-                        local group = get_random_anim_group(slot)
-                        log:debug(obj.id .. " switching to animgroup " .. tostring(group))
+                    if changeAnims and
+                        common.isPointBehindObject(obj.position,
+                                                   tes3.player.position,
+                                                   tes3.player.forwardDirection) then
+                        local group = common.getRandomAnimGroup(slot)
+                        log:debug(obj.id .. " switching to animgroup " ..
+                                      tostring(group))
                         local animController = obj.mobile.animationController
                         if animController then
-                            local currentAnimationGroup = animController.animationData.currentAnimGroups
-                                [tes3.animationBodySection.upper]
+                            local currentAnimationGroup =
+                                animController.animationData.currentAnimGroups[tes3.animationBodySection
+                                    .upper]
 
                             if group ~= currentAnimationGroup then
-                                tes3.loadAnimation({ reference = obj })
+                                tes3.loadAnimation({reference = obj})
                                 if slot.animationFile then
-                                    tes3.loadAnimation({ reference = obj, file = slot.animationFile })
+                                    tes3.loadAnimation({
+                                        reference = obj,
+                                        file = slot.animationFile
+                                    })
                                 end
-                                tes3.playAnimation({ reference = obj, group = group })
+                                tes3.playAnimation({
+                                    reference = obj,
+                                    group = group
+                                })
                             end
                         end
                     end
@@ -720,17 +627,22 @@ local function onTimerTick()
         if mountData.clutter then
             for index, clutter in ipairs(mountData.clutter) do
                 if clutter.handle and clutter.handle:valid() then
-                    clutter.handle:getObject().position = mount.sceneNode.worldTransform * vec(clutter.position)
+                    clutter.handle:getObject().position = mount.sceneNode
+                                                              .worldTransform *
+                                                              vec(
+                                                                  clutter.position)
                     if clutter.orientation then
-                        clutter.handle:getObject().orientation = common.toWorldOrientation(radvec(clutter.orientation),
-                            mount.orientation)
+                        clutter.handle:getObject().orientation =
+                            common.toWorldOrientation(radvec(clutter.orientation),
+                                                      mount.orientation)
                     end
                 end
             end
         end
 
         -- move to next marker
-        local isBehind = common.isPointBehindObject(nextPos, mount.position, forward)
+        local isBehind = common.isPointBehindObject(nextPos, mount.position,
+                                                    forward)
         if isBehind then splineIndex = splineIndex + 1 end
     else -- if i is at the end of the list
         tes3.fadeOut()
@@ -745,31 +657,6 @@ local function onTimerTick()
             end)
         })
     end
-end
-
-local function getRandomActorsInCell(N)
-    -- get all actors
-    local t = {} ---@type string[]
-    local cells = tes3.getActiveCells()
-    for _index, cell in ipairs(cells) do
-        local references = common.referenceListToTable(cell.actors)
-        for _, r in ipairs(references) do
-            if r.baseObject.objectType == tes3.objectType.npc then
-                if not common.is_in(t, r.baseObject.id) then
-                    table.insert(t, r.baseObject.id)
-                end
-            end
-        end
-    end
-
-    -- get random pick
-    local result = {}
-    for i = 1, math.min(N, #t) do
-        local randomIndex = math.random(1, #t)
-        table.insert(result, t[randomIndex])
-    end
-
-    return result
 end
 
 --- set up everything
@@ -802,7 +689,8 @@ local function startTravel(start, destination, service, guide)
     -- override mounts
     if service.override_mount then
         for _, o in ipairs(service.override_mount) do
-            if common.is_in(o.points, start) and common.is_in(o.points, destination) then
+            if common.is_in(o.points, start) and
+                common.is_in(o.points, destination) then
                 mountId = o.id
                 break
             end
@@ -815,7 +703,7 @@ local function startTravel(start, destination, service, guide)
     log:debug("loaded mount: " .. mountId)
 
     -- fade out
-    tes3.fadeOut({ duration = 1 })
+    tes3.fadeOut({duration = 1})
 
     -- fade back in
     timer.start({
@@ -823,15 +711,15 @@ local function startTravel(start, destination, service, guide)
         iterations = 1,
         duration = 1,
         callback = (function()
-            tes3.fadeIn({ duration = 1 })
+            tes3.fadeIn({duration = 1})
 
             -- calculate positions
             local startPoint = currentSpline[1]
             local startPos = tes3vector3.new(startPoint.x, startPoint.y,
-                startPoint.z)
+                                             startPoint.z)
             local next_point = currentSpline[2]
             local next_pos = tes3vector3.new(next_point.x, next_point.y,
-                next_point.z)
+                                             next_point.z)
             local d = next_pos - startPos
             d:normalize()
             local new_facing = math.atan2(d.x, d.y)
@@ -861,15 +749,16 @@ local function startTravel(start, destination, service, guide)
             -- register player
             log:debug("> registering player")
             tes3.player.position = startPos + mountOffset
-            registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(tes3.player))
+            common.registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(
+                                               tes3.player))
             tes3.player.facing = new_facing
 
             -- register followers
-            local followers = getFollowers()
+            local followers = common.getFollowers()
             log:debug("> registering " .. #followers .. " followers")
             for index, follower in ipairs(followers) do
                 local handle = tes3.makeSafeObjectHandle(follower)
-                local result = registerRefInRandomSlot(mountData, handle)
+                local result = common.registerRefInRandomSlot(mountData, handle)
                 if not result then
                     registerRefInHiddenSlot(mountData, handle)
                 end
@@ -879,7 +768,8 @@ local function startTravel(start, destination, service, guide)
             local maxPassengers = math.max(0, #mountData.slots - 2)
             if maxPassengers > 0 then
                 local n = math.random(maxPassengers);
-                log:debug("> registering " .. n .. " / " .. maxPassengers .. " passengers")
+                log:debug("> registering " .. n .. " / " .. maxPassengers ..
+                              " passengers")
                 local actors = getRandomActorsInCell(n)
                 for _i, value in ipairs(actors) do
                     local passenger = tes3.createReference {
@@ -888,7 +778,7 @@ local function startTravel(start, destination, service, guide)
                         orientation = mount.orientation
                     }
                     local refHandle = tes3.makeSafeObjectHandle(passenger)
-                    registerRefInRandomSlot(mountData, refHandle)
+                    common.registerRefInRandomSlot(mountData, refHandle)
                 end
             end
 
@@ -899,19 +789,27 @@ local function startTravel(start, destination, service, guide)
                     if clutter.id then
                         -- instantiate
                         if clutter.orientation then
-                            local inst = tes3.createReference {
-                                object = clutter.id,
-                                position = startPos + mountOffset,
-                                orientation = common.toWorldOrientation(radvec(clutter.orientation), mount.orientation)
-                            }
-                            registerStatic(mountData, tes3.makeSafeObjectHandle(inst), index)
+                            local inst =
+                                tes3.createReference {
+                                    object = clutter.id,
+                                    position = startPos + mountOffset,
+                                    orientation = common.toWorldOrientation(
+                                        radvec(clutter.orientation),
+                                        mount.orientation)
+                                }
+                            common.registerStatic(mountData,
+                                                  tes3.makeSafeObjectHandle(inst),
+                                                  index)
                         else
-                            local inst = tes3.createReference {
-                                object = clutter.id,
-                                position = startPos + mountOffset,
-                                orientation = mount.orientation
-                            }
-                            registerStatic(mountData, tes3.makeSafeObjectHandle(inst), index)
+                            local inst =
+                                tes3.createReference {
+                                    object = clutter.id,
+                                    position = startPos + mountOffset,
+                                    orientation = mount.orientation
+                                }
+                            common.registerStatic(mountData,
+                                                  tes3.makeSafeObjectHandle(inst),
+                                                  index)
                         end
                     end
                 end
@@ -940,6 +838,9 @@ local function startTravel(start, destination, service, guide)
     })
 end
 
+-- /////////////////////////////////////////////////////////////////////////////////////////
+-- ////////////// UI
+
 --- Start Travel window
 -- Create window and layout. Called by onCommand.
 ---@param service ServiceData
@@ -964,12 +865,12 @@ local function createTravelWindow(service, guide)
     menu.height = 350
 
     -- Create layout
-    local label = menu:createLabel { text = "Destinations" }
+    local label = menu:createLabel{text = "Destinations"}
     label.borderBottom = 5
 
-    local pane = menu:createVerticalScrollPane { id = "sortedPane" }
+    local pane = menu:createVerticalScrollPane{id = "sortedPane"}
     for _key, name in ipairs(destinations) do
-        local button = pane:createButton {
+        local button = pane:createButton{
             id = "button_spline_" .. name,
             text = name
         }
@@ -983,12 +884,12 @@ local function createTravelWindow(service, guide)
     end)
     pane.height = 400
 
-    local button_block = menu:createBlock {}
+    local button_block = menu:createBlock{}
     button_block.widthProportional = 1.0 -- width is 100% parent width
     button_block.autoHeight = true
-    button_block.childAlignX = 1.0       -- right content alignment
+    button_block.childAlignX = 1.0 -- right content alignment
 
-    local button_cancel = button_block:createButton {
+    local button_cancel = button_block:createButton{
         id = travelMenuCancelId,
         text = "Cancel"
     }
@@ -1042,18 +943,6 @@ local function createTravelButton(menu, guide, service)
     menu:registerAfter("update", function() updateServiceButton(menu) end)
 end
 
---- This function returns `true` if given NPC
---- or creature offers traveling service.
----@param actor tes3npc|tes3npcInstance|tes3creature|tes3creatureInstance
----@return boolean
-local function offersTraveling(actor)
-    local travelDestinations = actor.aiConfig.travelDestinations
-
-    -- Actors that can't transport the player
-    -- have travelDestinations equal to `nil`
-    return travelDestinations ~= nil
-end
-
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// EVENTS
 
@@ -1068,11 +957,7 @@ event.register(tes3.event.damage, damageInvincibilityGate)
 
 --- Disable combat while in travel
 --- @param e combatStartEventData
-local function forcedPacifism(e)
-    if (isTraveling()) then
-        return false
-    end
-end
+local function forcedPacifism(e) if (isTraveling()) then return false end end
 event.register(tes3.event.combatStart, forcedPacifism)
 
 --- Disable all activate while in travel
@@ -1086,7 +971,8 @@ local function activateCallback(e)
     if mountData.guideSlot.handle == nil then return; end
     if not mountData.guideSlot.handle:valid() then return; end
 
-    if e.target.id == mountData.guideSlot.handle:getObject().id and free_movement then
+    if e.target.id == mountData.guideSlot.handle:getObject().id and
+        free_movement then
         -- register player in slot
         tes3ui.showMessageMenu {
             message = "Do you want to sit down?",
@@ -1097,7 +983,9 @@ local function activateCallback(e)
                         free_movement = false
                         log:debug("register player")
                         tes3.player.facing = mount.facing
-                        registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(tes3.player))
+                        common.registerRefInRandomSlot(mountData,
+                                                       tes3.makeSafeObjectHandle(
+                                                           tes3.player))
                     end
                 }
             },
@@ -1128,9 +1016,7 @@ event.register(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
 
 --- Cleanup on save load
 --- @param e loadEventData
-local function loadCallback(e)
-    cleanup()
-end
+local function loadCallback(e) cleanup() end
 event.register(tes3.event.load, loadCallback)
 
 -- upon entering the dialog menu, create the travel menu
@@ -1176,31 +1062,29 @@ local function onMenuDialog(e)
         menuDialog:updateLayout()
     end
 end
-event.register("uiActivated", onMenuDialog, { filter = "MenuDialog" })
+event.register("uiActivated", onMenuDialog, {filter = "MenuDialog"})
 
 -- key down callbacks while in travel
 --- @param e keyDownEventData
 local function keyDownCallback(e)
     -- move
     if not free_movement and isTraveling() then
-        if e.keyCode == tes3.scanCode["w"] or
-            e.keyCode == tes3.scanCode["a"] or
-            e.keyCode == tes3.scanCode["d"] then
-            incrementSlot(mountData)
-        end
+        if e.keyCode == tes3.scanCode["w"] or e.keyCode == tes3.scanCode["a"] or
+            e.keyCode == tes3.scanCode["d"] then incrementSlot(mountData) end
 
         if e.keyCode == tes3.scanCode["s"] then
             if mountData == nil then return; end
             if mountData.hasFreeMovement then
                 -- remove from slot
                 for index, slot in ipairs(mountData.slots) do
-                    if slot.handle and slot.handle:valid() and slot.handle:getObject() == tes3.player then
+                    if slot.handle and slot.handle:valid() and
+                        slot.handle:getObject() == tes3.player then
                         slot.handle = nil
                         free_movement = true
                         -- free animations
                         tes3.mobilePlayer.movementCollision = true;
-                        tes3.loadAnimation({ reference = tes3.player })
-                        tes3.playAnimation({ reference = tes3.player, group = 0 })
+                        tes3.loadAnimation({reference = tes3.player})
+                        tes3.playAnimation({reference = tes3.player, group = 0})
                     end
                 end
             end
@@ -1221,13 +1105,10 @@ event.register(tes3.event.save, saveCallback)
 
 -- always allow resting on a mount even with enemies near
 --- @param e preventRestEventData
-local function preventRestCallback(e)
-    if isTraveling() then
-        return false
-    end
-end
+local function preventRestCallback(e) if isTraveling() then return false end end
 event.register(tes3.event.preventRest, preventRestCallback)
 
+-- resting while travelling skips to end
 --- @param e uiShowRestMenuEventData
 local function uiShowRestMenuCallback(e)
     if isTraveling() and currentSpline then
@@ -1241,14 +1122,14 @@ local function uiShowRestMenuCallback(e)
                 {
                     text = "Rest",
                     callback = function()
-                        tes3.fadeOut({ duration = 1 })
+                        tes3.fadeOut({duration = 1})
 
                         timer.start({
                             type = timer.simulate,
                             iterations = 1,
                             duration = 1,
                             callback = (function()
-                                tes3.fadeIn({ duration = 1 })
+                                tes3.fadeIn({duration = 1})
 
                                 -- teleport to last marker
                                 tes3.positionCell({
