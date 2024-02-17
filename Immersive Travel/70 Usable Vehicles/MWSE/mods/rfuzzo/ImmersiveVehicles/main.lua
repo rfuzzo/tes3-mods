@@ -2,15 +2,15 @@ local common = require("rfuzzo.ImmersiveTravel.common")
 
 local logger = require("logging.logger")
 local log = logger.new {
-    name = "mygondola",
-    logLevel = "DEBUG",
+    name = "ImmersiveVehicles",
+    logLevel = "DEBUG", --TODO remove after debugging
     logToConsole = true,
     includeTimestamp = true
 }
 
 -- CONSTANTS
 
-local localmodpath = "mods\\rfuzzo\\usables\\"
+local localmodpath = "mods\\rfuzzo\\ImmersiveVehicles\\"
 
 local sway_max_amplitude = 3       -- how much the ship can sway in a turn
 local sway_amplitude_change = 0.01 -- how much the ship can sway in a turn
@@ -299,6 +299,8 @@ local function startTravel()
     if mountHandle == nil then return end
     if not mountHandle:valid() then return end
 
+    cleanup()
+
     local mount = mountHandle:getObject()
     currentSpline = mount.position
 
@@ -386,10 +388,32 @@ end
 
 -- EVENTS
 
+---@type string[]
+local mounts = {
+    "a_gondola_01",
+    "ex_gondola_01"
+}
+
+--- check if valid mount
+---@param id string
+---@return boolean
+local function validMount(id)
+    return common.is_in(mounts, id)
+end
+
+--- map ids to mounts
+---@param id string
+---@return string|nil
+local function getMountForId(id)
+    if id == "a_gondola_01" or id == "ex_gondola_01" then
+        return "my_gondola"
+    end
+    return nil
+end
+
 --- @param e activateEventData
 local function activateCallback(e)
-    -- TODO add all possible vehicles
-    if e.target.id == "a_gondola_01" then
+    if validMount(e.target.id) then
         if is_on_boat then
             -- stop
             safeCancelTimer()
@@ -403,9 +427,11 @@ local function activateCallback(e)
                 end)
             })
         else
-            -- assign mount
-            mountHandle = tes3.makeSafeObjectHandle(e.target)
-            startTravel()
+            mountData = loadMountData(getMountForId(e.target.id))
+            if mountData then
+                mountHandle = tes3.makeSafeObjectHandle(e.target)
+                startTravel()
+            end
         end
     end
 end
@@ -415,7 +441,7 @@ event.register(tes3.event.activate, activateCallback)
 local function keyDownCallback(e)
     if not travelMarkerMesh then return nil end
 
-    -- TODO add some way to enable the vehicles
+    -- TODO remove after debug
     if e.keyCode == tes3.scanCode["o"] then
         if editmode then
             -- leave editor and spawn vehicle
@@ -439,15 +465,7 @@ local function keyDownCallback(e)
             editmode = false
         else
             -- start editor
-
-            -- TODO get data from selection
-            ---@type ServiceData
-            local service = {
-                class = "Gondolier",
-                mount = "my_gondola",
-                ground_offset = 0
-            }
-            mountData = loadMountData(service.mount)
+            mountData = loadMountData("my_gondola")
             if not mountData then return nil end
 
             -- visualize placement node
@@ -510,6 +528,7 @@ local function simulatedCallback(e)
         currentSpline = target
 
         -- render debug marker
+        --TODO remove after debugging
         travelMarker.translation = target
         local m = tes3matrix33.new()
         m:fromEulerXYZ(tes3.player.orientation.x, tes3.player.orientation.y, tes3.player.orientation.z)
@@ -550,8 +569,8 @@ event.register(tes3.event.simulated, simulatedCallback)
 
 --- Cleanup on save load
 --- @param e loadEventData
-local function editloadCallback(e)
+local function loadCallback(e)
     cleanup()
     travelMarkerMesh = tes3.loadMesh(travelMarkerId)
 end
-event.register(tes3.event.load, editloadCallback)
+event.register(tes3.event.load, loadCallback)
