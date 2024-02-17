@@ -10,12 +10,13 @@ local log = logger.new {
 
 -- CONSTANTS
 
-local sway_max_amplitude = 3 -- how much the ship can sway in a turn
+local sway_max_amplitude = 3       -- how much the ship can sway in a turn
 local sway_amplitude_change = 0.01 -- how much the ship can sway in a turn
-local sway_frequency = 0.12 -- how fast the mount sways
-local sway_amplitude = 0.014 -- how much the mount sways
+local sway_frequency = 0.12        -- how fast the mount sways
+local sway_amplitude = 0.014       -- how much the mount sways
 local speed_change = 1
 local speed_max = 10
+local speed_min = -4
 local timertick = 0.01
 local travelMarkerId = "marker_arrow.nif"
 
@@ -63,7 +64,7 @@ local function cleanup()
     is_on_boat = false
 
     if mountData then
-        tes3.removeSound({sound = mountData.sound, reference = mount})
+        tes3.removeSound({ sound = mountData.sound, reference = mount })
 
         -- delete guide
         if mountData.guideSlot.handle and mountData.guideSlot.handle:valid() then
@@ -103,8 +104,8 @@ local function destinationReached()
 
     -- reset player
     tes3.mobilePlayer.movementCollision = true;
-    tes3.loadAnimation({reference = tes3.player})
-    tes3.playAnimation({reference = tes3.player, group = 0})
+    tes3.loadAnimation({ reference = tes3.player })
+    tes3.playAnimation({ reference = tes3.player, group = 0 })
 
     -- teleport followers
     for index, slot in ipairs(mountData.slots) do
@@ -115,8 +116,8 @@ local function destinationReached()
                 log:debug("teleporting follower " .. ref.id)
 
                 ref.mobile.movementCollision = true;
-                tes3.loadAnimation({reference = ref})
-                tes3.playAnimation({reference = ref, group = 0})
+                tes3.loadAnimation({ reference = ref })
+                tes3.playAnimation({ reference = ref, group = 0 })
 
                 local f = tes3.player.forwardDirection
                 f:normalize()
@@ -174,7 +175,7 @@ local function onTimerTick()
     end
 
     -- skip
-    if current_speed < 0.1 then return end
+    if current_speed < speed_min then return end
 
     local mountOffset = tes3vector3.new(0, 0, mountData.offset)
     local nextPos = currentSpline
@@ -188,11 +189,11 @@ local function onTimerTick()
 
     -- calculate position
     local forward = tes3vector3.new(mount.forwardDirection.x,
-                                    mount.forwardDirection.y, lerp.z):normalized()
+        mount.forwardDirection.y, lerp.z):normalized()
     local delta = forward * current_speed
 
     local playerShipLocal = mount.sceneNode.worldTransform:invert() *
-                                tes3.player.position
+        tes3.player.position
 
     -- calculate facing
     local turn = 0
@@ -246,8 +247,8 @@ local function onTimerTick()
     end
     last_sway = sway
     local newOrientation = common.toWorldOrientation(
-                               tes3vector3.new(0.0, sway, 0.0),
-                               mount.orientation)
+        tes3vector3.new(0.0, sway, 0.0),
+        mount.orientation)
     mount.orientation = newOrientation
 
     -- passengers
@@ -264,14 +265,14 @@ local function onTimerTick()
         for index, clutter in ipairs(mountData.clutter) do
             if clutter.handle and clutter.handle:valid() then
                 clutter.handle:getObject().position = mount.sceneNode
-                                                          .worldTransform *
-                                                          common.vec(
-                                                              clutter.position)
+                    .worldTransform *
+                    common.vec(
+                        clutter.position)
                 if clutter.orientation then
                     clutter.handle:getObject().orientation =
                         common.toWorldOrientation(common.radvec(
-                                                      clutter.orientation),
-                                                  mount.orientation)
+                                clutter.orientation),
+                            mount.orientation)
                 end
             end
         end
@@ -288,7 +289,7 @@ local function startTravel(translation, orientation)
     currentSpline = translation
 
     -- fade out
-    tes3.fadeOut({duration = 1})
+    tes3.fadeOut({ duration = 1 })
 
     -- fade back in
     timer.start({
@@ -296,7 +297,7 @@ local function startTravel(translation, orientation)
         iterations = 1,
         duration = 1,
         callback = (function()
-            tes3.fadeIn({duration = 1})
+            tes3.fadeIn({ duration = 1 })
 
             -- visualize debug marker
             local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
@@ -327,7 +328,7 @@ local function startTravel(translation, orientation)
             log:debug("> registering player")
             tes3.player.position = startPos + mountOffset
             common.registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(
-                                               tes3.player))
+                tes3.player))
 
             -- register statics
             if mountData.clutter then
@@ -345,8 +346,8 @@ local function startTravel(translation, orientation)
                                         mount.orientation)
                                 }
                             common.registerStatic(mountData,
-                                                  tes3.makeSafeObjectHandle(inst),
-                                                  index)
+                                tes3.makeSafeObjectHandle(inst),
+                                index)
                         else
                             local inst =
                                 tes3.createReference {
@@ -355,8 +356,8 @@ local function startTravel(translation, orientation)
                                     orientation = mount.orientation
                                 }
                             common.registerStatic(mountData,
-                                                  tes3.makeSafeObjectHandle(inst),
-                                                  index)
+                                tes3.makeSafeObjectHandle(inst),
+                                index)
                         end
                     end
                 end
@@ -399,7 +400,7 @@ local function keyDownCallback(e)
             -- TODO check if in water
 
             startTravel(mountMarker.translation,
-                        mountMarker.rotation:toEulerXYZ())
+                mountMarker.rotation:toEulerXYZ())
 
             local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
             vfxRoot:detachChild(mountMarker)
@@ -434,7 +435,7 @@ local function keyDownCallback(e)
 
             -- visualize placement node
             local target = tes3.getPlayerEyePosition() +
-                               tes3.getPlayerEyeVector() * 256
+                tes3.getPlayerEyeVector() * 256
 
             mountMarkerMesh = tes3.loadMesh(mountData.mesh)
             local child = mountMarkerMesh:clone()
@@ -455,16 +456,16 @@ local function keyDownCallback(e)
         if e.keyCode == tes3.scanCode["w"] then
             -- increment speed
             if current_speed < speed_max then
-                current_speed = math.clamp(current_speed + speed_change, 0,
-                                           speed_max)
+                current_speed = math.clamp(current_speed + speed_change,
+                    speed_min, speed_max)
                 tes3.messageBox("Current Speed: " .. tostring(current_speed))
             end
         end
         if e.keyCode == tes3.scanCode["s"] then
             -- decrement speed
-            if current_speed > 0 then
-                current_speed = math.clamp(current_speed - speed_change, 0,
-                                           speed_max)
+            if current_speed > speed_min then
+                current_speed = math.clamp(current_speed - speed_change,
+                    speed_min, speed_max)
                 tes3.messageBox("Current Speed: " .. tostring(current_speed))
             end
         end
@@ -486,41 +487,44 @@ event.register(tes3.event.load, editloadCallback)
 local function simulatedCallback(e)
     if editmode and mountMarker and mountData then
         local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() *
-                         512
+            512
         from.z = mountData.offset
 
         mountMarker.translation = from
         local m = tes3matrix33.new()
         m:fromEulerXYZ(tes3.player.orientation.x, tes3.player.orientation.y,
-                       tes3.player.orientation.z)
+            tes3.player.orientation.z)
         mountMarker.rotation = m
         mountMarker:update()
     end
 
-    if is_on_boat and travelMarker then
-
+    if is_on_boat and travelMarker and mount then
         -- update next pos
-        local target = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() *
-                           2048
+        local target = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 2048
         target.z = 0
         currentSpline = target
 
         -- render debug marker
         travelMarker.translation = target
         local m = tes3matrix33.new()
-        m:fromEulerXYZ(tes3.player.orientation.x, tes3.player.orientation.y,
-                       tes3.player.orientation.z)
+        m:fromEulerXYZ(tes3.player.orientation.x, tes3.player.orientation.y, tes3.player.orientation.z)
         travelMarker.rotation = m
         travelMarker:update()
 
-        -- TODO collision
-        -- local hitResult = tes3.rayTest({
-        --     position = tes3.getPlayerEyePosition(),
-        --     direction = target - tes3.getPlayerEyePosition(),
-        --     root = tes3.game.worldLandscapeRoot,
-        --     maxDistance = 1024
-        -- })
-        -- if (hitResult ~= nil) then tes3.messageBox("HIT") end
+        -- TODO collision from the front of the ship
+
+        local testPosition = mount.sceneNode.worldTransform * tes3vector3.new(0, 200, 0)
+        local hitResult = tes3.rayTest({
+            position = testPosition,
+            direction = tes3vector3.new(0, 0, -1),
+            root = tes3.game.worldLandscapeRoot,
+            maxDistance = 4096
+        })
+        if (hitResult == nil) then
+            -- TODO clamp max speed
+            current_speed = 0
+            tes3.messageBox("HIT")
+        end
     end
 end
 event.register(tes3.event.simulated, simulatedCallback)
