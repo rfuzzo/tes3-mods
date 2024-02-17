@@ -299,8 +299,6 @@ local function startTravel()
     if mountHandle == nil then return end
     if not mountHandle:valid() then return end
 
-    cleanup()
-
     local mount = mountHandle:getObject()
     currentSpline = mount.position
 
