@@ -10,13 +10,13 @@ local log = logger.new {
 
 -- CONSTANTS
 
+local localmodpath = "mods\\rfuzzo\\usables\\"
+
 local sway_max_amplitude = 3       -- how much the ship can sway in a turn
 local sway_amplitude_change = 0.01 -- how much the ship can sway in a turn
 local sway_frequency = 0.12        -- how fast the mount sways
 local sway_amplitude = 0.014       -- how much the mount sways
 local speed_change = 1
-local speed_max = 10
-local speed_min = -4
 local timertick = 0.01
 local travelMarkerId = "marker_arrow.nif"
 
@@ -135,6 +135,22 @@ local function destinationReached()
     cleanup()
 end
 
+--- load json static mount data
+---@param id string
+---@return MountData|nil
+local function loadMountData(id)
+    local filePath = localmodpath .. "mounts\\" .. id .. ".json"
+    local result = {} ---@type table<string, MountData>
+    result = json.loadfile(filePath)
+    if result then
+        log:debug("loaded mount: " .. id)
+        return result
+    else
+        log:error("!!! failed to load mount: " .. id)
+        return nil
+    end
+end
+
 -- LOGIC
 
 --- main loop
@@ -181,7 +197,7 @@ local function onTimerTick()
     end
 
     -- skip
-    if current_speed < speed_min then return end
+    if current_speed < mountData.minSpeed then return end
 
     local mountOffset = tes3vector3.new(0, 0, mountData.offset) * mount.scale
     local nextPos = currentSpline
@@ -309,9 +325,8 @@ local function startTravel()
             travelMarker = child
 
             -- calculate positions
-            local scale = 0.7
             local startPos = currentSpline
-            local mountOffset = tes3vector3.new(0, 0, mountData.offset) * scale
+            local mountOffset = tes3vector3.new(0, 0, mountData.offset) * mountData.scale
 
             -- register player
             log:debug("> registering player")
@@ -432,7 +447,7 @@ local function keyDownCallback(e)
                 mount = "my_gondola",
                 ground_offset = 0
             }
-            mountData = common.loadMountData(service.mount)
+            mountData = loadMountData(service.mount)
             if not mountData then return nil end
 
             -- visualize placement node
@@ -441,7 +456,7 @@ local function keyDownCallback(e)
             mountMarkerMesh = tes3.loadMesh(mountData.mesh)
             local child = mountMarkerMesh:clone()
             child.translation = target
-            child.scale = 0.7
+            child.scale = mountData.scale
             child.appCulled = false
             local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
             ---@diagnostic disable-next-line: param-type-mismatch
@@ -454,18 +469,18 @@ local function keyDownCallback(e)
         end
     end
 
-    if is_on_boat then
+    if is_on_boat and mountData then
         if e.keyCode == tes3.scanCode["w"] then
             -- increment speed
-            if current_speed < speed_max then
-                current_speed = math.clamp(current_speed + speed_change, speed_min, speed_max)
+            if current_speed < mountData.maxSpeed then
+                current_speed = math.clamp(current_speed + speed_change, mountData.minSpeed, mountData.maxSpeed)
                 tes3.messageBox("Current Speed: " .. tostring(current_speed))
             end
         end
         if e.keyCode == tes3.scanCode["s"] then
             -- decrement speed
-            if current_speed > speed_min then
-                current_speed = math.clamp(current_speed - speed_change, speed_min, speed_max)
+            if current_speed > mountData.minSpeed then
+                current_speed = math.clamp(current_speed - speed_change, mountData.minSpeed, mountData.maxSpeed)
                 tes3.messageBox("Current Speed: " .. tostring(current_speed))
             end
         end
@@ -480,7 +495,7 @@ local function simulatedCallback(e)
         -- visualize mount scene node
         -- TODO inwater check
         local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 512
-        from.z = mountData.offset * 0.7
+        from.z = mountData.offset * mountData.scale
         mountMarker.translation = from
         local m = tes3matrix33.new()
         m:fromEulerXYZ(tes3.player.orientation.x, tes3.player.orientation.y, tes3.player.orientation.z)
@@ -488,7 +503,7 @@ local function simulatedCallback(e)
         mountMarker:update()
     end
 
-    if is_on_boat and travelMarker and mountHandle and mountHandle:valid() then
+    if is_on_boat and travelMarker and mountHandle and mountHandle:valid() and mountData then
         -- update next pos
         local target = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 2048
         target.z = 0
@@ -502,17 +517,32 @@ local function simulatedCallback(e)
         travelMarker:update()
 
         -- collision
-        local testPosition = mountHandle:getObject().sceneNode.worldTransform * tes3vector3.new(0, 250, 0)
-        local hitResult = tes3.rayTest({
-            position = testPosition,
+        -- TODO get positions from mount data
+        -- raytest at sealevel to detect shore transition
+        local testPosition1 = mountHandle:getObject().sceneNode.worldTransform * common.vec(mountData.shoreRayPos)
+        local hitResult1 = tes3.rayTest({
+            position = testPosition1,
             direction = tes3vector3.new(0, 0, -1),
             root = tes3.game.worldLandscapeRoot,
             maxDistance = 4096
         })
-        if (hitResult == nil) then
+        if (hitResult1 == nil) then
+            current_speed = 0
+            tes3.messageBox("HIT Shore")
+        end
+
+        -- raytest from above to detect objects in water
+        local testPosition2 = mountHandle:getObject().sceneNode.worldTransform * common.vec(mountData.objectRayPos)
+        local hitResult2 = tes3.rayTest({
+            position = testPosition2,
+            direction = tes3vector3.new(0, 0, -1),
+            root = tes3.game.worldObjectRoot,
+            maxDistance = 512
+        })
+        if (hitResult2 ~= nil) then
             -- TODO clamp max speed
             current_speed = 0
-            tes3.messageBox("HIT")
+            tes3.messageBox("HIT Object")
         end
     end
 end
