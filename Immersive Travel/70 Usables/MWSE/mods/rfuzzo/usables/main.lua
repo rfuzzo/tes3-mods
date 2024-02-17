@@ -37,7 +37,7 @@ local current_speed = 0 ---@type number
 local is_on_boat = false
 
 local mountData = nil ---@type MountData|nil
-local mount = nil ---@type tes3reference | nil
+local mountHandle = nil ---@type mwseSafeObjectHandle|nil
 
 local travelMarker = nil ---@type niNode?
 local mountMarker = nil ---@type niNode?
@@ -63,9 +63,11 @@ local function cleanup()
     current_speed = 0
     is_on_boat = false
 
-    if mountData then
-        tes3.removeSound({ sound = mountData.sound, reference = mount })
+    if mountData and mountHandle and mountHandle:valid() then
+        tes3.removeSound({ sound = mountData.sound, reference = mountHandle:getObject() })
+    end
 
+    if mountData then
         -- delete guide
         if mountData.guideSlot.handle and mountData.guideSlot.handle:valid() then
             mountData.guideSlot.handle:getObject():delete()
@@ -83,11 +85,9 @@ local function cleanup()
         end
     end
     mountData = nil
-
-    -- delete the mount
-    -- TODO spawn persistent ref
+    mountHandle = nil
+    -- don't delete ref since we may want to use the mount later
     -- if mount then mount:delete() end
-    mount = nil
 
     local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
     ---@diagnostic disable-next-line: param-type-mismatch
@@ -140,7 +140,11 @@ end
 --- main loop
 local function onTimerTick()
     -- checks
-    if mount == nil then
+    if mountHandle == nil then
+        cleanup()
+        return
+    end
+    if not mountHandle:valid() then
         cleanup()
         return
     end
@@ -169,6 +173,8 @@ local function onTimerTick()
         cleanup()
         return
     end
+
+    local mount = mountHandle:getObject()
     if mount.sceneNode == nil then
         cleanup()
         return
@@ -177,7 +183,7 @@ local function onTimerTick()
     -- skip
     if current_speed < speed_min then return end
 
-    local mountOffset = tes3vector3.new(0, 0, mountData.offset)
+    local mountOffset = tes3vector3.new(0, 0, mountData.offset) * mount.scale
     local nextPos = currentSpline
     local currentPos = last_position - mountOffset
 
@@ -188,12 +194,10 @@ local function onTimerTick()
     local lerp = forwardDirection:lerp(d, mountData.turnspeed / 10):normalized()
 
     -- calculate position
-    local forward = tes3vector3.new(mount.forwardDirection.x,
-        mount.forwardDirection.y, lerp.z):normalized()
+    local forward = tes3vector3.new(mount.forwardDirection.x, mount.forwardDirection.y, lerp.z):normalized()
     local delta = forward * current_speed
 
-    local playerShipLocal = mount.sceneNode.worldTransform:invert() *
-        tes3.player.position
+    -- local playerShipLocal = mount.sceneNode.worldTransform:invert() * tes3.player.position
 
     -- calculate facing
     local turn = 0
@@ -246,9 +250,7 @@ local function onTimerTick()
         end
     end
     last_sway = sway
-    local newOrientation = common.toWorldOrientation(
-        tes3vector3.new(0.0, sway, 0.0),
-        mount.orientation)
+    local newOrientation = common.toWorldOrientation(tes3vector3.new(0.0, sway, 0.0), mount.orientation)
     mount.orientation = newOrientation
 
     -- passengers
@@ -264,15 +266,10 @@ local function onTimerTick()
     if mountData.clutter then
         for index, clutter in ipairs(mountData.clutter) do
             if clutter.handle and clutter.handle:valid() then
-                clutter.handle:getObject().position = mount.sceneNode
-                    .worldTransform *
-                    common.vec(
-                        clutter.position)
+                clutter.handle:getObject().position = mount.sceneNode.worldTransform * common.vec(clutter.position)
                 if clutter.orientation then
-                    clutter.handle:getObject().orientation =
-                        common.toWorldOrientation(common.radvec(
-                                clutter.orientation),
-                            mount.orientation)
+                    clutter.handle:getObject().orientation = common.toWorldOrientation(
+                        common.radvec(clutter.orientation), mount.orientation)
                 end
             end
         end
@@ -280,13 +277,14 @@ local function onTimerTick()
 end
 
 --- set up everything
----@param translation tes3vector3
----@param orientation tes3vector3
-local function startTravel(translation, orientation)
+local function startTravel()
     if travelMarkerMesh == nil then return end
     if mountData == nil then return end
+    if mountHandle == nil then return end
+    if not mountHandle:valid() then return end
 
-    currentSpline = translation
+    local mount = mountHandle:getObject()
+    currentSpline = mount.position
 
     -- fade out
     tes3.fadeOut({ duration = 1 })
@@ -302,33 +300,23 @@ local function startTravel(translation, orientation)
             -- visualize debug marker
             local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
             local child = travelMarkerMesh:clone()
-            local from =
-                tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
+            local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
             child.translation = from
             child.appCulled = false
-
             ---@diagnostic disable-next-line: param-type-mismatch
             vfxRoot:attachChild(child)
             vfxRoot:update()
             travelMarker = child
 
             -- calculate positions
+            local scale = 0.7
             local startPos = currentSpline
-            local mountOffset = tes3vector3.new(0, 0, mountData.offset)
-
-            -- create mount
-            mount = tes3.createReference {
-                object = "a_gondola_01",
-                position = startPos + mountOffset,
-                orientation = orientation
-            }
-            mount.facing = tes3.player.facing
+            local mountOffset = tes3vector3.new(0, 0, mountData.offset) * scale
 
             -- register player
             log:debug("> registering player")
             tes3.player.position = startPos + mountOffset
-            common.registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(
-                tes3.player))
+            common.registerRefInRandomSlot(mountData, tes3.makeSafeObjectHandle(tes3.player))
 
             -- register statics
             if mountData.clutter then
@@ -341,13 +329,9 @@ local function startTravel(translation, orientation)
                                 tes3.createReference {
                                     object = clutter.id,
                                     position = startPos + mountOffset,
-                                    orientation = common.toWorldOrientation(
-                                        common.radvec(clutter.orientation),
-                                        mount.orientation)
+                                    orientation = common.toWorldOrientation(common.radvec(clutter.orientation), mount.orientation)
                                 }
-                            common.registerStatic(mountData,
-                                tes3.makeSafeObjectHandle(inst),
-                                index)
+                            common.registerStatic(mountData, tes3.makeSafeObjectHandle(inst), index)
                         else
                             local inst =
                                 tes3.createReference {
@@ -355,9 +339,7 @@ local function startTravel(translation, orientation)
                                     position = startPos + mountOffset,
                                     orientation = mount.orientation
                                 }
-                            common.registerStatic(mountData,
-                                tes3.makeSafeObjectHandle(inst),
-                                index)
+                            common.registerStatic(mountData, tes3.makeSafeObjectHandle(inst), index)
                         end
                     end
                 end
@@ -389,28 +371,13 @@ end
 
 -- EVENTS
 
---- @param e keyDownEventData
-local function keyDownCallback(e)
-    if not travelMarkerMesh then return nil end
-
-    -- TODO activator
-    if e.keyCode == tes3.scanCode["o"] then
-        if editmode and mountMarker and not is_on_boat then
-            -- currently visualizing the mount and about to start travel
-            -- TODO check if in water
-
-            startTravel(mountMarker.translation,
-                mountMarker.rotation:toEulerXYZ())
-
-            local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-            vfxRoot:detachChild(mountMarker)
-            mountMarker = nil
-
-            editmode = false
-        elseif is_on_boat then
+--- @param e activateEventData
+local function activateCallback(e)
+    -- TODO add all possible vehicles
+    if e.target.id == "a_gondola_01" then
+        if is_on_boat then
             -- stop
             safeCancelTimer()
-
             tes3.fadeOut()
             timer.start({
                 type = timer.simulate,
@@ -421,9 +388,44 @@ local function keyDownCallback(e)
                 end)
             })
         else
-            -- first time
+            -- assign mount
+            mountHandle = tes3.makeSafeObjectHandle(e.target)
+            startTravel()
+        end
+    end
+end
+event.register(tes3.event.activate, activateCallback)
 
-            -- TODO get data from activator ref
+--- @param e keyDownEventData
+local function keyDownCallback(e)
+    if not travelMarkerMesh then return nil end
+
+    -- TODO add some way to enable the vehicles
+    if e.keyCode == tes3.scanCode["o"] then
+        if editmode then
+            -- leave editor and spawn vehicle
+            if mountMarker then
+                -- add vehicles selections
+                local obj = tes3.createReference {
+                    object = "a_gondola_01",
+                    position = mountMarker.translation,
+                    orientation = mountMarker.rotation:toEulerXYZ(),
+                    scale = mountMarker.scale -- TODO use proper mountdata
+                }
+                obj.facing = tes3.player.facing
+
+                -- remove marker
+                -- TODO use real ref instead of vfx node
+                local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+                vfxRoot:detachChild(mountMarker)
+                mountMarker = nil
+            end
+
+            editmode = false
+        else
+            -- start editor
+
+            -- TODO get data from selection
             ---@type ServiceData
             local service = {
                 class = "Gondolier",
@@ -434,12 +436,12 @@ local function keyDownCallback(e)
             if not mountData then return nil end
 
             -- visualize placement node
-            local target = tes3.getPlayerEyePosition() +
-                tes3.getPlayerEyeVector() * 256
+            local target = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
 
             mountMarkerMesh = tes3.loadMesh(mountData.mesh)
             local child = mountMarkerMesh:clone()
             child.translation = target
+            child.scale = 0.7
             child.appCulled = false
             local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
             ---@diagnostic disable-next-line: param-type-mismatch
@@ -447,7 +449,7 @@ local function keyDownCallback(e)
             vfxRoot:update()
             mountMarker = child
 
-            -- exit placement mode
+            -- enter placement mode
             editmode = true
         end
     end
@@ -456,16 +458,14 @@ local function keyDownCallback(e)
         if e.keyCode == tes3.scanCode["w"] then
             -- increment speed
             if current_speed < speed_max then
-                current_speed = math.clamp(current_speed + speed_change,
-                    speed_min, speed_max)
+                current_speed = math.clamp(current_speed + speed_change, speed_min, speed_max)
                 tes3.messageBox("Current Speed: " .. tostring(current_speed))
             end
         end
         if e.keyCode == tes3.scanCode["s"] then
             -- decrement speed
             if current_speed > speed_min then
-                current_speed = math.clamp(current_speed - speed_change,
-                    speed_min, speed_max)
+                current_speed = math.clamp(current_speed - speed_change, speed_min, speed_max)
                 tes3.messageBox("Current Speed: " .. tostring(current_speed))
             end
         end
@@ -473,32 +473,22 @@ local function keyDownCallback(e)
 end
 event.register(tes3.event.keyDown, keyDownCallback)
 
---- Cleanup on save load
---- @param e loadEventData
-local function editloadCallback(e)
-    cleanup()
-
-    travelMarkerMesh = tes3.loadMesh(travelMarkerId)
-end
-event.register(tes3.event.load, editloadCallback)
-
 --- visualize on tick
 --- @param e simulatedEventData
 local function simulatedCallback(e)
     if editmode and mountMarker and mountData then
-        local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() *
-            512
-        from.z = mountData.offset
-
+        -- visualize mount scene node
+        -- TODO inwater check
+        local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 512
+        from.z = mountData.offset * 0.7
         mountMarker.translation = from
         local m = tes3matrix33.new()
-        m:fromEulerXYZ(tes3.player.orientation.x, tes3.player.orientation.y,
-            tes3.player.orientation.z)
+        m:fromEulerXYZ(tes3.player.orientation.x, tes3.player.orientation.y, tes3.player.orientation.z)
         mountMarker.rotation = m
         mountMarker:update()
     end
 
-    if is_on_boat and travelMarker and mount then
+    if is_on_boat and travelMarker and mountHandle and mountHandle:valid() then
         -- update next pos
         local target = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 2048
         target.z = 0
@@ -511,9 +501,8 @@ local function simulatedCallback(e)
         travelMarker.rotation = m
         travelMarker:update()
 
-        -- TODO collision from the front of the ship
-
-        local testPosition = mount.sceneNode.worldTransform * tes3vector3.new(0, 200, 0)
+        -- collision
+        local testPosition = mountHandle:getObject().sceneNode.worldTransform * tes3vector3.new(0, 250, 0)
         local hitResult = tes3.rayTest({
             position = testPosition,
             direction = tes3vector3.new(0, 0, -1),
@@ -528,3 +517,11 @@ local function simulatedCallback(e)
     end
 end
 event.register(tes3.event.simulated, simulatedCallback)
+
+--- Cleanup on save load
+--- @param e loadEventData
+local function editloadCallback(e)
+    cleanup()
+    travelMarkerMesh = tes3.loadMesh(travelMarkerId)
+end
+event.register(tes3.event.load, editloadCallback)
