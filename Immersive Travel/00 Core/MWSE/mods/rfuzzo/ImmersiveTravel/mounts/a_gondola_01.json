@@ -56,7 +56,7 @@
   ],
   "clutter": [
     {
-      "id": "light_paper_lantern_01_NOROPE",
+      "id": "light_de_paper_lantern_01",
       "position": {
         "x": 0,
         "y": -219,
@@ -64,7 +64,7 @@
       }
     },
     {
-      "id": "light_paper_lantern_02_NOROPE",
+      "id": "light_de_paper_lantern_04",
       "position": {
         "x": 0,
         "y": 176,
