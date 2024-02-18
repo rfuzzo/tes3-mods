@@ -1,5 +1,7 @@
 local common = require("rfuzzo.ImmersiveTravel.common")
 
+local DEBUG = true
+
 local logger = require("logging.logger")
 local log = logger.new {
     name = "ImmersiveVehicles",
@@ -326,6 +328,9 @@ local function startTravel()
         callback = (function()
             tes3.fadeIn({ duration = 1 })
 
+            -- position mount
+            mount.orientation = tes3.player.orientation
+
             -- visualize debug marker
             local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
             local child = travelMarkerMesh:clone()
@@ -496,7 +501,8 @@ local function keyDownCallback(e)
             -- increment speed
             if current_speed < mountData.maxSpeed then
                 current_speed = math.clamp(current_speed + mountData.changeSpeed, mountData.minSpeed, mountData.maxSpeed)
-                tes3.messageBox("Current Speed: " .. tostring(current_speed))
+
+                if DEBUG then tes3.messageBox("Current Speed: " .. tostring(current_speed)) end
             end
         end
 
@@ -504,7 +510,7 @@ local function keyDownCallback(e)
             -- decrement speed
             if current_speed > mountData.minSpeed then
                 current_speed = math.clamp(current_speed - mountData.changeSpeed, mountData.minSpeed, mountData.maxSpeed)
-                tes3.messageBox("Current Speed: " .. tostring(current_speed))
+                if DEBUG then tes3.messageBox("Current Speed: " .. tostring(current_speed)) end
             end
         end
     end
@@ -526,21 +532,34 @@ local function simulatedCallback(e)
         mountMarker:update()
     end
 
+    -- update next pos
     if not editmode and is_on_boat and travelMarker and mountHandle and mountHandle:valid() and mountData then
-        -- update next pos
+        local mount = mountHandle:getObject()
         local target = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 2048
+
+        local isControlDown = tes3.worldController.inputController:isControlDown()
+        if isControlDown then
+            target = mount.sceneNode.worldTransform * tes3vector3.new(0, 2048, 0)
+        end
         target.z = 0 --TODO fix for generic mounts
         virtualDestination = target
 
         -- render debug marker
-        --TODO remove after debugging
-        travelMarker.translation = target
-        local m = tes3matrix33.new()
-        m:fromEulerXYZ(tes3.player.orientation.x, tes3.player.orientation.y, tes3.player.orientation.z)
-        travelMarker.rotation = m
-        travelMarker:update()
+        if DEBUG then
+            travelMarker.translation = target
+            local m = tes3matrix33.new()
+            if isControlDown then
+                m:fromEulerXYZ(mount.orientation.x, mount.orientation.y, mount.orientation.z)
+            else
+                m:fromEulerXYZ(tes3.player.orientation.x, tes3.player.orientation.y, tes3.player.orientation.z)
+            end
+            travelMarker.rotation = m
+            travelMarker:update()
+        end
+    end
 
-        -- collision
+    -- collision
+    if not editmode and is_on_boat and travelMarker and mountHandle and mountHandle:valid() and mountData then
         -- raytest at sealevel to detect shore transition
         local testPosition1 = mountHandle:getObject().sceneNode.worldTransform * common.vec(mountData.shoreRayPos)
         local hitResult1 = tes3.rayTest({
@@ -551,7 +570,7 @@ local function simulatedCallback(e)
         })
         if (hitResult1 == nil) then
             current_speed = 0
-            --tes3.messageBox("HIT Shore")
+            if DEBUG then tes3.messageBox("HIT Shore") end
         end
 
         -- raytest from above to detect objects in water
@@ -564,7 +583,7 @@ local function simulatedCallback(e)
         })
         if (hitResult2 ~= nil) then
             current_speed = 0
-            --tes3.messageBox("HIT Object")
+            if DEBUG then tes3.messageBox("HIT Object") end
         end
     end
 end
