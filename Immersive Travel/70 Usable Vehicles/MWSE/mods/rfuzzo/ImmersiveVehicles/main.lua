@@ -16,7 +16,6 @@ local sway_max_amplitude = 3       -- how much the ship can sway in a turn
 local sway_amplitude_change = 0.01 -- how much the ship can sway in a turn
 local sway_frequency = 0.12        -- how fast the mount sways
 local sway_amplitude = 0.014       -- how much the mount sways
-local speed_change = 1
 local timertick = 0.01
 local travelMarkerId = "marker_arrow.nif"
 
@@ -26,7 +25,7 @@ local mountMarkerMesh = nil
 -- VARIABLES
 
 local myTimer = nil ---@type mwseTimer | nil
-local currentSpline = nil ---@type tes3vector3|nil
+local virtualDestination = nil ---@type tes3vector3|nil
 
 local swayTime = 0
 local last_position = nil ---@type tes3vector3|nil
@@ -53,7 +52,7 @@ local function cleanup()
 
     -- reset global vars
     safeCancelTimer()
-    currentSpline = nil
+    virtualDestination = nil
 
     swayTime = 0
     last_position = nil
@@ -132,6 +131,23 @@ local function destinationReached()
     cleanup()
 end
 
+--- @param from tes3vector3
+--- @return number|nil
+local function getGroundZ(from)
+    local rayhit = tes3.rayTest {
+        position = from,
+        direction = tes3vector3.new(0, 0, -1),
+        returnNormal = true
+    }
+
+    if (rayhit) then
+        local to = rayhit.intersection
+        return to.z
+    end
+
+    return nil
+end
+
 --- load json static mount data
 ---@param id string
 ---@return MountData|nil
@@ -169,7 +185,7 @@ local function onTimerTick()
         cleanup()
         return
     end
-    if currentSpline == nil then
+    if virtualDestination == nil then
         cleanup()
         return
     end
@@ -197,7 +213,7 @@ local function onTimerTick()
     if current_speed < mountData.minSpeed then return end
 
     local mountOffset = tes3vector3.new(0, 0, mountData.offset) * mount.scale
-    local nextPos = currentSpline
+    local nextPos = virtualDestination
     local currentPos = last_position - mountOffset
 
     -- calculate diffs
@@ -297,7 +313,7 @@ local function startTravel()
     if not mountHandle:valid() then return end
 
     local mount = mountHandle:getObject()
-    currentSpline = mount.position
+    virtualDestination = mount.position
 
     -- fade out
     tes3.fadeOut({ duration = 1 })
@@ -322,7 +338,7 @@ local function startTravel()
             travelMarker = child
 
             -- calculate positions
-            local startPos = currentSpline
+            local startPos = virtualDestination
             local mountOffset = tes3vector3.new(0, 0, mountData.offset) * mountData.scale
 
             -- register player
@@ -430,7 +446,7 @@ local function keyDownCallback(e)
     if not travelMarkerMesh then return nil end
 
     -- TODO remove after debug
-    if e.keyCode == tes3.scanCode["o"] then
+    if e.keyCode == tes3.scanCode["o"] and not is_on_boat then
         if editmode then
             -- leave editor and spawn vehicle
             if mountMarker then
@@ -439,7 +455,7 @@ local function keyDownCallback(e)
                     object = "a_gondola_01",
                     position = mountMarker.translation,
                     orientation = mountMarker.rotation:toEulerXYZ(),
-                    scale = mountMarker.scale -- TODO use proper mountdata
+                    scale = mountMarker.scale
                 }
                 obj.facing = tes3.player.facing
 
@@ -479,14 +495,15 @@ local function keyDownCallback(e)
         if e.keyCode == tes3.scanCode["w"] then
             -- increment speed
             if current_speed < mountData.maxSpeed then
-                current_speed = math.clamp(current_speed + speed_change, mountData.minSpeed, mountData.maxSpeed)
+                current_speed = math.clamp(current_speed + mountData.changeSpeed, mountData.minSpeed, mountData.maxSpeed)
                 tes3.messageBox("Current Speed: " .. tostring(current_speed))
             end
         end
+
         if e.keyCode == tes3.scanCode["s"] then
             -- decrement speed
             if current_speed > mountData.minSpeed then
-                current_speed = math.clamp(current_speed - speed_change, mountData.minSpeed, mountData.maxSpeed)
+                current_speed = math.clamp(current_speed - mountData.changeSpeed, mountData.minSpeed, mountData.maxSpeed)
                 tes3.messageBox("Current Speed: " .. tostring(current_speed))
             end
         end
@@ -509,11 +526,11 @@ local function simulatedCallback(e)
         mountMarker:update()
     end
 
-    if is_on_boat and travelMarker and mountHandle and mountHandle:valid() and mountData then
+    if not editmode and is_on_boat and travelMarker and mountHandle and mountHandle:valid() and mountData then
         -- update next pos
         local target = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 2048
-        target.z = 0
-        currentSpline = target
+        target.z = 0 --TODO fix for generic mounts
+        virtualDestination = target
 
         -- render debug marker
         --TODO remove after debugging
@@ -534,7 +551,7 @@ local function simulatedCallback(e)
         })
         if (hitResult1 == nil) then
             current_speed = 0
-            tes3.messageBox("HIT Shore")
+            --tes3.messageBox("HIT Shore")
         end
 
         -- raytest from above to detect objects in water
@@ -543,12 +560,11 @@ local function simulatedCallback(e)
             position = testPosition2,
             direction = tes3vector3.new(0, 0, -1),
             root = tes3.game.worldObjectRoot,
-            maxDistance = 512
+            maxDistance = 256 --TODO check boundingbox
         })
         if (hitResult2 ~= nil) then
-            -- TODO clamp max speed
             current_speed = 0
-            tes3.messageBox("HIT Object")
+            --tes3.messageBox("HIT Object")
         end
     end
 end

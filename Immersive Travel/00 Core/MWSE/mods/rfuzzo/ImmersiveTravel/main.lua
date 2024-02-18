@@ -79,6 +79,7 @@ local log = logger.new {
 ---@field scale number?
 ---@field minSpeed number?
 ---@field maxSpeed number?
+---@field changeSpeed number?
 ---@field shoreRayPos PositionRecord?
 ---@field objectRayPos PositionRecord?
 

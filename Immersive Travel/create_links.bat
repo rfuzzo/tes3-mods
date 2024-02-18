@@ -1,17 +1,17 @@
 @ECHO off
 
-set "location=C:\games\Morrowind\Data Files"
-set "drive=%CD%"
+set "location=D:\games\Morrowind2\Data Files"
+set "cd=%CD%"
 
-echo %drive%
+echo %cd%
 
-mklink /J "%location%\MWSE\mods\rfuzzo\ImmersiveTravel" "%drive%\00 Core\MWSE\mods\rfuzzo\ImmersiveTravel"
+mklink /J "%location%\MWSE\mods\rfuzzo\ImmersiveTravel" "%cd%\00 Core\MWSE\mods\rfuzzo\ImmersiveTravel"
 
-rem mklink /J "%location%\MWSE\mods\rfuzzo\ImmersiveTravelAddon" "%drive%\10 World Addon\MWSE\mods\rfuzzo\ImmersiveTravelAddon"
+rem mklink /J "%location%\MWSE\mods\rfuzzo\ImmersiveTravelAddon" "%cd%\10 World Addon\MWSE\mods\rfuzzo\ImmersiveTravelAddon"
 
-mklink /J "%location%\MWSE\mods\rfuzzo\ImmersiveVehicles" "%drive%\70 Usable Vehicles\MWSE\mods\rfuzzo\ImmersiveVehicles"
+mklink /J "%location%\MWSE\mods\rfuzzo\ImmersiveVehicles" "%cd%\70 Usable Vehicles\MWSE\mods\rfuzzo\ImmersiveVehicles"
 
-mklink /J "%location%\MWSE\mods\rfuzzo\ImmersiveTravelEditor" "%drive%\99 Editor\MWSE\mods\rfuzzo\ImmersiveTravelEditor"
+mklink /J "%location%\MWSE\mods\rfuzzo\ImmersiveTravelEditor" "%cd%\99 Editor\MWSE\mods\rfuzzo\ImmersiveTravelEditor"
 
 pause
 

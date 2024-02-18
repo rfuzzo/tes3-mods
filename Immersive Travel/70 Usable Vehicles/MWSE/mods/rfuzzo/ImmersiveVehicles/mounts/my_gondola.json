@@ -38,7 +38,7 @@
   ],
   "clutter": [
     {
-      "id": "light_de_paper_lantern_01",
+      "id": "light_de_paper_lantern_01_nr",
       "position": {
         "x": 0,
         "y": -219,
@@ -46,7 +46,7 @@
       }
     },
     {
-      "id": "light_de_paper_lantern_04",
+      "id": "light_de_paper_lantern_04_nr",
       "position": {
         "x": 0,
         "y": 176,
@@ -65,5 +65,6 @@
     "z": 150
   },
   "minSpeed": -2,
-  "maxSpeed": 7
+  "maxSpeed": 7,
+  "changeSpeed": 1
 }
