@@ -474,54 +474,53 @@ local function activateCallback(e)
 end
 event.register(tes3.event.activate, activateCallback)
 
+local function playerIsUnderwater()
+    local waterLevel = tes3.mobilePlayer.cell.waterLevel
+    local minPosition = tes3.mobilePlayer.position.z
 
+    return minPosition < waterLevel
+end
 
 --- @param e keyDownEventData
 local function keyDownCallback(e)
     -- TODO remove after debug
-    if e.keyCode == tes3.scanCode["o"] and not is_on_boat then
-        if editmode then
-            -- leave editor and spawn vehicle
-            if mountMarker then
-                -- add vehicles selections
-                local obj = tes3.createReference {
-                    object = "a_gondola_01",
-                    position = mountMarker.translation,
-                    orientation = mountMarker.rotation:toEulerXYZ(),
-                    scale = mountMarker.scale
-                }
-                obj.facing = tes3.player.facing
+    -- leave editor and spawn vehicle
+    if e.keyCode == tes3.scanCode["o"] and editmode and mountMarker then
+        -- add vehicles selections
+        local obj = tes3.createReference {
+            object = "a_gondola_01",
+            position = mountMarker.translation,
+            orientation = mountMarker.rotation:toEulerXYZ(),
+            scale = mountMarker.scale
+        }
+        obj.facing = tes3.player.facing
 
-                -- remove marker
-                -- TODO use real ref instead of vfx node
-                local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-                vfxRoot:detachChild(mountMarker)
-                mountMarker = nil
-            end
+        -- remove marker
+        -- TODO use real ref instead of vfx node
+        local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+        vfxRoot:detachChild(mountMarker)
+        mountMarker = nil
+        editmode = false
+    elseif e.keyCode == tes3.scanCode["o"] and not editmode and playerIsUnderwater() and not is_on_boat then
+        mountData = loadMountData("my_gondola")
+        if not mountData then return nil end
 
-            editmode = false
-        else
-            -- start editor
-            mountData = loadMountData("my_gondola")
-            if not mountData then return nil end
+        -- visualize placement node
+        local target = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
 
-            -- visualize placement node
-            local target = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
+        mountMarkerMesh = tes3.loadMesh(mountData.mesh)
+        local child = mountMarkerMesh:clone()
+        child.translation = target
+        child.scale = mountData.scale
+        child.appCulled = false
+        local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+        ---@diagnostic disable-next-line: param-type-mismatch
+        vfxRoot:attachChild(child)
+        vfxRoot:update()
+        mountMarker = child
 
-            mountMarkerMesh = tes3.loadMesh(mountData.mesh)
-            local child = mountMarkerMesh:clone()
-            child.translation = target
-            child.scale = mountData.scale
-            child.appCulled = false
-            local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-            ---@diagnostic disable-next-line: param-type-mismatch
-            vfxRoot:attachChild(child)
-            vfxRoot:update()
-            mountMarker = child
-
-            -- enter placement mode
-            editmode = true
-        end
+        -- enter placement mode
+        editmode = true
     end
 
     if is_on_boat and mountData then
@@ -557,16 +556,25 @@ event.register(tes3.event.keyUp, keyUpCallback)
 --- visualize on tick
 --- @param e simulatedEventData
 local function simulatedCallback(e)
-    if editmode and mountMarker and mountData then
-        -- visualize mount scene node
-        -- TODO inwater check
-        local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 512
+    -- visualize mount scene node
+    if editmode and mountMarker and mountData and playerIsUnderwater() then
+        local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 400
         from.z = mountData.offset * mountData.scale
-        mountMarker.translation = from
-        local m = tes3matrix33.new()
-        m:fromEulerXYZ(tes3.player.orientation.x, tes3.player.orientation.y, tes3.player.orientation.z)
-        mountMarker.rotation = m
-        mountMarker:update()
+
+        -- check if in water
+        local hitResult1 = tes3.rayTest({
+            position = tes3vector3.new(from.x, from.y, -10),
+            direction = tes3vector3.new(0, 0, -1),
+            root = tes3.game.worldLandscapeRoot,
+            maxDistance = 4096
+        })
+        if (hitResult1 ~= nil) then
+            mountMarker.translation = from
+            local m = tes3matrix33.new()
+            m:fromEulerXYZ(tes3.player.orientation.x, tes3.player.orientation.y, tes3.player.orientation.z)
+            mountMarker.rotation = m
+            mountMarker:update()
+        end
     end
 
     -- update next pos
@@ -598,6 +606,7 @@ local function simulatedCallback(e)
     -- collision
     if not editmode and is_on_boat and mountHandle and mountHandle:valid() and mountData then
         -- raytest at sealevel to detect shore transition
+        --TODO account for backwards
         local testPosition1 = mountHandle:getObject().sceneNode.worldTransform * common.vec(mountData.shoreRayPos)
         local hitResult1 = tes3.rayTest({
             position = testPosition1,
