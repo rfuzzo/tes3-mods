@@ -66,26 +66,23 @@ local function cleanup()
     if mountData and mountHandle and mountHandle:valid() then
         tes3.removeSound({ sound = mountData.sound, reference = mountHandle:getObject() })
     end
+    mountHandle = nil
 
     if mountData then
-        -- delete guide
-        if mountData.guideSlot.handle and mountData.guideSlot.handle:valid() then
-            mountData.guideSlot.handle:getObject():delete()
-            mountData.guideSlot.handle = nil
-        end
-
         -- delete statics
         if mountData.clutter then
+            log:debug("cleanup statics")
             for index, clutter in ipairs(mountData.clutter) do
                 if clutter.handle and clutter.handle:valid() then
                     clutter.handle:getObject():delete()
                     clutter.handle = nil
+                    log:debug("cleanup static " .. clutter.id)
                 end
             end
         end
     end
     mountData = nil
-    mountHandle = nil
+
     -- don't delete ref since we may want to use the mount later
     -- if mount then mount:delete() end
 
@@ -98,8 +95,6 @@ local function cleanup()
 end
 
 local function destinationReached()
-    if not mountData then return end
-
     log:debug("destinationReached")
 
     -- reset player
@@ -108,26 +103,28 @@ local function destinationReached()
     tes3.playAnimation({ reference = tes3.player, group = 0 })
 
     -- teleport followers
-    for index, slot in ipairs(mountData.slots) do
-        if slot.handle and slot.handle:valid() then
-            local ref = slot.handle:getObject()
-            if ref ~= tes3.player and ref.mobile and
-                common.isFollower(ref.mobile) then
-                log:debug("teleporting follower " .. ref.id)
+    if mountData then
+        for index, slot in ipairs(mountData.slots) do
+            if slot.handle and slot.handle:valid() then
+                local ref = slot.handle:getObject()
+                if ref ~= tes3.player and ref.mobile and
+                    common.isFollower(ref.mobile) then
+                    log:debug("teleporting follower " .. ref.id)
 
-                ref.mobile.movementCollision = true;
-                tes3.loadAnimation({ reference = ref })
-                tes3.playAnimation({ reference = ref, group = 0 })
+                    ref.mobile.movementCollision = true;
+                    tes3.loadAnimation({ reference = ref })
+                    tes3.playAnimation({ reference = ref, group = 0 })
 
-                local f = tes3.player.forwardDirection
-                f:normalize()
-                local offset = f * 60.0
-                tes3.positionCell({
-                    reference = ref,
-                    position = tes3.player.position + offset
-                })
+                    local f = tes3.player.forwardDirection
+                    f:normalize()
+                    local offset = f * 60.0
+                    tes3.positionCell({
+                        reference = ref,
+                        position = tes3.player.position + offset
+                    })
 
-                slot.handle = nil
+                    slot.handle = nil
+                end
             end
         end
     end
@@ -415,16 +412,9 @@ local function activateCallback(e)
         if is_on_boat then
             -- stop
             safeCancelTimer()
-            tes3.fadeOut()
-            timer.start({
-                type = timer.simulate,
-                duration = 1,
-                callback = (function()
-                    tes3.fadeIn()
-                    destinationReached()
-                end)
-            })
+            destinationReached()
         else
+            -- start
             mountData = loadMountData(getMountForId(e.target.id))
             if mountData then
                 mountHandle = tes3.makeSafeObjectHandle(e.target)
@@ -534,7 +524,6 @@ local function simulatedCallback(e)
         travelMarker:update()
 
         -- collision
-        -- TODO get positions from mount data
         -- raytest at sealevel to detect shore transition
         local testPosition1 = mountHandle:getObject().sceneNode.worldTransform * common.vec(mountData.shoreRayPos)
         local hitResult1 = tes3.rayTest({
