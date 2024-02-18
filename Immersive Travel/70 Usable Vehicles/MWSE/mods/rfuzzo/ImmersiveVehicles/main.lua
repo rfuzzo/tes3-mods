@@ -1,6 +1,6 @@
 local common = require("rfuzzo.ImmersiveTravel.common")
 
-local DEBUG = true
+local DEBUG = false
 
 local logger = require("logging.logger")
 local log = logger.new {
@@ -309,7 +309,6 @@ end
 
 --- set up everything
 local function startTravel()
-    if travelMarkerMesh == nil then return end
     if mountData == nil then return end
     if mountHandle == nil then return end
     if not mountHandle:valid() then return end
@@ -332,15 +331,18 @@ local function startTravel()
             mount.orientation = tes3.player.orientation
 
             -- visualize debug marker
-            local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-            local child = travelMarkerMesh:clone()
-            local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
-            child.translation = from
-            child.appCulled = false
-            ---@diagnostic disable-next-line: param-type-mismatch
-            vfxRoot:attachChild(child)
-            vfxRoot:update()
-            travelMarker = child
+            if DEBUG and travelMarkerMesh then
+                local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+                local child = travelMarkerMesh:clone()
+                local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
+                child.translation = from
+                child.appCulled = false
+                ---@diagnostic disable-next-line: param-type-mismatch
+                vfxRoot:attachChild(child)
+                vfxRoot:update()
+                travelMarker = child
+            end
+
 
             -- calculate positions
             local startPos = virtualDestination
@@ -448,8 +450,6 @@ event.register(tes3.event.activate, activateCallback)
 
 --- @param e keyDownEventData
 local function keyDownCallback(e)
-    if not travelMarkerMesh then return nil end
-
     -- TODO remove after debug
     if e.keyCode == tes3.scanCode["o"] and not is_on_boat then
         if editmode then
@@ -533,7 +533,7 @@ local function simulatedCallback(e)
     end
 
     -- update next pos
-    if not editmode and is_on_boat and travelMarker and mountHandle and mountHandle:valid() and mountData then
+    if not editmode and is_on_boat and mountHandle and mountHandle:valid() and mountData then
         local mount = mountHandle:getObject()
         local target = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 2048
 
@@ -545,7 +545,7 @@ local function simulatedCallback(e)
         virtualDestination = target
 
         -- render debug marker
-        if DEBUG then
+        if DEBUG and travelMarker then
             travelMarker.translation = target
             local m = tes3matrix33.new()
             if isControlDown then
@@ -559,7 +559,7 @@ local function simulatedCallback(e)
     end
 
     -- collision
-    if not editmode and is_on_boat and travelMarker and mountHandle and mountHandle:valid() and mountData then
+    if not editmode and is_on_boat and mountHandle and mountHandle:valid() and mountData then
         -- raytest at sealevel to detect shore transition
         local testPosition1 = mountHandle:getObject().sceneNode.worldTransform * common.vec(mountData.shoreRayPos)
         local hitResult1 = tes3.rayTest({
