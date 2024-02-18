@@ -21,7 +21,10 @@ While on a mount you can freely move around the ships and river striders, or sit
 - various QoL features like 
 - different vehicles on different routes (small longboats connect the fishing villages, while bigger ships connect the towns)
 - vehicle customization
+
+## Add-ons
 - easy modding compatibility and configurability (see: [In-game editor docs](./editor.md)) 
+- usable vehicles  (see: [Usable vehicle docs](./vehicles.md)) 
 
 ## Compatibility
 
@@ -55,6 +58,7 @@ Patches are available for:
 
 - Greatness7, Null, Hrnchamd and Herbert for answering all my stupid math questions
 - VonDjangos, Voig and Merlord for help on the mod
+- Juidius for their lamp models
 - VidiAquam for the sitting animations and help with anims
 - the rest of the MCM community for immense help on diverse features over the long time I worked on this mod
 - The MWSE team for MWSE

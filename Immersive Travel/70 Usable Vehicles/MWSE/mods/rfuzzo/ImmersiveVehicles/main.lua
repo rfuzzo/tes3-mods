@@ -1,6 +1,6 @@
 local common = require("rfuzzo.ImmersiveTravel.common")
 
-local DEBUG = false
+local DEBUG = true
 
 local logger = require("logging.logger")
 local log = logger.new {
@@ -44,6 +44,7 @@ local travelMarker = nil ---@type niNode?
 local mountMarker = nil ---@type niNode?
 
 local editmode = false
+local speedChange = 0
 
 -- HELPERS
 
@@ -63,6 +64,7 @@ local function cleanup()
     last_sway = 0
     current_speed = 0
     is_on_boat = false
+    current_speed = 0
 
     if mountData and mountHandle and mountHandle:valid() then
         tes3.removeSound({ sound = mountData.sound, reference = mountHandle:getObject() })
@@ -211,6 +213,15 @@ local function onTimerTick()
         return
     end
 
+    -- register keypresses
+    if speedChange > 0 then
+        local change = current_speed + (mountData.changeSpeed * timertick)
+        current_speed = math.clamp(change, mountData.minSpeed, mountData.maxSpeed)
+    elseif speedChange < 0 then
+        local change = current_speed - (mountData.changeSpeed * timertick)
+        current_speed = math.clamp(change, mountData.minSpeed, mountData.maxSpeed)
+    end
+
     -- skip
     if current_speed < mountData.minSpeed then return end
 
@@ -227,8 +238,6 @@ local function onTimerTick()
     -- calculate position
     local forward = tes3vector3.new(mount.forwardDirection.x, mount.forwardDirection.y, lerp.z):normalized()
     local delta = forward * current_speed
-
-    -- local playerShipLocal = mount.sceneNode.worldTransform:invert() * tes3.player.position
 
     -- calculate facing
     local turn = 0
@@ -437,16 +446,35 @@ local function activateCallback(e)
             safeCancelTimer()
             destinationReached()
         else
-            -- start
-            mountData = loadMountData(getMountForId(e.target.id))
-            if mountData then
-                mountHandle = tes3.makeSafeObjectHandle(e.target)
-                startTravel()
+            -- start or destroy
+            if tes3.worldController.inputController:isControlDown() then
+                -- message
+                tes3ui.showMessageMenu {
+                    message = "Destroy?",
+                    buttons = {
+                        {
+                            text = "Yes",
+                            callback = function()
+                                e.target:delete()
+                                cleanup()
+                            end
+                        }
+                    },
+                    cancels = true
+                }
+            else
+                mountData = loadMountData(getMountForId(e.target.id))
+                if mountData then
+                    mountHandle = tes3.makeSafeObjectHandle(e.target)
+                    startTravel()
+                end
             end
         end
     end
 end
 event.register(tes3.event.activate, activateCallback)
+
+
 
 --- @param e keyDownEventData
 local function keyDownCallback(e)
@@ -500,22 +528,31 @@ local function keyDownCallback(e)
         if e.keyCode == tes3.scanCode["w"] then
             -- increment speed
             if current_speed < mountData.maxSpeed then
-                current_speed = math.clamp(current_speed + mountData.changeSpeed, mountData.minSpeed, mountData.maxSpeed)
-
-                if DEBUG then tes3.messageBox("Current Speed: " .. tostring(current_speed)) end
+                speedChange = 1
             end
         end
 
         if e.keyCode == tes3.scanCode["s"] then
             -- decrement speed
             if current_speed > mountData.minSpeed then
-                current_speed = math.clamp(current_speed - mountData.changeSpeed, mountData.minSpeed, mountData.maxSpeed)
-                if DEBUG then tes3.messageBox("Current Speed: " .. tostring(current_speed)) end
+                speedChange = -1
             end
         end
     end
 end
 event.register(tes3.event.keyDown, keyDownCallback)
+
+--- @param e keyUpEventData
+local function keyUpCallback(e)
+    if is_on_boat and mountData then
+        if e.keyCode == tes3.scanCode["w"] or e.keyCode == tes3.scanCode["s"] then
+            -- stop increment speed
+            speedChange = 0
+            if DEBUG then tes3.messageBox("Current Speed: " .. tostring(current_speed)) end
+        end
+    end
+end
+event.register(tes3.event.keyUp, keyUpCallback)
 
 --- visualize on tick
 --- @param e simulatedEventData

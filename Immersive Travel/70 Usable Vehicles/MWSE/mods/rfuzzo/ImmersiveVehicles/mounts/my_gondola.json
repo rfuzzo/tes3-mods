@@ -4,7 +4,7 @@
   "offset": 40,
   "sway": 1,
   "speed": 2,
-  "turnspeed": 40,
+  "turnspeed": 30,
   "scale": 0.7,
   "guideSlot": {
     "animationGroup": [
@@ -66,5 +66,5 @@
   },
   "minSpeed": -2,
   "maxSpeed": 7,
-  "changeSpeed": 1
+  "changeSpeed": 1.5
 }
