@@ -287,11 +287,12 @@ local function onTimerTick()
     local d = (nextPos - currentPos):normalized()
 
     -- calculate position
-    local lerp = forwardDirection:lerp(d, mountData.turnspeed / 10):normalized()
+    local lerp = forwardDirection:lerp(d, mountData.turnspeed / 10.0):normalized()
     local forward = tes3vector3.new(mount.forwardDirection.x,
         mount.forwardDirection.y, lerp.z):normalized()
     if mountData.has3dfreedom then
         -- TODO fix for 3d
+        forward = mount.forwardDirection:normalized()
     end
     local delta = forward * current_speed
 
@@ -394,7 +395,7 @@ local function startTravel()
 
             -- position mount
             if not mountData.has3dfreedom then
-                mount.position = tes3vector3.new(mount.position.x, mount.position.y, 0) -- TODO fix for generic mounts
+                mount.position = tes3vector3.new(mount.position.x, mount.position.y, mountData.offset * mountData.scale)
             end
             mount.orientation = tes3.player.orientation
 
@@ -498,14 +499,16 @@ end
 
 -- EVENTS
 
+local dbg_mount_id = nil ---@type string?
+
 --- @param e keyDownEventData
 local function keyDownCallback(e)
     -- leave editor and spawn vehicle
     if DEBUG then
-        if e.keyCode == tes3.scanCode["o"] and editmode and mountMarker then
+        if e.keyCode == tes3.scanCode["o"] and editmode and mountMarker and dbg_mount_id then
             -- add vehicles selections
             local obj = tes3.createReference {
-                object = "a_cliffracer",
+                object = dbg_mount_id,
                 position = mountMarker.translation,
                 orientation = mountMarker.rotation:toEulerXYZ(),
                 scale = mountMarker.scale
@@ -517,27 +520,35 @@ local function keyDownCallback(e)
             vfxRoot:detachChild(mountMarker)
             mountMarker = nil
             editmode = false
-        elseif e.keyCode == tes3.scanCode["o"] and not editmode and
-            not is_on_mount then
-            mountData = loadMountData(getMountForId("a_cliffracer"))
-            if not mountData then return nil end
+        elseif e.keyCode == tes3.scanCode["o"] and not editmode and not is_on_mount then
+            local buttons = {}
+            for _, id in ipairs(mounts) do
+                table.insert(buttons, {
+                    text = id,
+                    callback = function(e)
+                        mountData = loadMountData(getMountForId(id))
+                        if not mountData then return nil end
+                        -- visualize placement node
+                        local target = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * (256 / mountData.scale)
 
-            -- visualize placement node
-            local target = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * (256 / mountData.scale)
+                        mountMarkerMesh = tes3.loadMesh(mountData.mesh)
+                        local child = mountMarkerMesh:clone()
+                        child.translation = target
+                        child.scale = mountData.scale
+                        child.appCulled = false
+                        local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+                        ---@diagnostic disable-next-line: param-type-mismatch
+                        vfxRoot:attachChild(child)
+                        vfxRoot:update()
+                        mountMarker = child
 
-            mountMarkerMesh = tes3.loadMesh(mountData.mesh)
-            local child = mountMarkerMesh:clone()
-            child.translation = target
-            child.scale = mountData.scale
-            child.appCulled = false
-            local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-            ---@diagnostic disable-next-line: param-type-mismatch
-            vfxRoot:attachChild(child)
-            vfxRoot:update()
-            mountMarker = child
-
-            -- enter placement mode
-            editmode = true
+                        -- enter placement mode
+                        editmode = true
+                        dbg_mount_id = id
+                    end,
+                })
+            end
+            tes3ui.showMessageMenu({ id = "rf_dbg_iv", message = "Choose your mount", buttons = buttons, cancels = true })
         end
     end
 
@@ -579,16 +590,14 @@ local function simulatedCallback(e)
     -- visualize mount scene node
     if DEBUG then
         if editmode and mountMarker and mountData then
-            local from =
-                tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 400
+            local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * (350.0 / mountData.scale)
             if not mountData.has3dfreedom then
                 from.z = mountData.offset * mountData.scale
             end
 
             mountMarker.translation = from
             local m = tes3matrix33.new()
-            m:fromEulerXYZ(tes3.player.orientation.x, tes3.player.orientation.y,
-                tes3.player.orientation.z)
+            m:fromEulerXYZ(tes3.player.orientation.x, tes3.player.orientation.y, tes3.player.orientation.z)
             mountMarker.rotation = m
             mountMarker:update()
         end
