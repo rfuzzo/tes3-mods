@@ -1,0 +1,36 @@
+{
+  "sound": "cliff racer scream",
+  "mesh": "r\\CliffRacer.nif",
+  "offset": 0,
+  "sway": 1,
+  "speed": 2,
+  "turnspeed": 60,
+  "scale": 2.0,
+  "slots": [
+    {
+      "animationGroup": [
+        "idle6"
+      ],
+      "animationFile": "VA_sitting.nif",
+      "position": {
+        "x": 0,
+        "y": 20,
+        "z": 10
+      }
+    }
+  ],
+  "shoreRayPos": {
+    "x": 0,
+    "y": 300,
+    "z": -10
+  },
+  "objectRayPos": {
+    "x": 0,
+    "y": 350,
+    "z": 150
+  },
+  "minSpeed": 0,
+  "maxSpeed": 20,
+  "changeSpeed": 3.0,
+  "has3dfreedom": true
+}

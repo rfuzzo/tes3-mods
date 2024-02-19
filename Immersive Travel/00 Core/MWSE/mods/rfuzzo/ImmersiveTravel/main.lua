@@ -71,9 +71,9 @@ local log = logger.new {
 ---@field speed number forward speed
 ---@field turnspeed number turning speed
 ---@field hasFreeMovement boolean turning speed
----@field guideSlot Slot
----@field hiddenSlot HiddenSlot
 ---@field slots Slot[]
+---@field guideSlot Slot?
+---@field hiddenSlot HiddenSlot?
 ---@field clutter Clutter[]?
 ---@field idList string[]?
 ---@field scale number?
@@ -82,6 +82,7 @@ local log = logger.new {
 ---@field changeSpeed number?
 ---@field shoreRayPos PositionRecord?
 ---@field objectRayPos PositionRecord?
+---@field has3dfreedom boolean?
 
 ---@class ReferenceRecord
 ---@field cell tes3cell The cell
@@ -270,7 +271,7 @@ end
 ---@param data MountData
 ---@param handle mwseSafeObjectHandle|nil
 local function registerGuide(data, handle)
-    if handle and handle:valid() then
+    if data.guideSlot and handle and handle:valid() then
         data.guideSlot.handle = handle
         -- tcl
         local reference = handle:getObject()
@@ -278,14 +279,12 @@ local function registerGuide(data, handle)
         reference.data.rfuzzo_invincible = true;
 
         -- play animation
-        local slot = data.guideSlot
-
-        local group = common.getRandomAnimGroup(slot)
+        local group = common.getRandomAnimGroup(data.guideSlot)
         tes3.loadAnimation({ reference = reference })
-        if slot.animationFile then
+        if data.guideSlot.animationFile then
             tes3.loadAnimation({
                 reference = reference,
-                file = slot.animationFile
+                file = data.guideSlot.animationFile
             })
         end
         tes3.playAnimation({ reference = reference, group = group })

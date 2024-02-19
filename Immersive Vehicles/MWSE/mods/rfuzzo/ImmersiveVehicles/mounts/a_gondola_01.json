@@ -6,23 +6,6 @@
   "speed": 2,
   "turnspeed": 30,
   "scale": 0.7,
-  "guideSlot": {
-    "animationGroup": [
-      "idle6"
-    ],
-    "position": {
-      "x": 0,
-      "y": -171,
-      "z": -18
-    }
-  },
-  "hiddenSlot": {
-    "position": {
-      "x": 0,
-      "y": 0,
-      "z": -200
-    }
-  },
   "slots": [
     {
       "animationGroup": [
