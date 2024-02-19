@@ -1,10 +1,10 @@
 local common = require("rfuzzo.ImmersiveTravel.common")
 
-local DEBUG = true
+local DEBUG = false
 
 local logger = require("logging.logger")
 local log = logger.new {
-    name = "ImmersiveVehicles",
+    name = "Immersive Vehicles",
     logLevel = "DEBUG", --TODO remove after debugging
     logToConsole = true,
     includeTimestamp = true
@@ -418,7 +418,7 @@ end
 ---@type string[]
 local mounts = {
     "a_gondola_01",
-    "ex_gondola_01"
+    "s_gondola_01"
 }
 
 --- check if valid mount
@@ -432,47 +432,11 @@ end
 ---@param id string
 ---@return string|nil
 local function getMountForId(id)
-    if id == "a_gondola_01" or id == "ex_gondola_01" then
+    if id == "a_gondola_01" or id == "s_gondola_01" then
         return "my_gondola"
     end
     return nil
 end
-
---- @param e activateEventData
-local function activateCallback(e)
-    if validMount(e.target.id) then
-        if is_on_boat then
-            -- stop
-            safeCancelTimer()
-            destinationReached()
-        else
-            -- start or destroy
-            if tes3.worldController.inputController:isControlDown() then
-                -- message
-                tes3ui.showMessageMenu {
-                    message = "Destroy?",
-                    buttons = {
-                        {
-                            text = "Yes",
-                            callback = function()
-                                e.target:delete()
-                                cleanup()
-                            end
-                        }
-                    },
-                    cancels = true
-                }
-            else
-                mountData = loadMountData(getMountForId(e.target.id))
-                if mountData then
-                    mountHandle = tes3.makeSafeObjectHandle(e.target)
-                    startTravel()
-                end
-            end
-        end
-    end
-end
-event.register(tes3.event.activate, activateCallback)
 
 local function playerIsUnderwater()
     local waterLevel = tes3.mobilePlayer.cell.waterLevel
@@ -483,44 +447,45 @@ end
 
 --- @param e keyDownEventData
 local function keyDownCallback(e)
-    -- TODO remove after debug
     -- leave editor and spawn vehicle
-    if e.keyCode == tes3.scanCode["o"] and editmode and mountMarker then
-        -- add vehicles selections
-        local obj = tes3.createReference {
-            object = "a_gondola_01",
-            position = mountMarker.translation,
-            orientation = mountMarker.rotation:toEulerXYZ(),
-            scale = mountMarker.scale
-        }
-        obj.facing = tes3.player.facing
+    if DEBUG then
+        if e.keyCode == tes3.scanCode["o"] and editmode and mountMarker then
+            -- add vehicles selections
+            local obj = tes3.createReference {
+                object = "a_gondola_01",
+                position = mountMarker.translation,
+                orientation = mountMarker.rotation:toEulerXYZ(),
+                scale = mountMarker.scale
+            }
+            obj.facing = tes3.player.facing
 
-        -- remove marker
-        -- TODO use real ref instead of vfx node
-        local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-        vfxRoot:detachChild(mountMarker)
-        mountMarker = nil
-        editmode = false
-    elseif e.keyCode == tes3.scanCode["o"] and not editmode and playerIsUnderwater() and not is_on_boat then
-        mountData = loadMountData("my_gondola")
-        if not mountData then return nil end
+            -- remove marker
+            -- TODO use real ref instead of vfx node
+            local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+            vfxRoot:detachChild(mountMarker)
+            mountMarker = nil
+            editmode = false
+        elseif e.keyCode == tes3.scanCode["o"] and not editmode and playerIsUnderwater() and not is_on_boat then
+            mountData = loadMountData("my_gondola")
+            if not mountData then return nil end
 
-        -- visualize placement node
-        local target = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
+            -- visualize placement node
+            local target = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 256
 
-        mountMarkerMesh = tes3.loadMesh(mountData.mesh)
-        local child = mountMarkerMesh:clone()
-        child.translation = target
-        child.scale = mountData.scale
-        child.appCulled = false
-        local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
-        ---@diagnostic disable-next-line: param-type-mismatch
-        vfxRoot:attachChild(child)
-        vfxRoot:update()
-        mountMarker = child
+            mountMarkerMesh = tes3.loadMesh(mountData.mesh)
+            local child = mountMarkerMesh:clone()
+            child.translation = target
+            child.scale = mountData.scale
+            child.appCulled = false
+            local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+            ---@diagnostic disable-next-line: param-type-mismatch
+            vfxRoot:attachChild(child)
+            vfxRoot:update()
+            mountMarker = child
 
-        -- enter placement mode
-        editmode = true
+            -- enter placement mode
+            editmode = true
+        end
     end
 
     if is_on_boat and mountData then
@@ -642,3 +607,105 @@ local function loadCallback(e)
     travelMarkerMesh = tes3.loadMesh(travelMarkerId)
 end
 event.register(tes3.event.load, loadCallback)
+
+---comment
+---@param reference tes3reference
+local function activateMount(reference)
+    if validMount(reference.id) then
+        if is_on_boat then
+            -- stop
+            safeCancelTimer()
+            destinationReached()
+        else
+            -- start
+            mountData = loadMountData(getMountForId(reference.id))
+            if mountData then
+                mountHandle = tes3.makeSafeObjectHandle(reference)
+                startTravel()
+            end
+        end
+    end
+end
+
+--- @param e activateEventData
+local function activateCallback(e)
+    activateMount(e.target)
+end
+event.register(tes3.event.activate, activateCallback)
+
+-- RECIPES
+local CraftingFramework = include("CraftingFramework")
+if not CraftingFramework then return end
+--Register your materials
+local materials = {
+    {
+        id = "wood",
+        name = "Wood",
+        ids = {
+            "misc_firewood",
+            "misc_oak_wood_01"
+        }
+    }
+}
+CraftingFramework.Material:registerMaterials(materials)
+
+local function onWater(e)
+    local cell = tes3.player.cell
+    local waterLevel = cell.hasWater and cell.waterLevel
+    if not cell.isInterior and waterLevel and e.reference.position.z - waterLevel < 30 then
+        return true
+    end
+    return false
+end
+
+local enterVehicle = {
+    text = "Enter",
+    callback = function(e)
+        if validMount(e.reference.id) then
+            if is_on_boat then
+                -- stop
+                safeCancelTimer()
+                destinationReached()
+            else
+                mountData = loadMountData(getMountForId(e.reference.id))
+                if mountData then
+                    mountHandle = tes3.makeSafeObjectHandle(e.reference)
+                    startTravel()
+                end
+            end
+        end
+    end,
+    enableRequirements = onWater,
+    tooltipDisabled = function(e)
+        return {
+            text = onWater(e) and "You don't know which direction is Vvardenfell. Maybe there's a map on this island." or
+                "The raft needs to be placed on open water.",
+        }
+    end,
+}
+
+---@type CraftingFramework.Recipe.data[]
+local recipes = {
+    {
+        id                    = "recipe_a_gondola_01",
+        craftableId           = "a_gondola_01",
+        soundType             = "wood",
+        category              = "Vehicles",
+        materials             = {
+            { material = "wood", count = 6 }
+        },
+        scale                 = 0.7, --TODO
+        additionalMenuOptions = { enterVehicle },
+        secondaryMenu         = false,
+        quickActivateCallback = function(_, e)
+            activateMount(e.reference)
+        end
+    }
+}
+
+local function registerRecipes(e)
+    if e.menuActivator then
+        e.menuActivator:registerRecipes(recipes)
+    end
+end
+event.register("Ashfall:ActivateBushcrafting:Registered", registerRecipes)
