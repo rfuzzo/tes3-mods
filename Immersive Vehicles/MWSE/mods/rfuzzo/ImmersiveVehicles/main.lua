@@ -1,6 +1,6 @@
 local common = require("rfuzzo.ImmersiveTravel.common")
 
-local DEBUG = true
+local DEBUG = false
 
 local logger = require("logging.logger")
 local log = logger.new {
@@ -161,7 +161,8 @@ local function getGroundZ(from)
     local rayhit = tes3.rayTest {
         position = from,
         direction = tes3vector3.new(0, 0, -1),
-        returnNormal = true
+        returnNormal = true,
+        root = tes3.game.worldLandscapeRoot
     }
 
     if (rayhit) then
@@ -177,10 +178,15 @@ end
 ---@return MountData|nil
 local function loadMountData(id)
     local filePath = localmodpath .. "mounts\\" .. id .. ".json"
-    local result = {} ---@type table<string, MountData>
+    local result = nil ---@type MountData?
     result = json.loadfile(filePath)
     if result then
         log:debug("loaded mount: " .. id)
+        -- set defaults
+        if not result.scale then
+            result.scale = 1.0
+        end
+
         return result
     else
         log:error("!!! failed to load mount: " .. id)
@@ -214,42 +220,33 @@ end
 local function onTimerTick()
     -- checks
     if mountHandle == nil then
-        cleanup()
         return
     end
     if not mountHandle:valid() then
-        cleanup()
         return
     end
     if mountData == nil then
-        cleanup()
         return
     end
     if myTimer == nil then
-        cleanup()
         return
     end
     if virtualDestination == nil then
-        cleanup()
         return
     end
 
     if last_position == nil then
-        cleanup()
         return
     end
     if last_facing == nil then
-        cleanup()
         return
     end
     if last_forwardDirection == nil then
-        cleanup()
         return
     end
 
     local mount = mountHandle:getObject()
     if mount.sceneNode == nil then
-        cleanup()
         return
     end
 
@@ -259,19 +256,16 @@ local function onTimerTick()
     end
 
     if rootBone == nil then
-        cleanup()
         return
     end
 
     -- register keypresses
     if speedChange > 0 then
         local change = current_speed + (mountData.changeSpeed * timertick)
-        current_speed = math.clamp(change, mountData.minSpeed,
-            mountData.maxSpeed)
+        current_speed = math.clamp(change, mountData.minSpeed, mountData.maxSpeed)
     elseif speedChange < 0 then
         local change = current_speed - (mountData.changeSpeed * timertick)
-        current_speed = math.clamp(change, mountData.minSpeed,
-            mountData.maxSpeed)
+        current_speed = math.clamp(change, mountData.minSpeed, mountData.maxSpeed)
     end
 
     -- skip
@@ -288,12 +282,7 @@ local function onTimerTick()
 
     -- calculate position
     local lerp = forwardDirection:lerp(d, mountData.turnspeed / 10.0):normalized()
-    local forward = tes3vector3.new(mount.forwardDirection.x,
-        mount.forwardDirection.y, lerp.z):normalized()
-    if mountData.has3dfreedom then
-        -- TODO fix for 3d
-        forward = mount.forwardDirection:normalized()
-    end
+    local forward = tes3vector3.new(mount.forwardDirection.x, mount.forwardDirection.y, lerp.z):normalized()
     local delta = forward * current_speed
 
     -- calculate facing
@@ -393,9 +382,15 @@ local function startTravel()
         callback = (function()
             tes3.fadeIn({ duration = 1 })
 
-            -- position mount
-            if not mountData.has3dfreedom then
-                mount.position = tes3vector3.new(mount.position.x, mount.position.y, mountData.offset * mountData.scale)
+            -- position mount at ground level
+            if mountData.freedomtype ~= "boat" then
+                local top = tes3vector3.new(0, 0, mount.object.boundingBox.max.z)
+                local z = getGroundZ(mount.position + top)
+                if not z then
+                    z = tes3.player.position.z
+                end
+                mount.position = tes3vector3.new(mount.position.x, mount.position.y,
+                    z + (mountData.offset * mountData.scale))
             end
             mount.orientation = tes3.player.orientation
 
@@ -557,6 +552,15 @@ local function keyDownCallback(e)
             -- increment speed
             if current_speed < mountData.maxSpeed then
                 speedChange = 1
+                -- play anim
+                if mountData.accelerateAnimation then
+                    tes3.loadAnimation({ reference = mountHandle:getObject() })
+                    tes3.playAnimation({
+                        reference = mountHandle:getObject(),
+                        group = tes3.animationGroup
+                            [mountData.accelerateAnimation]
+                    })
+                end
             end
         end
 
@@ -564,6 +568,15 @@ local function keyDownCallback(e)
             -- decrement speed
             if current_speed > mountData.minSpeed then
                 speedChange = -1
+                -- play anim
+                if mountData.accelerateAnimation then
+                    tes3.loadAnimation({ reference = mountHandle:getObject() })
+                    tes3.playAnimation({
+                        reference = mountHandle:getObject(),
+                        group = tes3.animationGroup
+                            [mountData.accelerateAnimation]
+                    })
+                end
             end
         end
     end
@@ -572,10 +585,20 @@ event.register(tes3.event.keyDown, keyDownCallback)
 
 --- @param e keyUpEventData
 local function keyUpCallback(e)
-    if is_on_mount and mountData then
+    if is_on_mount and mountHandle and mountHandle:valid() and mountData then
         if e.keyCode == tes3.scanCode["w"] or e.keyCode == tes3.scanCode["s"] then
             -- stop increment speed
             speedChange = 0
+            -- play anim
+            if mountData.forwardAnimation then
+                tes3.loadAnimation({ reference = mountHandle:getObject() })
+                tes3.playAnimation({
+                    reference = mountHandle:getObject(),
+                    group = tes3.animationGroup
+                        [mountData.forwardAnimation]
+                })
+            end
+
             if DEBUG then
                 tes3.messageBox("Current Speed: " .. tostring(current_speed))
             end
@@ -590,8 +613,9 @@ local function simulatedCallback(e)
     -- visualize mount scene node
     if DEBUG then
         if editmode and mountMarker and mountData then
-            local from = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * (350.0 / mountData.scale)
-            if not mountData.has3dfreedom then
+            local from = tes3.getPlayerEyePosition() + (tes3.getPlayerEyeVector() * 500.0 * mountData.scale)
+            if mountData.freedomtype ~= "flying" then
+                -- TODO get real pin to ground
                 from.z = mountData.offset * mountData.scale
             end
 
@@ -609,13 +633,13 @@ local function simulatedCallback(e)
         local mount = mountHandle:getObject()
         local target = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 2048
 
-        local isControlDown =
-            tes3.worldController.inputController:isControlDown()
+        local isControlDown = tes3.worldController.inputController:isControlDown()
         if isControlDown then
             target = mount.sceneNode.worldTransform * tes3vector3.new(0, 2048, 0)
         end
-        if not mountData.has3dfreedom then
-            target.z = 0 -- TODO fix for generic mounts
+        if mountData.freedomtype == "boat" then
+            -- pin to waterlevel
+            target.z = 0
         end
 
         virtualDestination = target
@@ -625,12 +649,9 @@ local function simulatedCallback(e)
             travelMarker.translation = target
             local m = tes3matrix33.new()
             if isControlDown then
-                m:fromEulerXYZ(mount.orientation.x, mount.orientation.y,
-                    mount.orientation.z)
+                m:fromEulerXYZ(mount.orientation.x, mount.orientation.y, mount.orientation.z)
             else
-                m:fromEulerXYZ(tes3.player.orientation.x,
-                    tes3.player.orientation.y,
-                    tes3.player.orientation.z)
+                m:fromEulerXYZ(tes3.player.orientation.x, tes3.player.orientation.y, tes3.player.orientation.z)
             end
             travelMarker.rotation = m
             travelMarker:update()
@@ -638,17 +659,18 @@ local function simulatedCallback(e)
     end
 
     -- collision
-    if not editmode and is_on_mount and mountHandle and mountHandle:valid() and
-        mountData and not mountData.has3dfreedom then
+    if not editmode and is_on_mount and mountHandle and mountHandle:valid() and mountData then
         -- raytest at sealevel to detect shore transition
-        -- TODO use boundingbox
+        local bbox = mountHandle:getObject().object.boundingBox
+        local t = mountHandle:getObject().sceneNode.worldTransform
+
         if current_speed > 0 then
-            local testPosition1 = mountHandle:getObject().sceneNode.worldTransform * common.vec(mountData.shoreRayPos)
+            local bowPos = t * tes3vector3.new(0, bbox.max.y, bbox.min.z + mountData.offset)
             local hitResult1 = tes3.rayTest({
-                position = testPosition1,
+                position = bowPos,
                 direction = tes3vector3.new(0, 0, -1),
                 root = tes3.game.worldLandscapeRoot,
-                maxDistance = 4096
+                --maxDistance = 4096
             })
             if (hitResult1 == nil) then
                 current_speed = 0
@@ -656,26 +678,24 @@ local function simulatedCallback(e)
             end
 
             -- raytest from above to detect objects in water
-            local testPosition2 = mountHandle:getObject().sceneNode.worldTransform * common.vec(mountData.objectRayPos)
+            local bowPosTop = t * tes3vector3.new(0, bbox.max.y, bbox.max.z)
             local hitResult2 = tes3.rayTest({
-                position = testPosition2,
+                position = bowPosTop,
                 direction = tes3vector3.new(0, 0, -1),
                 root = tes3.game.worldObjectRoot,
-                maxDistance = 256
+                maxDistance = bbox.max.z
             })
             if (hitResult2 ~= nil) then
                 current_speed = 0
                 if DEBUG then tes3.messageBox("HIT Object Fwd") end
             end
         elseif current_speed < 0 then
-            local aftPos = common.vec(mountData.shoreRayPos)
-            aftPos.y = -aftPos.y
-            local testPosition1 = mountHandle:getObject().sceneNode.worldTransform * aftPos
+            local sternPos = t * tes3vector3.new(0, bbox.min.y, bbox.min.z + mountData.offset)
             local hitResult1 = tes3.rayTest({
-                position = testPosition1,
+                position = sternPos,
                 direction = tes3vector3.new(0, 0, -1),
                 root = tes3.game.worldLandscapeRoot,
-                maxDistance = 4096
+                --maxDistance = 4096
             })
             if (hitResult1 == nil) then
                 current_speed = 0
@@ -683,14 +703,12 @@ local function simulatedCallback(e)
             end
 
             -- raytest from above to detect objects in water
-            aftPos = common.vec(mountData.objectRayPos)
-            aftPos.y = -aftPos.y
-            local testPosition2 = mountHandle:getObject().sceneNode.worldTransform * aftPos
+            local sternPosTop = t * tes3vector3.new(0, bbox.min.y, bbox.max.z)
             local hitResult2 = tes3.rayTest({
-                position = testPosition2,
+                position = sternPosTop,
                 direction = tes3vector3.new(0, 0, -1),
                 root = tes3.game.worldObjectRoot,
-                maxDistance = 256
+                maxDistance = bbox.max.z
             })
             if (hitResult2 ~= nil) then
                 current_speed = 0
@@ -726,43 +744,41 @@ CraftingFramework.Material:registerMaterials(materials)
 local enterVehicle = {
     text = "Get in/out",
     callback = function(e)
-        if validMount(e.reference.id) then
-            if is_on_mount then
-                -- stop
-                safeCancelTimer()
-                destinationReached()
-            else
-                mountData = loadMountData(getMountForId(e.reference.id))
-                if mountData then
-                    mountHandle = tes3.makeSafeObjectHandle(e.reference)
-                    startTravel()
-                end
-            end
-        end
+        activateMount(e.reference)
     end
 }
 
 ---get recipe with data
 ---@param id string
 local function getRecipeFor(id)
-    -- TODO load data from file
-    local recipe = {
-        id = "recipe_" .. id,
-        craftableId = id,
-        soundType = "wood",
-        category = "Vehicles",
-        materials = { { material = "wood", count = 6 } },
-        scale = 0.7,
-        additionalMenuOptions = { enterVehicle },
-        -- secondaryMenu         = false,
-        quickActivateCallback = function(_, e) activateMount(e.reference) end
-    }
+    local data = loadMountData(getMountForId(id))
+    if data then
+        local recipe = {
+            id = "recipe_" .. id,
+            craftableId = id,
+            soundType = "wood",
+            category = "Vehicles",
+            materials = { { material = "wood", count = 6 } },
+            scale = data.scale,
+            craftedOnly = false,
+            additionalMenuOptions = { enterVehicle },
+            -- secondaryMenu         = false,
+            quickActivateCallback = function(_, e) activateMount(e.reference) end
+        }
 
-    return recipe
+        return recipe
+    end
+    return nil
 end
 
 ---@type CraftingFramework.Recipe.data[]
-local recipes = { getRecipeFor("a_gondola_01") }
+local recipes = {}
+for _, id in ipairs(mounts) do
+    local r = getRecipeFor(id)
+    if r then
+        table.insert(recipes, r)
+    end
+end
 
 local function registerRecipes(e)
     if e.menuActivator then e.menuActivator:registerRecipes(recipes) end

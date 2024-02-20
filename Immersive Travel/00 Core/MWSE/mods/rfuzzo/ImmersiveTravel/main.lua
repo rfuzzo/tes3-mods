@@ -80,9 +80,9 @@ local log = logger.new {
 ---@field minSpeed number?
 ---@field maxSpeed number?
 ---@field changeSpeed number?
----@field shoreRayPos PositionRecord?
----@field objectRayPos PositionRecord?
----@field has3dfreedom boolean?
+---@field freedomtype string? -- flying, boat, ground
+---@field accelerateAnimation string? -- flying, boat, ground
+---@field forwardAnimation string? -- flying, boat, ground
 
 ---@class ReferenceRecord
 ---@field cell tes3cell The cell
