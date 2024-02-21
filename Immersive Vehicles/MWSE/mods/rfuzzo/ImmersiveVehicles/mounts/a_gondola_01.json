@@ -40,5 +40,11 @@
   "minSpeed": -2,
   "maxSpeed": 7,
   "changeSpeed": 1.5,
-  "freedomtype": "boat"
+  "freedomtype": "boat",
+  "materials": [
+    {
+      "material": "wood",
+      "count": 6
+    }
+  ]
 }

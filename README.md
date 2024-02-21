@@ -4,11 +4,19 @@ My TES3 Morrowind mods and modding utility tools.
 
 ## Mods
 
+### ✅ Immersive Vehicles
+>
+> nightly link: <https://rfuzzo.github.io/tes3-mods/ImmersiveVehicles.zip>
+>
+> nexus link:
+
+Usable vehicles with smooth movement. [Readme](/Immersive%20Vehicles/README.md)
+
 ### ✅ Immersive Travel
 >
-> nightly link: https://rfuzzo.github.io/tes3-mods/ImmersiveTravel.zip
+> nightly link: <https://rfuzzo.github.io/tes3-mods/ImmersiveTravel.zip>
 >
-> nexus link: https://www.nexusmods.com/morrowind/mods/54063
+> nexus link: <https://www.nexusmods.com/morrowind/mods/54063>
 
 Real-time travel with smooth movement. [Readme](/Immersive%20Travel/README.md)
 

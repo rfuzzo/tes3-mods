@@ -83,6 +83,7 @@ local log = logger.new {
 ---@field freedomtype string? -- flying, boat, ground
 ---@field accelerateAnimation string? -- flying, boat, ground
 ---@field forwardAnimation string? -- flying, boat, ground
+---@field materials CraftingFramework.MaterialRequirement[]? -- flying, boat, ground
 
 ---@class ReferenceRecord
 ---@field cell tes3cell The cell

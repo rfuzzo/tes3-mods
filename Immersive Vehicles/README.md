@@ -1,44 +1,25 @@
-# Immersive Travel - MWSE
+# 70 Usable Vehicles
 
-A mod that adds real-time travel with smooth movement on striders, boats, ships, gondolas and river striders (with TR). The mod also has many quality of life features.
+A mod that adds module adds usable vehicles that you can use to freely travel around the map. The mod adds:
 
-➡️ To start a trip talk to a Caravaner or Shipmaster and select the "Take me to..." dialogue option.
+- a gondola/kayak
+- a rideable cliffracer
 
-While on a mount you can freely move around the ships and river striders, or sit down and enjoy the trip. 
-- You always start a trip in a fixed slot
-- The `W`, `A`, `D` keys let you move to different spots on the vehicle
-- Pressing `S` lets you get up and freely move around the vehicle (only available on ships currently) 
-- Talk to the guide again to sit down in a slot
+## Usage
 
-💡 Resting (default `T` key) while travelling lets you skip to the travel destination. 
+| ------- | ------------ |
+|enter and leave vehicle  | `Activate` |
+|increase speed | `Hold W` |
+|decrease speed | `Hold S` |
+|lock camera | `Hold Ctrl` |
+|zoom camera | `Ctrl+Mousewheel` |
 
-## Features
+## Requirements
 
-- real-time travel between vanilla travel destinations.
-- smooth turning and vehicle movement
-- random passengers on the vehicles with you
-- companions travel with you
-- various QoL features like 
-- different vehicles on different routes (small longboats connect the fishing villages, while bigger ships connect the towns)
-- vehicle customization
-
-## Add-ons
-- easy modding compatibility and configurability (see: [In-game editor docs](./editor.md)) 
-- usable vehicles  (see: [Usable vehicle docs](./vehicles.md)) 
-
-## Compatibility
-
-Compatible with everything that does not move the vanilla travel services or alter the routes/landscape too much.
-
-Out-of the box compatible with:
-* ✅ [The Great Seawall of Vivec](https://www.nexusmods.com/morrowind/mods/53544)
-
-Patches are available for:
-
-* ☑️ Beautiful Cities of Morrowind
-* ☑️ Tamriel Rebuilt
-* ☑️ TOTSP
-* ☑️ Gnisis Docks
+- MWSE
+- [Immersive Travel mod](https://www.nexusmods.com/morrowind/mods/54063)
+- Crafting Framework (optional, if you want to craft a kayak)
+- Ashfall (adds wood to the game used for crafting)
 
 ## Installation
 
@@ -53,13 +34,8 @@ Patches are available for:
 ![screenshot](/_assets/immersive%20travel/Morrowind%202023-08-22%2011.11.23.347.png)
 ![screenshot](/_assets/immersive%20travel/tr_travel.png)
 
-
 ## Special thanks to
 
-- Greatness7, Null, Hrnchamd and Herbert for answering all my stupid math questions
-- VonDjangos, Voig and Merlord for help on the mod
-- Juidius for their lamp models
-- VidiAquam for the sitting animations and help with anims
-- the rest of the MCM community for immense help on diverse features over the long time I worked on this mod
+- The MCM community for immense help on diverse features over the long time I worked on this mod
 - The MWSE team for MWSE
 - The CSSE team for CSSE
