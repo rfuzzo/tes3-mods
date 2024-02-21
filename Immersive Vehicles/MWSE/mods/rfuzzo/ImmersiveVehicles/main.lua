@@ -4,15 +4,15 @@ local common = require("rfuzzo.ImmersiveTravel.common")
 
 TODOS
 - boat
-    - add containers        low
     - make purchaseable     high
+
+    - add containers        low
     - levitation support    low
 
 - racer
-    - train racer           low
     - make purchaseable     high
-    - change fov            high
 
+    - train racer           low
 ]]
 --
 

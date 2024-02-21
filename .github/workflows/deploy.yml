@@ -28,7 +28,6 @@ jobs:
 
       - name: Pack IV mod
         run: |
-          mkdir build
           cd '.\Immersive Vehicles\'
           .\create_mod.ps1
           Move-Item -Path .\*.zip -Destination ..\build
