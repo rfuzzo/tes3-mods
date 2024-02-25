@@ -156,7 +156,8 @@ local function getRandomActorsInCell(N)
         for _, r in ipairs(references) do
             if r.baseObject.objectType == tes3.objectType.npc then
                 -- only add non-scripted npcs as passengers
-                if r.baseObject.script == nil then
+                local script = r.baseObject.script
+                if script == nil or (script and script.id == "nolore") then
                     local id = r.baseObject.id
                     if not common.is_in(npcsTable, id) then
                         table.insert(npcsTable, id)
@@ -882,6 +883,7 @@ local function startTravel(start, destination, service, guide)
             }
             mount.facing = new_facing
 
+
             -- always start slotted
             free_movement = false
 
@@ -904,7 +906,7 @@ local function startTravel(start, destination, service, guide)
 
             -- register followers
             local followers = common.getFollowers()
-            log:debug("> registering " .. #followers .. " followers")
+            log:debug("> registering %s followers", #followers)
             for index, follower in ipairs(followers) do
                 local handle = tes3.makeSafeObjectHandle(follower)
                 local result = common.registerRefInRandomSlot(mountData, handle)
@@ -917,10 +919,8 @@ local function startTravel(start, destination, service, guide)
             local maxPassengers = math.max(0, #mountData.slots - 2)
             if maxPassengers > 0 then
                 local n = math.random(maxPassengers);
-                log:debug("> registering " .. n .. " / " .. maxPassengers ..
-                    " passengers")
-                local actors = getRandomActorsInCell(n)
-                for _i, value in ipairs(actors) do
+                log:debug("> registering %s / %s passengers", n, maxPassengers)
+                for _i, value in ipairs(getRandomActorsInCell(n)) do
                     local passenger = tes3.createReference {
                         object = value,
                         position = startPos + mountOffset,
