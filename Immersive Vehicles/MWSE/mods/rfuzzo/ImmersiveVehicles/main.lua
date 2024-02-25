@@ -1,22 +1,5 @@
 local common = require("rfuzzo.ImmersiveTravel.common")
 
---[[
-
-TODOS
-- boat
-    - make purchaseable     high
-
-    - add containers        low
-    - levitation support    low
-
-- racer
-    - make purchaseable     high
-
-    - train racer           low
-]]
---
-
-
 local DEBUG = true
 
 local logger = require("logging.logger")

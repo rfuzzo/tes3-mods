@@ -14,6 +14,8 @@ this.fullmodpath = "Data Files\\MWSE\\" .. this.localmodpath
 local localmodpath = this.localmodpath
 local fullmodpath = this.fullmodpath
 
+local PASSENGER_HELLO = 10
+
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// MATH
 
@@ -35,11 +37,11 @@ function this.toWorldOrientation(localOrientation, baseOrientation)
     -- Convert the local orientation to a rotation matrix
     local baseRotationMatrix = tes3matrix33.new()
     baseRotationMatrix:fromEulerXYZ(baseOrientation.x, baseOrientation.y,
-                                    baseOrientation.z)
+        baseOrientation.z)
 
     local localRotationMatrix = tes3matrix33.new()
     localRotationMatrix:fromEulerXYZ(localOrientation.x, localOrientation.y,
-                                     localOrientation.z)
+        localOrientation.z)
 
     -- Combine the rotation matrices to get the world rotation matrix
     local worldRotationMatrix = baseRotationMatrix * localRotationMatrix
@@ -72,10 +74,14 @@ function this.isPointBehindObject(point, objectPosition, objectForwardVector)
 end
 
 --- list contains
----@param table string[]
+---@param tab string[]
 ---@param str string
-function this.is_in(table, str)
-    for index, value in ipairs(table) do if value == str then return true end end
+function this.is_in(tab, str)
+    for index, value in ipairs(tab) do
+        if value == str then
+            return true
+        end
+    end
     return false
 end
 
@@ -89,8 +95,8 @@ function this.rotationFromDirection(forward)
     up = right:cross(forward)
 
     local rotation_matrix = tes3matrix33.new(right.x, forward.x, up.x, right.y,
-                                             forward.y, up.y, right.z,
-                                             forward.z, up.z)
+        forward.y, up.y, right.z,
+        forward.z, up.z)
 
     return rotation_matrix
 end
@@ -193,7 +199,7 @@ function this.findClosestTravelMarker()
         for _, r in ipairs(references) do
             if r.baseObject.isLocationMarker and r.baseObject.id ==
                 "TravelMarker" then
-                table.insert(results, {cell = cell, position = r.position})
+                table.insert(results, { cell = cell, position = r.position })
             end
         end
     end
@@ -227,7 +233,7 @@ function this.registerStatic(data, handle, i)
     if handle and handle:valid() then
         log:debug(
             "registered " .. handle:getObject().id .. " in static slot " ..
-                tostring(i))
+            tostring(i))
     end
 end
 
@@ -242,24 +248,28 @@ function this.registerInSlot(data, handle, idx)
     if handle and handle:valid() then
         local slot = data.slots[idx]
         local reference = handle:getObject()
+        -- disable physics
         reference.mobile.movementCollision = false;
+
         if reference ~= tes3.player then
+            -- disable greetings
             reference.data.rfuzzo_invincible = true;
+            reference.mobile.hello = PASSENGER_HELLO;
         end
 
         local group = this.getRandomAnimGroup(slot)
-        tes3.loadAnimation({reference = reference})
+        tes3.loadAnimation({ reference = reference })
         if slot.animationFile then
             tes3.loadAnimation({
                 reference = reference,
                 file = slot.animationFile
             })
         end
-        tes3.playAnimation({reference = reference, group = group})
+        tes3.playAnimation({ reference = reference, group = group })
 
         log:debug(
             "registered " .. reference.id .. " in slot " .. tostring(idx) ..
-                " with animgroup " .. tostring(group))
+            " with animgroup " .. tostring(group))
     end
 end
 
@@ -292,7 +302,7 @@ function this.registerRefInRandomSlot(data, handle)
         local i = this.getRandomFreeSlotIdx(data)
         if not i then
             log:debug("Could not register " .. handle:getObject().id ..
-                          " in normal slot")
+                " in normal slot")
             return false
         end
 

@@ -1,6 +1,6 @@
 # 70 Usable Vehicles
 
-A mod that adds module adds usable vehicles that you can use to freely travel around the map. The mod adds:
+A mod that adds usable vehicles that you can use to freely travel around the map. The mod adds:
 
 - a gondola/kayak
 - a rideable cliffracer

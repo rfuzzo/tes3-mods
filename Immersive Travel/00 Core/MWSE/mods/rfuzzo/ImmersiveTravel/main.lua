@@ -149,14 +149,18 @@ end
 ---@return string[]
 local function getRandomActorsInCell(N)
     -- get all actors
-    local t = {} ---@type string[]
+    local npcsTable = {} ---@type string[]
     local cells = tes3.getActiveCells()
     for _index, cell in ipairs(cells) do
         local references = common.referenceListToTable(cell.actors)
         for _, r in ipairs(references) do
             if r.baseObject.objectType == tes3.objectType.npc then
-                if not common.is_in(t, r.baseObject.id) then
-                    table.insert(t, r.baseObject.id)
+                -- only add non-scripted npcs as passengers
+                if r.baseObject.script == nil then
+                    local id = r.baseObject.id
+                    if not common.is_in(npcsTable, id) then
+                        table.insert(npcsTable, id)
+                    end
                 end
             end
         end
@@ -164,9 +168,12 @@ local function getRandomActorsInCell(N)
 
     -- get random pick
     local result = {} ---@type string[]
-    for i = 1, math.min(N, #t) do
-        local randomIndex = math.random(1, #t)
-        table.insert(result, t[randomIndex])
+    for i = 1, math.min(N, #npcsTable) do
+        local randomIndex = math.random(1, #npcsTable)
+        local id = npcsTable[randomIndex]
+        if not common.is_in(result, id) then
+            table.insert(result, id)
+        end
     end
 
     return result
