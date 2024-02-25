@@ -222,59 +222,6 @@ end
 
 local function safeCancelTimer() if myTimer ~= nil then myTimer:cancel() end end
 
--- cleanup all variables
-local function cleanup()
-    log:debug("cleanup")
-
-    -- reset global vars
-    safeCancelTimer()
-    currentSpline = nil
-
-    splineIndex = 2
-    swayTime = 0
-    last_position = nil
-    last_forwardDirection = nil
-    last_facing = nil
-    last_sway = 0
-
-    if mountData then
-        tes3.removeSound({ sound = mountData.sound, reference = mount })
-
-        -- delete guide
-        if mountData.guideSlot.handle and mountData.guideSlot.handle:valid() then
-            mountData.guideSlot.handle:getObject():delete()
-            mountData.guideSlot.handle = nil
-        end
-
-        -- delete passengers
-        for index, slot in ipairs(mountData.slots) do
-            if slot.handle and slot.handle:valid() then
-                local ref = slot.handle:getObject()
-                if ref ~= tes3.player and ref.mobile and
-                    not common.isFollower(ref.mobile) then
-                    ref:delete()
-                    slot.handle = nil
-                end
-            end
-        end
-
-        -- delete statics
-        if mountData.clutter then
-            for index, clutter in ipairs(mountData.clutter) do
-                if clutter.handle and clutter.handle:valid() then
-                    clutter.handle:getObject():delete()
-                    clutter.handle = nil
-                end
-            end
-        end
-    end
-    mountData = nil
-
-    -- delete the mount
-    if mount then mount:delete() end
-    mount = nil
-end
-
 -- register a ref in the dedicated guide slot
 ---@param data MountData
 ---@param handle mwseSafeObjectHandle|nil
@@ -345,7 +292,196 @@ local function incrementSlot(data)
 end
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
+-- ////////////// EVENTS
+
+--- @param e mouseWheelEventData
+local function mouseWheelCallback(e)
+    local isControlDown = tes3.worldController.inputController:isControlDown()
+    if isControlDown then
+        -- update fov
+        if e.delta > 0 then
+            tes3.set3rdPersonCameraOffset({ offset = tes3.get3rdPersonCameraOffset() + tes3vector3.new(0, 10, 0) })
+        else
+            tes3.set3rdPersonCameraOffset({ offset = tes3.get3rdPersonCameraOffset() - tes3vector3.new(0, 10, 0) })
+        end
+    end
+end
+
+-- Disable damage on select characters in travel, thanks Null
+--- @param e damageEventData
+local function damageInvincibilityGate(e)
+    if (e.reference.data and e.reference.data.rfuzzo_invincible) then
+        return false
+    end
+end
+
+
+--- Disable combat while in travel
+--- @param e combatStartEventData
+local function forcedPacifism(e) if (isTraveling()) then return false end end
+
+
+--- Disable all activate while in travel
+--- @param e activateEventData
+local function activateCallback(e)
+    if (e.activator ~= tes3.player) then return end
+    if not isTraveling() then return end
+    if mount == nil then return; end
+    if mountData == nil then return; end
+    if myTimer == nil then return; end
+    if mountData.guideSlot.handle == nil then return; end
+    if not mountData.guideSlot.handle:valid() then return; end
+
+    if e.target.id == mountData.guideSlot.handle:getObject().id and
+        free_movement then
+        -- register player in slot
+        tes3ui.showMessageMenu {
+            message = "Do you want to sit down?",
+            buttons = {
+                {
+                    text = "Yes",
+                    callback = function()
+                        free_movement = false
+                        log:debug("register player")
+                        tes3.player.facing = mount.facing
+                        common.registerRefInRandomSlot(mountData,
+                            tes3.makeSafeObjectHandle(
+                                tes3.player))
+                    end
+                }
+            },
+            cancels = true
+        }
+
+        return false
+    end
+
+    return false
+end
+
+
+--- Disable tooltips while in travel
+--- @param e uiObjectTooltipEventData
+local function uiObjectTooltipCallback(e)
+    if not isTraveling() then return end
+    if mount == nil then return; end
+    if myTimer == nil then return; end
+    if mountData == nil then return; end
+    if mountData.guideSlot.handle == nil then return; end
+    if not mountData.guideSlot.handle:valid() then return; end
+
+    e.tooltip.visible = false
+    return false
+end
+
+-- key down callbacks while in travel
+--- @param e keyDownEventData
+local function keyDownCallback(e)
+    -- move
+    if not free_movement and isTraveling() then
+        if e.keyCode == tes3.scanCode["w"] or e.keyCode == tes3.scanCode["a"] or
+            e.keyCode == tes3.scanCode["d"] then
+            incrementSlot(mountData)
+        end
+
+        if e.keyCode == tes3.scanCode["s"] then
+            if mountData == nil then return; end
+            if mountData.hasFreeMovement then
+                -- remove from slot
+                for index, slot in ipairs(mountData.slots) do
+                    if slot.handle and slot.handle:valid() and
+                        slot.handle:getObject() == tes3.player then
+                        slot.handle = nil
+                        free_movement = true
+                        -- free animations
+                        tes3.mobilePlayer.movementCollision = true;
+                        tes3.loadAnimation({ reference = tes3.player })
+                        tes3.playAnimation({ reference = tes3.player, group = 0 })
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- prevent saving while travelling
+--- @param e saveEventData
+local function saveCallback(e)
+    if isTraveling() then
+        tes3.messageBox("You cannot save the game while travelling")
+        return false
+    end
+end
+
+-- always allow resting on a mount even with enemies near
+--- @param e preventRestEventData
+local function preventRestCallback(e) if isTraveling() then return false end end
+
+-- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// TRAVEL
+
+-- cleanup all variables
+local function cleanup()
+    log:debug("cleanup")
+
+    -- reset global vars
+    safeCancelTimer()
+    currentSpline = nil
+
+    splineIndex = 2
+    swayTime = 0
+    last_position = nil
+    last_forwardDirection = nil
+    last_facing = nil
+    last_sway = 0
+
+    if mountData then
+        tes3.removeSound({ sound = mountData.sound, reference = mount })
+
+        -- delete guide
+        if mountData.guideSlot.handle and mountData.guideSlot.handle:valid() then
+            mountData.guideSlot.handle:getObject():delete()
+            mountData.guideSlot.handle = nil
+        end
+
+        -- delete passengers
+        for index, slot in ipairs(mountData.slots) do
+            if slot.handle and slot.handle:valid() then
+                local ref = slot.handle:getObject()
+                if ref ~= tes3.player and ref.mobile and
+                    not common.isFollower(ref.mobile) then
+                    ref:delete()
+                    slot.handle = nil
+                end
+            end
+        end
+
+        -- delete statics
+        if mountData.clutter then
+            for index, clutter in ipairs(mountData.clutter) do
+                if clutter.handle and clutter.handle:valid() then
+                    clutter.handle:getObject():delete()
+                    clutter.handle = nil
+                end
+            end
+        end
+    end
+    mountData = nil
+
+    -- delete the mount
+    if mount then mount:delete() end
+    mount = nil
+
+    -- unregister events
+    event.unregister(tes3.event.mouseWheel, mouseWheelCallback)
+    event.unregister(tes3.event.damage, damageInvincibilityGate)
+    event.unregister(tes3.event.activate, activateCallback)
+    event.unregister(tes3.event.combatStart, forcedPacifism)
+    event.unregister(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
+    event.unregister(tes3.event.keyDown, keyDownCallback)
+    event.unregister(tes3.event.save, saveCallback)
+    event.unregister(tes3.event.preventRest, preventRestCallback)
+end
 
 -- what happens when we reach the destination
 ---@param force boolean
@@ -840,6 +976,16 @@ local function startTravel(start, destination, service, guide)
                 loop = true
             })
 
+            -- register events
+            event.register(tes3.event.mouseWheel, mouseWheelCallback)
+            event.register(tes3.event.damage, damageInvincibilityGate)
+            event.register(tes3.event.activate, activateCallback)
+            event.register(tes3.event.combatStart, forcedPacifism)
+            event.register(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
+            event.register(tes3.event.keyDown, keyDownCallback)
+            event.register(tes3.event.save, saveCallback)
+            event.register(tes3.event.preventRest, preventRestCallback)
+
             log:debug("starting timer")
             myTimer = timer.start({
                 duration = timertick,
@@ -959,46 +1105,38 @@ end
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// EVENTS
 
--- Disable damage on select characters in travel, thanks Null
---- @param e damageEventData
-local function damageInvincibilityGate(e)
-    if (e.reference.data and e.reference.data.rfuzzo_invincible) then
-        return false
-    end
-end
-event.register(tes3.event.damage, damageInvincibilityGate)
+-- resting while travelling skips to end
+--- @param e uiShowRestMenuEventData
+local function uiShowRestMenuCallback(e)
+    if isTraveling() and currentSpline then
+        -- always allow resting on a mount
+        e.allowRest = true
 
---- Disable combat while in travel
---- @param e combatStartEventData
-local function forcedPacifism(e) if (isTraveling()) then return false end end
-event.register(tes3.event.combatStart, forcedPacifism)
-
---- Disable all activate while in travel
---- @param e activateEventData
-local function activateCallback(e)
-    if (e.activator ~= tes3.player) then return end
-    if not isTraveling() then return end
-    if mount == nil then return; end
-    if mountData == nil then return; end
-    if myTimer == nil then return; end
-    if mountData.guideSlot.handle == nil then return; end
-    if not mountData.guideSlot.handle:valid() then return; end
-
-    if e.target.id == mountData.guideSlot.handle:getObject().id and
-        free_movement then
-        -- register player in slot
+        -- custom UI
         tes3ui.showMessageMenu {
-            message = "Do you want to sit down?",
+            message = "Rest and skip to the end of the journey?",
             buttons = {
                 {
-                    text = "Yes",
+                    text = "Rest",
                     callback = function()
-                        free_movement = false
-                        log:debug("register player")
-                        tes3.player.facing = mount.facing
-                        common.registerRefInRandomSlot(mountData,
-                            tes3.makeSafeObjectHandle(
-                                tes3.player))
+                        tes3.fadeOut({ duration = 1 })
+
+                        timer.start({
+                            type = timer.simulate,
+                            iterations = 1,
+                            duration = 1,
+                            callback = (function()
+                                tes3.fadeIn({ duration = 1 })
+
+                                -- teleport to last marker
+                                tes3.positionCell({
+                                    reference = tes3.mobilePlayer,
+                                    position = vec(currentSpline[#currentSpline])
+                                })
+                                -- then to destination
+                                destinationReached(true)
+                            end)
+                        })
                     end
                 }
             },
@@ -1007,25 +1145,8 @@ local function activateCallback(e)
 
         return false
     end
-
-    return false
 end
-event.register(tes3.event.activate, activateCallback)
-
---- Disable tooltips while in travel
---- @param e uiObjectTooltipEventData
-local function uiObjectTooltipCallback(e)
-    if not isTraveling() then return end
-    if mount == nil then return; end
-    if myTimer == nil then return; end
-    if mountData == nil then return; end
-    if mountData.guideSlot.handle == nil then return; end
-    if not mountData.guideSlot.handle:valid() then return; end
-
-    e.tooltip.visible = false
-    return false
-end
-event.register(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
+event.register(tes3.event.uiShowRestMenu, uiShowRestMenuCallback)
 
 --- Cleanup on save load
 --- @param e loadEventData
@@ -1076,95 +1197,6 @@ local function onMenuDialog(e)
     end
 end
 event.register("uiActivated", onMenuDialog, { filter = "MenuDialog" })
-
--- key down callbacks while in travel
---- @param e keyDownEventData
-local function keyDownCallback(e)
-    -- move
-    if not free_movement and isTraveling() then
-        if e.keyCode == tes3.scanCode["w"] or e.keyCode == tes3.scanCode["a"] or
-            e.keyCode == tes3.scanCode["d"] then
-            incrementSlot(mountData)
-        end
-
-        if e.keyCode == tes3.scanCode["s"] then
-            if mountData == nil then return; end
-            if mountData.hasFreeMovement then
-                -- remove from slot
-                for index, slot in ipairs(mountData.slots) do
-                    if slot.handle and slot.handle:valid() and
-                        slot.handle:getObject() == tes3.player then
-                        slot.handle = nil
-                        free_movement = true
-                        -- free animations
-                        tes3.mobilePlayer.movementCollision = true;
-                        tes3.loadAnimation({ reference = tes3.player })
-                        tes3.playAnimation({ reference = tes3.player, group = 0 })
-                    end
-                end
-            end
-        end
-    end
-end
-event.register(tes3.event.keyDown, keyDownCallback)
-
--- prevent saving while travelling
---- @param e saveEventData
-local function saveCallback(e)
-    if isTraveling() then
-        tes3.messageBox("You cannot save the game while travelling")
-        return false
-    end
-end
-event.register(tes3.event.save, saveCallback)
-
--- always allow resting on a mount even with enemies near
---- @param e preventRestEventData
-local function preventRestCallback(e) if isTraveling() then return false end end
-event.register(tes3.event.preventRest, preventRestCallback)
-
--- resting while travelling skips to end
---- @param e uiShowRestMenuEventData
-local function uiShowRestMenuCallback(e)
-    if isTraveling() and currentSpline then
-        -- always allow resting on a mount
-        e.allowRest = true
-
-        -- custom UI
-        tes3ui.showMessageMenu {
-            message = "Rest and skip to the end of the journey?",
-            buttons = {
-                {
-                    text = "Rest",
-                    callback = function()
-                        tes3.fadeOut({ duration = 1 })
-
-                        timer.start({
-                            type = timer.simulate,
-                            iterations = 1,
-                            duration = 1,
-                            callback = (function()
-                                tes3.fadeIn({ duration = 1 })
-
-                                -- teleport to last marker
-                                tes3.positionCell({
-                                    reference = tes3.mobilePlayer,
-                                    position = vec(currentSpline[#currentSpline])
-                                })
-                                -- then to destination
-                                destinationReached(true)
-                            end)
-                        })
-                    end
-                }
-            },
-            cancels = true
-        }
-
-        return false
-    end
-end
-event.register(tes3.event.uiShowRestMenu, uiShowRestMenuCallback)
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// CONFIG
