@@ -15,7 +15,7 @@
     "animationGroup": "idle5",
     "position": {
       "x": 0,
-      "y": 70,
+      "y": 100,
       "z": 1223
     }
   },
@@ -31,7 +31,7 @@
       "animationGroup": [],
       "position": {
         "x": 0,
-        "y": -34,
+        "y": -10,
         "z": 1223
       }
     },
@@ -39,7 +39,7 @@
       "animationGroup": [],
       "position": {
         "x": -81,
-        "y": 0,
+        "y": 30,
         "z": 1230
       }
     },
@@ -47,7 +47,7 @@
       "animationGroup": [],
       "position": {
         "x": 81,
-        "y": 0,
+        "y": 40,
         "z": 1230
       }
     }

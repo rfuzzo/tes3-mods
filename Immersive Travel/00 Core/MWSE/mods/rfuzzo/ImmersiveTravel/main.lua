@@ -117,10 +117,6 @@ local function getRandomActorsInCell(N)
         end
     end
 
-    result = {
-        "chargen dock guard"
-    }
-
     return result
 end
 
