@@ -127,6 +127,10 @@ end
 ---@param mobile tes3mobileNPC|tes3mobileCreature
 ---@return boolean isFollower
 function this.isFollower(mobile)
+    if not mobile then
+        return false
+    end
+
     local planner = mobile.aiPlanner
     if not planner then return false end
 

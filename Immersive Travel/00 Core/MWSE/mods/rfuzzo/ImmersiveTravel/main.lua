@@ -96,13 +96,13 @@ local function getRandomActorsInCell(N)
         for _, r in ipairs(references) do
             if r.baseObject.objectType == tes3.objectType.npc then
                 -- only add non-scripted npcs as passengers
-                local script = r.baseObject.script
-                if script == nil or (script and script.id == "nolore") then
-                    local id = r.baseObject.id
-                    if not common.is_in(npcsTable, id) then
-                        table.insert(npcsTable, id)
-                    end
+                -- local script = r.baseObject.script
+                --if script == nil or (script and script.id == "nolore") then
+                local id = r.baseObject.id
+                if not common.is_in(npcsTable, id) then
+                    table.insert(npcsTable, id)
                 end
+                --end
             end
         end
     end
@@ -116,6 +116,10 @@ local function getRandomActorsInCell(N)
             table.insert(result, id)
         end
     end
+
+    result = {
+        "chargen dock guard"
+    }
 
     return result
 end
@@ -388,8 +392,7 @@ local function cleanup()
         for index, slot in ipairs(mountData.slots) do
             if slot.handle and slot.handle:valid() then
                 local ref = slot.handle:getObject()
-                if ref ~= tes3.player and ref.mobile and
-                    not common.isFollower(ref.mobile) then
+                if ref ~= tes3.player and not common.isFollower(ref.mobile) then
                     ref:delete()
                     slot.handle = nil
                 end
@@ -685,6 +688,11 @@ local function onTimerTick()
                     .worldTransform *
                     vec(slot.position)
                 if obj ~= tes3.player then
+                    -- disable scripts
+                    if obj.baseObject.script and not common.isFollower(obj.mobile) and obj.data.rfuzzo_noscript then
+                        obj.attachments.variables.script = nil
+                    end
+
                     -- only change anims if behind player
                     if changeAnims and
                         common.isPointBehindObject(obj.position,
@@ -884,6 +892,8 @@ local function startTravel(start, destination, service, guide)
                     -- disable scripts
                     if passenger.baseObject.script then
                         passenger.attachments.variables.script = nil
+                        passenger.data.rfuzzo_noscript = true;
+
                         log:debug("Disabled script %s on %s", passenger.baseObject.script.id, passenger.baseObject.id)
                     end
 
