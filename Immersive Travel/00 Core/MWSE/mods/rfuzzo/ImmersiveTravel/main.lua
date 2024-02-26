@@ -1,12 +1,12 @@
 --[[
 Immersive Travel Mod
-v 1.0.2
 by rfuzzo
 
 mwse real-time travel mod
 
 --]]
 --
+require("rfuzzo.ImmersiveTravel.types")
 local common = require("rfuzzo.ImmersiveTravel.common")
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
@@ -28,66 +28,6 @@ local log = logger.new {
     includeTimestamp = true
 }
 
--- /////////////////////////////////////////////////////////////////////////////////////////
--- ////////////// CLASSES
-
----@class PositionRecord
----@field x number The x position
----@field y number The y position
----@field z number The z position
-
----@class ServiceData
----@field class string The npc class name
----@field mount string The mount
----@field override_npc string[]? register specific npcs with the service
----@field override_mount table<string,string[]>? register specific mounts with the service
----@field routes table<string, string[]>? routes
----@field ground_offset number DEPRECATED: editor marker offset
-
----@class Slot
----@field position PositionRecord slot
----@field animationGroup string[]?
----@field animationFile string?
----@field handle mwseSafeObjectHandle?
----@field node niNode?
-
----@class HiddenSlot
----@field position PositionRecord slot
----@field handles mwseSafeObjectHandle[]?
-
----@class Clutter
----@field position PositionRecord slot
----@field orientation PositionRecord? slot
----@field id string? reference id
----@field mesh string? reference id
----@field handle mwseSafeObjectHandle?
----@field node niNode?
-
----@class MountData
----@field sound string The mount sound id
----@field mesh string The mount mesh path
----@field offset number The mount offset to ground
----@field sway number The sway intensity
----@field speed number forward speed
----@field turnspeed number turning speed
----@field hasFreeMovement boolean turning speed
----@field slots Slot[]
----@field guideSlot Slot?
----@field hiddenSlot HiddenSlot?
----@field clutter Clutter[]?
----@field idList string[]?
----@field scale number?
----@field minSpeed number?
----@field maxSpeed number?
----@field changeSpeed number?
----@field freedomtype string? -- flying, boat, ground
----@field accelerateAnimation string? -- flying, boat, ground
----@field forwardAnimation string? -- flying, boat, ground
----@field materials CraftingFramework.MaterialRequirement[]? -- flying, boat, ground
-
----@class ReferenceRecord
----@field cell tes3cell The cell
----@field position tes3vector3 The reference position
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// VARIABLES
@@ -245,8 +185,7 @@ local function registerGuide(data, handle)
         end
         tes3.playAnimation({ reference = reference, group = group })
 
-        log:debug("registered " .. reference.id ..
-            " in guide slot with animgroup " .. tostring(group))
+        log:debug("registered %s in guide slot with animgroup %s", reference.id, group)
     end
 end
 
@@ -264,7 +203,7 @@ local function registerRefInHiddenSlot(data, handle)
         reference.mobile.movementCollision = false;
         reference.data.rfuzzo_invincible = true;
 
-        log:debug("registered " .. reference.id .. " in hidden slot #" .. idx)
+        log:debug("registered %s in hidden slot #%s", reference.id, idx)
     end
 end
 
@@ -437,7 +376,7 @@ local function cleanup()
     last_sway = 0
 
     if mountData then
-        tes3.removeSound({ sound = mountData.sound, reference = mount })
+        tes3.removeSound({ reference = mount })
 
         -- delete guide
         if mountData.guideSlot.handle and mountData.guideSlot.handle:valid() then
@@ -508,7 +447,7 @@ local function destinationReached(force)
             local ref = slot.handle:getObject()
             if ref ~= tes3.player and ref.mobile and
                 common.isFollower(ref.mobile) then
-                log:debug("teleporting follower " .. ref.id)
+                log:debug("teleporting follower %s", ref.id)
 
                 ref.mobile.movementCollision = true;
                 tes3.loadAnimation({ reference = ref })
@@ -533,7 +472,7 @@ local function destinationReached(force)
                 local ref = handle:getObject()
                 if ref ~= tes3.player and ref.mobile and
                     common.isFollower(ref.mobile) then
-                    log:debug("teleporting follower " .. ref.id)
+                    log:debug("teleporting follower %s", ref.id)
 
                     ref.mobile.movementCollision = true;
                     tes3.loadAnimation({ reference = ref })
@@ -647,10 +586,18 @@ local function onTimerTick()
         swayTime = swayTime + timertick
         if swayTime > (2000 * sway_frequency) then swayTime = timertick end
 
-        -- periodically change anims
+        -- periodically change anims and play sounds
         local i, f = math.modf(swayTime)
         if i > 0 and f < timertick and math.fmod(i, ANIM_CHANGE_FREQ) == 0 then
             changeAnims = true
+
+            if not mountData.loopSound and math.random() > 0.5 then
+                local sound = mountData.sound[math.random(1, #mountData.sound)]
+                tes3.playSound({
+                    sound = sound,
+                    reference = mount
+                })
+            end
         end
 
         local sway = amplitude *
@@ -658,7 +605,7 @@ local function onTimerTick()
         -- offset roll during turns
         if turn > 0 then
             local max = (sway_max_amplitude * amplitude)
-            sway = math.clamp(last_sway - sway_change, -max, max) -- + sway
+            sway = math.clamp(last_sway - sway_change, -max, max) -- - sway
         elseif turn < 0 then
             local max = (sway_max_amplitude * amplitude)
             sway = math.clamp(last_sway + sway_change, -max, max) -- + sway
@@ -667,7 +614,7 @@ local function onTimerTick()
             if last_sway < (sway - sway_change) then
                 sway = last_sway + sway_change -- + sway
             elseif last_sway > (sway + sway_change) then
-                sway = last_sway - sway_change -- + sway
+                sway = last_sway - sway_change -- - sway
             end
         end
         last_sway = sway
@@ -680,7 +627,7 @@ local function onTimerTick()
         if free_movement == true and isOnMount() then
             -- this is needed to enable collisions :todd:
             tes3.dataHandler:updateCollisionGroupsForActiveCells {}
-            mount.sceneNode:update() -- TODO needed?
+            mount.sceneNode:update()
             tes3.player.position = mount.sceneNode.worldTransform *
                 playerShipLocal
         end
@@ -716,8 +663,7 @@ local function onTimerTick()
                 local currentAnimationGroup =
                     animController.animationData.currentAnimGroups[tes3.animationBodySection
                     .upper]
-                log:debug(guide.id .. " switching to animgroup " ..
-                    tostring(group))
+                log:trace("%s switching to animgroup %s", guide.id, group)
                 if group ~= currentAnimationGroup then
                     tes3.loadAnimation({ reference = guide })
                     if mountData.guideSlot.animationFile then
@@ -739,15 +685,13 @@ local function onTimerTick()
                     .worldTransform *
                     vec(slot.position)
                 if obj ~= tes3.player then
-                    --- obj.facing = mount.facing
                     -- only change anims if behind player
                     if changeAnims and
                         common.isPointBehindObject(obj.position,
                             tes3.player.position,
                             tes3.player.forwardDirection) then
                         local group = common.getRandomAnimGroup(slot)
-                        log:debug(obj.id .. " switching to animgroup " ..
-                            tostring(group))
+                        log:trace("%s switching to animgroup %s", obj.id, group)
                         local animController = obj.mobile.animationController
                         if animController then
                             local currentAnimationGroup =
@@ -850,7 +794,7 @@ local function startTravel(start, destination, service, guide)
     -- load mount data
     mountData = common.loadMountData(mountId)
     if mountData == nil then return end
-    log:debug("loaded mount: " .. mountId)
+    log:debug("loaded mount: %s", mountId)
 
     -- fade out
     tes3.fadeOut({ duration = 1 })
@@ -882,7 +826,18 @@ local function startTravel(start, destination, service, guide)
                 orientation = d
             }
             mount.facing = new_facing
-
+            if mountData.forwardAnimation then
+                tes3.loadAnimation({ reference = mount })
+                tes3.playAnimation({ reference = mount, group = tes3.animationGroup[mountData.forwardAnimation] })
+            end
+            if mountData.loopSound then
+                local sound = mountData.sound[math.random(1, #mountData.sound)]
+                tes3.playSound({
+                    sound = sound,
+                    reference = mount,
+                    loop = true
+                })
+            end
 
             -- always start slotted
             free_movement = false
@@ -926,6 +881,12 @@ local function startTravel(start, destination, service, guide)
                         position = startPos + mountOffset,
                         orientation = mount.orientation
                     }
+                    -- disable scripts
+                    if passenger.baseObject.script then
+                        passenger.attachments.variables.script = nil
+                        log:debug("Disabled script %s on %s", passenger.baseObject.script.id, passenger.baseObject.id)
+                    end
+
                     local refHandle = tes3.makeSafeObjectHandle(passenger)
                     common.registerRefInRandomSlot(mountData, refHandle)
                 end
@@ -970,11 +931,6 @@ local function startTravel(start, destination, service, guide)
             last_facing = mount.facing
             last_sway = 0
             splineIndex = 2
-            tes3.playSound({
-                sound = mountData.sound,
-                reference = mount,
-                loop = true
-            })
 
             -- register events
             event.register(tes3.event.mouseWheel, mouseWheelCallback)
@@ -1181,7 +1137,7 @@ local function onMenuDialog(e)
         end
 
         if service == nil then
-            log:debug("no service found for " .. npc.id)
+            log:debug("no service found for %s", npc.id)
             return
         end
 
@@ -1191,7 +1147,7 @@ local function onMenuDialog(e)
         if destinations == nil then return end
         if #destinations == 0 then return end
 
-        log:debug("createTravelButton for " .. npc.id)
+        log:debug("createTravelButton for %s", npc.id)
         createTravelButton(menuDialog, ref, service)
         menuDialog:updateLayout()
     end
@@ -1201,16 +1157,6 @@ event.register("uiActivated", onMenuDialog, { filter = "MenuDialog" })
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// CONFIG
 require("rfuzzo.ImmersiveTravel.mcm")
-
---[[
-"animationGroup": "walkForward",
-      "animationFile": "ds22\\anim\\gondola.nif",
-      "position": {
-        "x": 0,
-        "y": 0,
-        "z": -46
-      }
---]]
 
 -- sitting mod
 -- idle2 ... praying

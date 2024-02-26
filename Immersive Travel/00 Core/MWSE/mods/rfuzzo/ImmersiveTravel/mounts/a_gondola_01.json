@@ -1,5 +1,8 @@
 {
-  "sound": "Boat Creak",
+  "sound": [
+    "Boat Creak"
+  ],
+  "loopSound": true,
   "mesh": "x\\Ex_Gondola_01_rot.nif",
   "offset": 40,
   "sway": 1,

@@ -1,10 +1,16 @@
 {
-  "sound": "Silt_2",
+  "sound": [
+    "Silt_1",
+    "Silt_2",
+    "Silt_3"
+  ],
+  "loopSound": false,
   "mesh": "r\\Siltstrider.nif",
   "offset": -1220,
   "sway": 1,
   "speed": 3,
   "turnspeed": 30,
+  "forwardAnimation": "walkForward",
   "guideSlot": {
     "animationGroup": "idle5",
     "position": {

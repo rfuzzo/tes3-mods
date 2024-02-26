@@ -231,9 +231,7 @@ function this.registerStatic(data, handle, i)
     data.clutter[i].handle = handle
 
     if handle and handle:valid() then
-        log:debug(
-            "registered " .. handle:getObject().id .. " in static slot " ..
-            tostring(i))
+        log:debug("registered %s in static slot %s", handle:getObject().id, i)
     end
 end
 
@@ -267,9 +265,7 @@ function this.registerInSlot(data, handle, idx)
         end
         tes3.playAnimation({ reference = reference, group = group })
 
-        log:debug(
-            "registered " .. reference.id .. " in slot " .. tostring(idx) ..
-            " with animgroup " .. tostring(group))
+        log:debug("registered %s in slot %s with animgroup %s", reference.id, idx, group)
     end
 end
 
@@ -301,8 +297,7 @@ function this.registerRefInRandomSlot(data, handle)
     if handle and handle:valid() then
         local i = this.getRandomFreeSlotIdx(data)
         if not i then
-            log:debug("Could not register " .. handle:getObject().id ..
-                " in normal slot")
+            log:debug("Could not register %s in normal slot", handle:getObject().id)
             return false
         end
 
@@ -389,7 +384,7 @@ function this.loadServices()
             if r then
                 services[fileName:sub(0, -6)] = r
 
-                log:debug("Loaded " .. fullpath)
+                log:trace("Loaded " .. fullpath)
             else
                 log:error("!!! failed to load " .. fileName)
             end

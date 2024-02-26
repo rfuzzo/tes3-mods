@@ -1,5 +1,8 @@
 {
-  "sound": "cliff racer scream",
+  "sound": [
+    "cliff racer scream"
+  ],
+  "loopSound": false,
   "mesh": "r\\CliffRacer.nif",
   "offset": 0,
   "sway": 1,

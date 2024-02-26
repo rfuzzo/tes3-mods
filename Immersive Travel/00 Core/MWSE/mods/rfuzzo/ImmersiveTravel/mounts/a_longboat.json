@@ -1,5 +1,8 @@
 {
-  "sound": "Boat Hull",
+  "sound": [
+    "Boat Hull"
+  ],
+  "loopSound": true,
   "mesh": "x\\Ex_longboat_rot.nif",
   "offset": 74,
   "sway": 4,
