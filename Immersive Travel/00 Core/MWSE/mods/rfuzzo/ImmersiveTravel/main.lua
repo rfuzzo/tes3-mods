@@ -13,12 +13,12 @@ local common = require("rfuzzo.ImmersiveTravel.common")
 -- ////////////// CONFIGURATION
 local config = require("rfuzzo.ImmersiveTravel.config")
 
-local ANIM_CHANGE_FREQ = 10        -- change passenger animations every 10 seconds
-local sway_max_amplitude = 3       -- how much the ship can sway in a turn
-local sway_amplitude_change = 0.01 -- how much the ship can sway in a turn
-local sway_frequency = 0.12        -- how fast the mount sways
-local sway_amplitude = 0.014       -- how much the mount sways
-local timertick = 0.01
+local ANIM_CHANGE_FREQ = 10   -- change passenger animations every 10 seconds
+local SWAY_MAX_AMPL = 3       -- how much the ship can sway in a turn
+local SWAY_AMPL_CHANGE = 0.01 -- how much the ship can sway in a turn
+local SWAY_FREQ = 0.12        -- how fast the mount sways
+local SWAY_AMPL = 0.014       -- how much the mount sways
+local TIMER_TICK = 0.01
 
 local logger = require("logging.logger")
 local log = logger.new {
@@ -580,15 +580,15 @@ local function onTimerTick()
         last_facing = mount.facing
 
         -- set sway
-        local amplitude = sway_amplitude * mountData.sway
-        local sway_change = amplitude * sway_amplitude_change
+        local amplitude = SWAY_AMPL * mountData.sway
+        local sway_change = amplitude * SWAY_AMPL_CHANGE
         local changeAnims = false
-        swayTime = swayTime + timertick
-        if swayTime > (2000 * sway_frequency) then swayTime = timertick end
+        swayTime = swayTime + TIMER_TICK
+        if swayTime > (2000 * SWAY_FREQ) then swayTime = TIMER_TICK end
 
         -- periodically change anims and play sounds
         local i, f = math.modf(swayTime)
-        if i > 0 and f < timertick and math.fmod(i, ANIM_CHANGE_FREQ) == 0 then
+        if i > 0 and f < TIMER_TICK and math.fmod(i, ANIM_CHANGE_FREQ) == 0 then
             changeAnims = true
 
             if not mountData.loopSound and math.random() > 0.5 then
@@ -601,13 +601,13 @@ local function onTimerTick()
         end
 
         local sway = amplitude *
-            math.sin(2 * math.pi * sway_frequency * swayTime)
+            math.sin(2 * math.pi * SWAY_FREQ * swayTime)
         -- offset roll during turns
         if turn > 0 then
-            local max = (sway_max_amplitude * amplitude)
+            local max = (SWAY_MAX_AMPL * amplitude)
             sway = math.clamp(last_sway - sway_change, -max, max) -- - sway
         elseif turn < 0 then
-            local max = (sway_max_amplitude * amplitude)
+            local max = (SWAY_MAX_AMPL * amplitude)
             sway = math.clamp(last_sway + sway_change, -max, max) -- + sway
         else
             -- normalize back
@@ -944,7 +944,7 @@ local function startTravel(start, destination, service, guide)
 
             log:debug("starting timer")
             myTimer = timer.start({
-                duration = timertick,
+                duration = TIMER_TICK,
                 type = timer.simulate,
                 iterations = -1,
                 callback = onTimerTick
