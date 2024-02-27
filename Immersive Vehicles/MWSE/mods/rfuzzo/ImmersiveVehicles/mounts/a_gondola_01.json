@@ -47,7 +47,15 @@
   "materials": [
     {
       "material": "wood",
+      "count": 12
+    },
+    {
+      "material": "rope",
       "count": 6
+    },
+    {
+      "material": "fabric",
+      "count": 4
     }
   ]
 }

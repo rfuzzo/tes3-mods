@@ -12,10 +12,12 @@ local log = logger.new {
 
 -- CONSTANTS
 
+-- TODO read from files
 ---@type string[]
-local mounts = { "a_gondola_01", "a_cliffracer" }
+local mounts = {}
 
 local localmodpath = "mods\\rfuzzo\\ImmersiveVehicles\\"
+local fullmodpath = "Data Files\\MWSE\\" .. localmodpath
 
 local sway_max_amplitude = 3       -- how much the ship can sway in a turn
 local sway_amplitude_change = 0.01 -- how much the ship can sway in a turn
@@ -49,6 +51,27 @@ local mountMarker = nil ---@type niNode?
 local cameraOffset = nil ---@type tes3vector3?
 local editmode = false
 local speedChange = 0
+
+--- HELPERS
+
+
+--- @param from tes3vector3
+--- @return number|nil
+local function getGroundZ(from)
+    local rayhit = tes3.rayTest {
+        position = from,
+        direction = tes3vector3.new(0, 0, -1),
+        returnNormal = true,
+        root = tes3.game.worldLandscapeRoot
+    }
+
+    if (rayhit) then
+        local to = rayhit.intersection
+        return to.z
+    end
+
+    return nil
+end
 
 --- EVENTS
 
@@ -132,7 +155,11 @@ local function mountSimulatedCallback(e)
     if not editmode and is_on_mount and mountHandle and mountHandle:valid() and
         mountData then
         local mount = mountHandle:getObject()
-        local target = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * 2048
+        local dist = 2048
+        if mountData.freedomtype == "ground" then
+            dist = 100
+        end
+        local target = tes3.getPlayerEyePosition() + tes3.getPlayerEyeVector() * dist
 
         local isControlDown = tes3.worldController.inputController:isControlDown()
         if isControlDown then
@@ -141,6 +168,14 @@ local function mountSimulatedCallback(e)
         if mountData.freedomtype == "boat" then
             -- pin to waterlevel
             target.z = 0
+        elseif mountData.freedomtype == "ground" then
+            -- pin to groundlevel
+            local z = getGroundZ(target + tes3vector3.new(0, 0, 100))
+            if not z then
+                target.z = 0
+            else
+                target.z = z + 50
+            end
         end
 
         virtualDestination = target
@@ -166,16 +201,18 @@ local function mountSimulatedCallback(e)
         local t = mountHandle:getObject().sceneNode.worldTransform
 
         if current_speed > 0 then
-            local bowPos = t * tes3vector3.new(0, bbox.max.y, bbox.min.z + mountData.offset)
-            local hitResult1 = tes3.rayTest({
-                position = bowPos,
-                direction = tes3vector3.new(0, 0, -1),
-                root = tes3.game.worldLandscapeRoot,
-                --maxDistance = 4096
-            })
-            if (hitResult1 == nil) then
-                current_speed = 0
-                if DEBUG then tes3.messageBox("HIT Shore Fwd") end
+            if mountData.freedomtype == "boat" then
+                local bowPos = t * tes3vector3.new(0, bbox.max.y, bbox.min.z + mountData.offset)
+                local hitResult1 = tes3.rayTest({
+                    position = bowPos,
+                    direction = tes3vector3.new(0, 0, -1),
+                    root = tes3.game.worldLandscapeRoot,
+                    --maxDistance = 4096
+                })
+                if (hitResult1 == nil) then
+                    current_speed = 0
+                    if DEBUG then tes3.messageBox("HIT Shore Fwd") end
+                end
             end
 
             -- raytest from above to detect objects in water
@@ -191,16 +228,18 @@ local function mountSimulatedCallback(e)
                 if DEBUG then tes3.messageBox("HIT Object Fwd") end
             end
         elseif current_speed < 0 then
-            local sternPos = t * tes3vector3.new(0, bbox.min.y, bbox.min.z + mountData.offset)
-            local hitResult1 = tes3.rayTest({
-                position = sternPos,
-                direction = tes3vector3.new(0, 0, -1),
-                root = tes3.game.worldLandscapeRoot,
-                --maxDistance = 4096
-            })
-            if (hitResult1 == nil) then
-                current_speed = 0
-                if DEBUG then tes3.messageBox("HIT Shore Back") end
+            if mountData.freedomtype == "boat" then
+                local sternPos = t * tes3vector3.new(0, bbox.min.y, bbox.min.z + mountData.offset)
+                local hitResult1 = tes3.rayTest({
+                    position = sternPos,
+                    direction = tes3vector3.new(0, 0, -1),
+                    root = tes3.game.worldLandscapeRoot,
+                    --maxDistance = 4096
+                })
+                if (hitResult1 == nil) then
+                    current_speed = 0
+                    if DEBUG then tes3.messageBox("HIT Shore Back") end
+                end
             end
 
             -- raytest from above to detect objects in water
@@ -342,23 +381,7 @@ local function playerIsUnderwater()
     return minPosition < waterLevel
 end
 
---- @param from tes3vector3
---- @return number|nil
-local function getGroundZ(from)
-    local rayhit = tes3.rayTest {
-        position = from,
-        direction = tes3vector3.new(0, 0, -1),
-        returnNormal = true,
-        root = tes3.game.worldLandscapeRoot
-    }
 
-    if (rayhit) then
-        local to = rayhit.intersection
-        return to.z
-    end
-
-    return nil
-end
 
 --- load json static mount data
 ---@param id string
@@ -387,6 +410,30 @@ end
 ---@param id string
 ---@return boolean
 local function validMount(id) return common.is_in(mounts, id) end
+
+--- Load all mounts
+---@return table<string,ServiceData>|nil
+local function loadMounts()
+    log:debug("Loading mounts...")
+
+    ---@type string[]
+    local services = {}
+    for fileName in lfs.dir(fullmodpath .. "mounts") do
+        if (string.endswith(fileName, ".json")) then
+            -- parse
+            local fullpath = localmodpath .. "mounts\\" .. fileName
+            local r = json.loadfile(fullpath)
+            if r then
+                table.insert(services, fileName:sub(0, -6))
+
+                log:trace("Loaded " .. fullpath)
+            else
+                log:error("!!! failed to load " .. fileName)
+            end
+        end
+    end
+    return services
+end
 
 --- map ids to mounts
 ---@param id string
@@ -430,11 +477,13 @@ local function onTimerTick()
         return
     end
 
-    local rootBone = mount.sceneNode:getObjectByName("Body Bone") --[[@as niNode]]
+    local rootBone = mount.sceneNode
+    if mountData.nodeName then
+        rootBone = mount.sceneNode:getObjectByName(mountData.nodeName) --[[@as niNode]]
+    end
     if rootBone == nil then
         rootBone = mount.sceneNode
     end
-
     if rootBone == nil then
         return
     end
@@ -450,9 +499,6 @@ local function onTimerTick()
 
     -- skip
     if current_speed < mountData.minSpeed then return end
-
-    -- dbg
-    log:debug("thirdPersonOffset: %s", mge.camera.thirdPersonOffset)
 
     local mountOffset = tes3vector3.new(0, 0, mountData.offset) * mount.scale
     local nextPos = virtualDestination
@@ -707,6 +753,7 @@ local function keyDownCallback(e)
             editmode = false
         elseif e.keyCode == tes3.scanCode["o"] and not editmode and not is_on_mount then
             local buttons = {}
+            mounts = loadMounts()
             for _, id in ipairs(mounts) do
                 table.insert(buttons, {
                     text = id,
@@ -746,9 +793,15 @@ local function simulatedCallback(e)
     if DEBUG then
         if editmode and mountMarker and mountData then
             local from = tes3.getPlayerEyePosition() + (tes3.getPlayerEyeVector() * 500.0 * mountData.scale)
-            if mountData.freedomtype ~= "flying" then
-                -- TODO get real pin to ground
+            if mountData.freedomtype == "boat" then
                 from.z = mountData.offset * mountData.scale
+            elseif mountData.freedomtype == "ground" then
+                local z = getGroundZ(from + tes3vector3.new(0, 0, 200))
+                if not z then
+                    from.z = 0
+                else
+                    from.z = z
+                end
             end
 
             mountMarker.translation = from
@@ -777,11 +830,6 @@ event.register(tes3.event.activate, activateCallback)
 
 local CraftingFramework = include("CraftingFramework")
 if not CraftingFramework then return end
--- Register your materials
-local materials = {
-    { id = "wood", name = "Wood", ids = { "misc_firewood", "misc_oak_wood_01" } }
-}
-CraftingFramework.Material:registerMaterials(materials)
 
 local enterVehicle = {
     text = "Get in/out",
@@ -815,6 +863,7 @@ end
 
 ---@type CraftingFramework.Recipe.data[]
 local recipes = {}
+mounts = loadMounts()
 for _, id in ipairs(mounts) do
     local r = getRecipeFor(id)
     if r then

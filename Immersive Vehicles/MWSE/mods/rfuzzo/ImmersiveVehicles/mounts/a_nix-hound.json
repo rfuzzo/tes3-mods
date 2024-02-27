@@ -1,14 +1,14 @@
 {
   "sound": [
-    "cliff racer scream"
+    "nix hound scream"
   ],
   "loopSound": false,
-  "mesh": "r\\CliffRacer.nif",
+  "mesh": "r\\NixHound.nif",
   "offset": 0,
   "sway": 1,
   "speed": 2,
-  "turnspeed": 60,
-  "scale": 2.0,
+  "turnspeed": 120,
+  "scale": 1.2,
   "slots": [
     {
       "animationGroup": [
@@ -17,16 +17,16 @@
       "animationFile": "VA_sitting.nif",
       "position": {
         "x": 0,
-        "y": 20,
-        "z": 10
+        "y": -10,
+        "z": 0
       }
     }
   ],
   "minSpeed": 0,
-  "maxSpeed": 20,
+  "maxSpeed": 10,
   "changeSpeed": 3.0,
-  "freedomtype": "flying",
-  "accelerateAnimation": "idle",
+  "freedomtype": "ground",
+  "accelerateAnimation": "runForward",
   "forwardAnimation": "runForward",
-  "nodeName": "Body Bone"
+  "nodeName": "Bip01 Spine2"
 }
