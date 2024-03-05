@@ -52,10 +52,11 @@
 ---@field maxSpeed number?
 ---@field changeSpeed number?
 ---@field freedomtype string? -- flying, boat, ground
----@field accelerateAnimation string? -- flying, boat, ground
----@field forwardAnimation string? -- flying, boat, ground
----@field materials CraftingFramework.MaterialRequirement[]? -- flying, boat, ground
----@field nodeName string? -- flying, boat, ground
+---@field accelerateAnimation string? -- animation to play while accelerating. slowing
+---@field forwardAnimation string? -- walk animation
+---@field materials CraftingFramework.MaterialRequirement[]? -- recipe materials for crafting the mount
+---@field nodeName string? -- niNode, slots are relative tho this
+---@field nodeOffset PositionRecord? -- position of the nodeName relative to sceneNode
 
 ---@class ReferenceRecord
 ---@field cell tes3cell The cell

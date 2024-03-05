@@ -592,12 +592,46 @@ local function createEditWindow()
 
             local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
 
+            local rootBone = mount.sceneNode
+            if mountData.nodeName then
+                rootBone = mount.sceneNode:getObjectByName(mountData.nodeName) --[[@as niNode]]
+            end
+            if rootBone == nil then
+                rootBone = mount.sceneNode
+            end
+            if rootBone == nil then
+                return
+            end
+            tes3.messageBox("Using Bone %s", rootBone.name)
+
+
+            local boneOffset = rootBone.worldTransform.translation - mount.sceneNode.translation
+
+            log:debug("%s", rootBone.worldTransform.translation)
+            log:debug("%s", mount.sceneNode.translation)
+            log:debug("%s", boneOffset)
+
+            -- guide
+            local marker1 = tes3.loadMesh(divineMarkerId)
+            local o1 = vec(mountData.guideSlot.position) - boneOffset
+            local offsetYUp1 = tes3vector3.new(o1.x, -o1.z, o1.y)
+            local child1 = marker1:clone()
+            child1.scale = 0.3
+            child1.translation = rootBone.worldTransform * offsetYUp1
+            child1.rotation = rootBone.worldTransform.rotation
+            child1.appCulled = false
+            vfxRoot:attachChild(child1, true)
+
+            -- slots
             local marker = tes3.loadMesh("marker_arrow.nif")
             for _index, slot in ipairs(mountData.slots) do
+                local o = vec(slot.position) - boneOffset
+                local offsetYUp = tes3vector3.new(o.x, -o.z, o.y)
+
                 local child = marker:clone()
-                child.scale = 0.5
-                child.translation = mount.sceneNode.worldTransform * vec(slot.position)
-                child.rotation = mount.sceneNode.worldTransform.rotation
+                child.scale = 0.3
+                child.translation = rootBone.worldTransform * offsetYUp
+                child.rotation = rootBone.worldTransform.rotation
                 child.appCulled = false
                 vfxRoot:attachChild(child, true)
             end

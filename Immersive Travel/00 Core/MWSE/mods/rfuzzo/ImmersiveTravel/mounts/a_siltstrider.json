@@ -11,6 +11,12 @@
   "speed": 3,
   "turnspeed": 30,
   "forwardAnimation": "walkForward",
+  "nodeName": "Abdomen",
+  "nodeOffset": {
+    "x": 0,
+    "y": 56,
+    "z": 1004
+  },
   "guideSlot": {
     "animationGroup": "idle5",
     "position": {

@@ -493,6 +493,18 @@ local function destinationReached(force)
     cleanup()
 end
 
+---@param slotPosition tes3vector3
+---@param boneOffset tes3vector3
+---@param mountData MountData
+local function getSlotTransform(slotPosition, boneOffset, mountData)
+    local transform = slotPosition
+    if mountData.nodeName then
+        local o = slotPosition - boneOffset
+        transform = tes3vector3.new(o.x, -o.z, o.y)
+    end
+    return transform
+end
+
 -- main loop
 local function onTimerTick()
     -- checks
@@ -525,10 +537,20 @@ local function onTimerTick()
         cleanup()
         return
     end
-    if mount.sceneNode == nil then
-        cleanup()
+
+    local boneOffset = tes3vector3.new(0, 0, 0)
+    local rootBone = mount.sceneNode
+    if mountData.nodeName then
+        rootBone = mount.sceneNode:getObjectByName(mountData.nodeName) --[[@as niNode]]
+        boneOffset = vec(mountData.nodeOffset)
+    end
+    if rootBone == nil then
+        rootBone = mount.sceneNode
+    end
+    if rootBone == nil then
         return
     end
+
 
     if splineIndex <= #currentSpline then
         local mountOffset = tes3vector3.new(0, 0, mountData.offset)
@@ -547,7 +569,7 @@ local function onTimerTick()
             mount.forwardDirection.y, lerp.z):normalized()
         local delta = forward * mountData.speed
 
-        local playerShipLocal = mount.sceneNode.worldTransform:invert() *
+        local playerShipLocal = rootBone.worldTransform:invert() *
             tes3.player.position
 
         -- calculate facing
@@ -627,8 +649,7 @@ local function onTimerTick()
             -- this is needed to enable collisions :todd:
             tes3.dataHandler:updateCollisionGroupsForActiveCells {}
             mount.sceneNode:update()
-            tes3.player.position = mount.sceneNode.worldTransform *
-                playerShipLocal
+            tes3.player.position = rootBone.worldTransform * playerShipLocal
         end
 
         -- hidden slot
@@ -637,8 +658,8 @@ local function onTimerTick()
                 if handle and handle:valid() then
                     tes3.positionCell({
                         reference = handle:getObject(),
-                        position = mount.sceneNode.worldTransform *
-                            vec(mountData.hiddenSlot.position)
+                        position = rootBone.worldTransform *
+                            getSlotTransform(vec(mountData.hiddenSlot.position), boneOffset, mountData)
                     })
                 end
             end
@@ -648,8 +669,8 @@ local function onTimerTick()
         local guide = mountData.guideSlot.handle:getObject()
         tes3.positionCell({
             reference = guide,
-            position = mount.sceneNode.worldTransform *
-                vec(mountData.guideSlot.position)
+            position = rootBone.worldTransform *
+                getSlotTransform(vec(mountData.guideSlot.position), boneOffset, mountData)
         })
         guide.facing = mount.facing
         -- only change anims if behind player
@@ -660,8 +681,7 @@ local function onTimerTick()
             local animController = guide.mobile.animationController
             if animController then
                 local currentAnimationGroup =
-                    animController.animationData.currentAnimGroups[tes3.animationBodySection
-                    .upper]
+                    animController.animationData.currentAnimGroups[tes3.animationBodySection.upper]
                 log:trace("%s switching to animgroup %s", guide.id, group)
                 if group ~= currentAnimationGroup then
                     tes3.loadAnimation({ reference = guide })
@@ -680,9 +700,10 @@ local function onTimerTick()
         for index, slot in ipairs(mountData.slots) do
             if slot.handle and slot.handle:valid() then
                 local obj = slot.handle:getObject()
-                slot.handle:getObject().position = mount.sceneNode
-                    .worldTransform *
-                    vec(slot.position)
+
+                slot.handle:getObject().position = rootBone.worldTransform *
+                    getSlotTransform(vec(slot.position), boneOffset, mountData)
+
                 if obj ~= tes3.player then
                     -- disable scripts
                     if obj.baseObject.script and not common.isFollower(obj.mobile) and obj.data.rfuzzo_noscript then
@@ -698,9 +719,8 @@ local function onTimerTick()
                         log:trace("%s switching to animgroup %s", obj.id, group)
                         local animController = obj.mobile.animationController
                         if animController then
-                            local currentAnimationGroup =
-                                animController.animationData.currentAnimGroups[tes3.animationBodySection
-                                .upper]
+                            local currentAnimationGroup = animController.animationData.currentAnimGroups
+                                [tes3.animationBodySection.upper]
 
                             if group ~= currentAnimationGroup then
                                 tes3.loadAnimation({ reference = obj })
@@ -710,9 +730,7 @@ local function onTimerTick()
                                         file = slot.animationFile
                                     })
                                 end
-                                tes3.playAnimation({
-                                    reference = obj,
-                                    group = group
+                                tes3.playAnimation({ reference = obj, group = group
                                 })
                             end
                         end
@@ -725,14 +743,11 @@ local function onTimerTick()
         if mountData.clutter then
             for index, clutter in ipairs(mountData.clutter) do
                 if clutter.handle and clutter.handle:valid() then
-                    clutter.handle:getObject().position = mount.sceneNode
-                        .worldTransform *
-                        vec(
-                            clutter.position)
+                    clutter.handle:getObject().position = rootBone.worldTransform *
+                        getSlotTransform(vec(clutter.position), boneOffset, mountData)
                     if clutter.orientation then
                         clutter.handle:getObject().orientation =
-                            common.toWorldOrientation(radvec(clutter.orientation),
-                                mount.orientation)
+                            common.toWorldOrientation(radvec(clutter.orientation), mount.orientation)
                     end
                 end
             end
