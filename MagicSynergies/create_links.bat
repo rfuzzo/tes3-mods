@@ -1,6 +1,6 @@
 @ECHO off
 
-set "location=D:\games\Morrowind2\Data Files"
+set "location=C:\games\Morrowind\Data Files"
 set "cd=%CD%"
 
 echo %cd%

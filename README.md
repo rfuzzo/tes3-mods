@@ -4,6 +4,14 @@ My TES3 Morrowind mods and modding utility tools.
 
 ## Mods
 
+### 🚧 Magic Synergies
+>
+> nightly link: <https://rfuzzo.github.io/tes3-mods/MagicSynergies.zip>
+>
+> nexus link:
+
+Magic effects with environment and school synergies. [Readme](/MagicSynergies/README.md)
+
 ### 🚧 Immersive Vehicles
 >
 > nightly link: <https://rfuzzo.github.io/tes3-mods/ImmersiveVehicles.zip>

@@ -1,25 +1,57 @@
--- Add new fortify luck spell
-local rf_ms_weaknessToShock
-local rf_ms_poisonArmor
+--- This script handles the main functionality of the MagicSynergies mod.
+--- It applies and removes various effects based on the current environment and weather conditions.
+--- The effects include wetness, cold, charged, and warm effects.
 
-local str_shockWetness = "rf_ms_weaknessToShock"
-local str_poisonArmor = "rf_ms_poisonArmor"
+local effect_wet
+local effect_cold
+local effect_charged
+local effect_warm
 
-local FROST_THRESHOLD = -10
-local SHOCK_THRESHOLD = -10
-local FIRE_THRESHOLD = -10
-local POISON_THRESHOLD = -10
+
+local id_wet = "rf_ms_rain"
+-- resistances: fire
+-- weaknesses: shock
+-- damage increase: shock, frost
+-- damage decrease: fire
+
+local id_cold = "rf_ms_snow"
+-- resistances: fire
+-- weaknesses: frost
+-- damage increase: frost
+-- damage decrease: fire
+
+local id_charged = "rf_ms_thunderstorm"
+-- resistances:
+-- weaknesses: shock
+-- damage increase: shock
+-- damage decrease:
+
+local id_warm = "rf_ms_ashstorm"
+-- resistances:
+-- weaknesses: fire
+-- damage increase: fire
+-- damage decrease: frost
+
+local FROST_THRESHOLD = 5
+local SHOCK_THRESHOLD = 5
+local FIRE_THRESHOLD = 5
+local POISON_THRESHOLD = 5
 
 --- @param id string
 local function getSpellFromId(id)
-    if id == str_shockWetness then
-        return rf_ms_weaknessToShock
+    if id == id_wet then
+        return effect_wet
     end
-    if id == str_poisonArmor then
-        return rf_ms_poisonArmor
+    if id == id_cold then
+        return effect_cold
+    end
+    if id == id_charged then
+        return effect_charged
+    end
+    if id == id_warm then
+        return effect_warm
     end
 end
-
 
 --- @param mobile tes3mobileActor
 --- @param effectname string
@@ -68,8 +100,15 @@ local function remove_effect(mobile, effectname)
 end
 
 --- @param reference tes3reference
---- @return number
+--- @return number?
 local function getWaterLevel(reference)
+    if not reference.cell then
+        return nil
+    end
+    if not reference.cell.waterLevel then
+        return nil
+    end
+
     local waterlevel = 0
     if reference.cell and reference.cell.isInterior and reference.cell.waterLevel then
         waterlevel = reference.cell.waterLevel
@@ -78,78 +117,202 @@ local function getWaterLevel(reference)
 end
 
 --- @param mobile tes3mobileActor
-local function toggleShockSynergies(mobile)
-    if not mobile then
-        return
-    end
-
+local function handleWetEffect(mobile)
     local reference = mobile.reference
-    if not reference then
-        return
+
+    -- check if the actor is underwater
+    local isUnderWater = false
+    local waterlevel = getWaterLevel(reference)
+    if waterlevel then
+        isUnderWater = reference.position.z < waterlevel
     end
 
-    -- check if z < 0 which means the actor is underwater
-    local isUnderWater = reference.position.z < getWaterLevel(reference)
-
-    -- check if weather is rain
-    local isRain = tes3.worldController.weatherController.currentWeather.index == tes3.weather.rain
+    -- check if weather is rain or thunder
+    local weather = tes3.worldController.weatherController.currentWeather.index
+    local isRain = weather == tes3.weather.rain or weather == tes3.weather.thunder
     if reference.cell and reference.cell.isInterior then
         isRain = false
     end
 
-    -- apply the effect is the actor is underwater or it's raining
+    -- apply the wetness effect
     if isUnderWater or isRain then
-        if not has_effect(mobile, str_shockWetness) then
-            apply_effect(reference, str_shockWetness)
-        end
+        apply_effect(reference, id_wet)
+    elseif not isRain and not isUnderWater then
+        remove_effect(mobile, id_wet)
+    end
+end
+
+--- @param mobile tes3mobileActor
+local function handleChargedEffect(mobile)
+    local reference = mobile.reference
+
+    -- check if weather is thunderstorm
+    local isThunderstorm = tes3.worldController.weatherController.currentWeather.index == tes3.weather.thunder
+    if reference.cell and reference.cell.isInterior then
+        isThunderstorm = false
     end
 
-    -- remove the effect if it's not raining and the actor is not underwater
-    if not isRain and not isUnderWater then
-        -- remove the effect
-        if has_effect(mobile, str_shockWetness) then
-            remove_effect(mobile, str_shockWetness)
-        end
+    if isThunderstorm then
+        apply_effect(reference, id_charged)
+    else
+        remove_effect(mobile, id_charged)
+    end
+end
+
+--- @param mobile tes3mobileActor
+local function handleColdEffect(mobile)
+    local reference = mobile.reference
+
+    -- check if weather is snow or blizzard
+    local weather = tes3.worldController.weatherController.currentWeather.index
+    local isSnowing = weather == tes3.weather.snow or weather == tes3.weather.blizzard
+    if reference.cell and reference.cell.isInterior then
+        isSnowing = false
+    end
+
+    if isSnowing then
+        apply_effect(reference, id_cold)
+    else
+        remove_effect(mobile, id_cold)
+    end
+end
+
+-- handle warm effect
+--- @param mobile tes3mobileActor
+local function handleWarmEffect(mobile)
+    local reference = mobile.reference
+
+    -- check if weather is ashstorm or blight
+    local weather = tes3.worldController.weatherController.currentWeather.index
+    local isAshstorm = weather == tes3.weather.ash or weather == tes3.weather.blight
+    if reference.cell and reference.cell.isInterior then
+        isAshstorm = false
+    end
+
+    if isAshstorm then
+        apply_effect(reference, id_warm)
+    else
+        remove_effect(mobile, id_warm)
     end
 end
 
 -- TODO keep track of refs?
 
+--- @param reference tes3reference
+--- @param mobile tes3mobileActor
+local function handleEnvironmentEffects(reference, mobile)
+    if tes3.canCastSpells({ target = reference }) then
+        handleWetEffect(mobile)
+        handleChargedEffect(mobile)
+        handleColdEffect(mobile)
+        handleWarmEffect(mobile)
+    end
+end
+
 --- @param e mobileActivatedEventData
 local function mobileActivatedCallback(e)
-    if tes3.canCastSpells({ target = e.reference }) then
-        toggleShockSynergies(e.mobile)
-    end
+    handleEnvironmentEffects(e.reference, e.mobile)
 end
 event.register(tes3.event.mobileActivated, mobileActivatedCallback)
 
 --- @param e calcWalkSpeedEventData
 local function calcWalkSpeedCallback(e)
-    if tes3.canCastSpells({ target = e.reference }) then
-        toggleShockSynergies(e.mobile)
-    end
+    handleEnvironmentEffects(e.reference, e.mobile)
 end
 event.register(tes3.event.calcWalkSpeed, calcWalkSpeedCallback)
 
 
 
+-- //////////////////////////////////////////////////////////////////
+-- /////////////////////// ENVIRONMENT EVENTS ///////////////////////
+
+--- @param reference tes3reference
+--- @param id tes3.effect
+--- @return number
+local function get_threshold(reference, id)
+    -- fire
+    if id == tes3.effect.fireDamage then
+        local threshold = FIRE_THRESHOLD
+        -- if the actor is wet, the threshold is higher
+        if has_effect(reference.mobile, id_wet) then
+            threshold = threshold + 2
+        end
+        -- if the actor is cold, the threshold is higher
+        if has_effect(reference.mobile, id_cold) then
+            threshold = threshold + 2
+        end
+        -- if the actor is warm, the threshold is lower
+        if has_effect(reference.mobile, id_warm) then
+            threshold = threshold - 2
+        end
+        return threshold
+    end
+
+    -- frost
+    if id == tes3.effect.frostDamage then
+        local threshold = FROST_THRESHOLD
+        -- if the actor is warm, the threshold is higher
+        if has_effect(reference.mobile, id_warm) then
+            threshold = threshold + 2
+        end
+        -- if the actor is wet, the threshold is lower
+        if has_effect(reference.mobile, id_wet) then
+            threshold = threshold - 2
+        end
+        -- if the actor is cold, the threshold is lower
+        if has_effect(reference.mobile, id_cold) then
+            threshold = threshold - 2
+        end
+        return threshold
+    end
+
+    -- shock
+    if id == tes3.effect.shockDamage then
+        local threshold = SHOCK_THRESHOLD
+        -- if the actor is wet, the threshold is lower
+        if has_effect(reference.mobile, id_wet) then
+            threshold = threshold - 2
+        end
+        -- if the actor is charged, the threshold is lower
+        if has_effect(reference.mobile, id_charged) then
+            threshold = threshold - 2
+        end
+
+        return threshold
+    end
+
+    -- poison
+    if id == tes3.effect.poison then
+        local threshold = POISON_THRESHOLD
+        return threshold
+    end
+
+    return 5
+end
+
 --- @param reference tes3reference
 --- @param damage number
-local function proc_shock(reference, damage)
+local function handle_shock(reference, damage)
     -- add damage to tempdata
     -- wetness already makes the actor weak to shock
     if not reference.tempData.rf_ms_shock_cooldown then
         if not reference.tempData.rf_ms_shock then
-            reference.tempData.rf_ms_shock = damage
+            reference.tempData.rf_ms_shock = 1
         else
-            reference.tempData.rf_ms_shock = reference.tempData.rf_ms_shock + damage
+            reference.tempData.rf_ms_shock = reference.tempData.rf_ms_shock + 1
         end
 
-        -- mwse.log("Shock damage: %s", reference.tempData.rf_ms_shock)
+        reference.tempData.rf_ms_shock_cooldown = true
+        timer.start({
+            duration = 1,
+            callback = function()
+                reference.tempData.rf_ms_shock_cooldown = nil
+            end
+        })
     end
 
-    -- check if tempdata is over threshold
-    if reference.tempData.rf_ms_shock < SHOCK_THRESHOLD then
+    local threshold = get_threshold(reference, tes3.effect.shockDamage)
+    if reference.tempData.rf_ms_shock < threshold then
         -- reset tempdata
         reference.tempData.rf_ms_shock = 0
         -- add cooldown
@@ -180,25 +343,26 @@ end
 --- @param reference tes3reference
 --- @param attackerReference tes3reference
 --- @param damage number
-local function proc_fire(reference, attackerReference, damage)
+local function handle_fire(reference, attackerReference, damage)
     -- add damage to tempdata
     if not reference.tempData.rf_ms_fire_cooldown then
         if not reference.tempData.rf_ms_fire then
-            reference.tempData.rf_ms_fire = damage
+            reference.tempData.rf_ms_fire = 1
         else
-            reference.tempData.rf_ms_fire = reference.tempData.rf_ms_fire + damage
+            reference.tempData.rf_ms_fire = reference.tempData.rf_ms_fire + 1
         end
 
         -- mwse.log("Fire damage: %s", reference.tempData.rf_ms_fire)
+        reference.tempData.rf_ms_fire_cooldown = true
+        timer.start({
+            duration = 1,
+            callback = function()
+                reference.tempData.rf_ms_fire_cooldown = nil
+            end
+        })
     end
 
-    local threshold = FIRE_THRESHOLD
-    if has_effect(reference.mobile, str_shockWetness) then
-        -- if the actor is wet, the threshold is higher
-        threshold = threshold * 2
-    end
-
-    -- check if tempdata is over threshold
+    local threshold = get_threshold(reference, tes3.effect.fireDamage)
     if reference.tempData.rf_ms_fire < threshold then
         -- reset tempdata
         reference.tempData.rf_ms_fire = 0
@@ -238,25 +402,26 @@ end
 
 --- @param reference tes3reference
 --- @param damage number
-local function proc_frost(reference, damage)
+local function handle_frost(reference, damage)
     -- add damage to tempdata
     if not reference.tempData.rf_ms_frost_cooldown then
         if not reference.tempData.rf_ms_frost then
-            reference.tempData.rf_ms_frost = damage
+            reference.tempData.rf_ms_frost = 1
         else
-            reference.tempData.rf_ms_frost = reference.tempData.rf_ms_frost + damage
+            reference.tempData.rf_ms_frost = reference.tempData.rf_ms_frost + 1
         end
 
         -- mwse.log("Frost damage: %s", reference.tempData.rf_ms_frost)
+        reference.tempData.rf_ms_frost_cooldown = true
+        timer.start({
+            duration = 1,
+            callback = function()
+                reference.tempData.rf_ms_frost_cooldown = nil
+            end
+        })
     end
 
-    local threshold = FROST_THRESHOLD
-    if has_effect(reference.mobile, str_shockWetness) then
-        -- if the actor is wet, the threshold is lower
-        threshold = threshold * 0.5
-    end
-
-    -- check if tempdata is over threshold
+    local threshold = get_threshold(reference, tes3.effect.frostDamage)
     if reference.tempData.rf_ms_frost < threshold then
         -- reset tempdata
         reference.tempData.rf_ms_frost = 0
@@ -282,20 +447,28 @@ end
 
 --- @param reference tes3reference
 --- @param damage number
-local function proc_poison(reference, damage)
+local function handle_poison(reference, damage)
     -- add damage to tempdata
     if not reference.tempData.rf_ms_poison_cooldown then
         if not reference.tempData.rf_ms_poison then
-            reference.tempData.rf_ms_poison = damage
+            reference.tempData.rf_ms_poison = 1
         else
-            reference.tempData.rf_ms_poison = reference.tempData.rf_ms_poison + damage
+            reference.tempData.rf_ms_poison = reference.tempData.rf_ms_poison + 1
         end
 
         -- mwse.log("Poison damage: %s", reference.tempData.rf_ms_poison)
+        reference.tempData.rf_ms_poison_cooldown = true
+        timer.start({
+            duration = 1,
+            callback = function()
+                reference.tempData.rf_ms_poison_cooldown = nil
+            end
+        })
     end
 
     -- check if tempdata is over threshold
-    if reference.tempData.rf_ms_poison < POISON_THRESHOLD then
+    local threshold = get_threshold(reference, tes3.effect.poison)
+    if reference.tempData.rf_ms_poison < threshold then
         -- reset tempdata
         reference.tempData.rf_ms_poison = 0
         -- add cooldown
@@ -305,7 +478,20 @@ local function proc_poison(reference, damage)
 
         -- disintegrate armor
         tes3.messageBox("You are poisoned!")
-        apply_effect(reference, str_poisonArmor)
+        tes3.applyMagicSource({
+            reference = reference,
+            bypassResistances = true,
+            name = "poison proc",
+            effects = {
+                {
+                    id = tes3.effect.disintegrateArmor,
+                    min = 100,
+                    max = 100,
+                    rangeType = tes3.effectRange.self,
+                    duration = 5,
+                },
+            },
+        })
 
         -- remove effect after 5 seconds
         timer.start({
@@ -321,22 +507,22 @@ end
 local function damagedCallback(e)
     -- check if magic effect is shock
     if e.magicEffect and e.magicEffect.id == tes3.effect.shockDamage then
-        proc_shock(e.reference, e.damage)
+        handle_shock(e.reference, e.damage)
     end
 
     -- check if magic effect is fire
     if e.magicEffect and e.magicEffect.id == tes3.effect.fireDamage then
-        proc_fire(e.reference, e.attackerReference, e.damage)
+        handle_fire(e.reference, e.attackerReference, e.damage)
     end
 
     -- check if magic effect is frost
     if e.magicEffect and e.magicEffect.id == tes3.effect.frostDamage then
-        proc_frost(e.reference, e.damage)
+        handle_frost(e.reference, e.damage)
     end
 
     -- check if magic effect is poison
     if e.magicEffect and e.magicEffect.id == tes3.effect.poison then
-        proc_poison(e.reference, e.damage)
+        handle_poison(e.reference, e.damage)
     end
 end
 event.register(tes3.event.damaged, damagedCallback)
@@ -347,11 +533,10 @@ event.register(tes3.event.damaged, damagedCallback)
 --- @param e initializedEventData
 local function initializedCallback(e)
     -- create custom spells
-
-    rf_ms_weaknessToShock = tes3.createObject({
+    effect_wet = tes3.createObject({
         objectType = tes3.objectType.spell,
         castType = tes3.spellType.ability,
-        id = str_shockWetness,
+        id = id_wet,
         name = "Wet",
         effects = {
             -- if you are wet, you are weak to shock
@@ -371,143 +556,59 @@ local function initializedCallback(e)
         }
     })
 
-    rf_ms_poisonArmor = tes3.createObject({
+    effect_cold = tes3.createObject({
         objectType = tes3.objectType.spell,
-        castType = tes3.spellType.curse,
-        id = str_poisonArmor,
-        name = "Disintegrate Armor",
+        castType = tes3.spellType.ability,
+        id = id_cold,
+        name = "Cold",
         effects = {
+            -- if you are cold, you are weak to frost
             {
-                id = tes3.effect.disintegrateArmor,
+                id = tes3.effect.weaknesstoFrost,
                 min = 100,
                 max = 100,
                 rangeType = tes3.effectRange.self,
-                duration = 5,
+            },
+            -- if you are cold, you are resistant to fire
+            {
+                id = tes3.effect.resistFire,
+                min = 100,
+                max = 100,
+                rangeType = tes3.effectRange.self,
+            },
+        }
+    })
+
+    effect_charged = tes3.createObject({
+        objectType = tes3.objectType.spell,
+        castType = tes3.spellType.ability,
+        id = id_charged,
+        name = "Shocked",
+        effects = {
+            -- during a thunderstorm, you are weak to shock
+            {
+                id = tes3.effect.weaknesstoShock,
+                min = 100,
+                max = 100,
+                rangeType = tes3.effectRange.self,
+            },
+        }
+    })
+
+    effect_warm = tes3.createObject({
+        objectType = tes3.objectType.spell,
+        castType = tes3.spellType.ability,
+        id = id_warm,
+        name = "Ash",
+        effects = {
+            -- during an ashstorm, you are weak to fire
+            {
+                id = tes3.effect.weaknesstoFire,
+                min = 100,
+                max = 100,
+                rangeType = tes3.effectRange.self,
             },
         }
     })
 end
 event.register(tes3.event.initialized, initializedCallback)
-
-
--- SPELLSWORD
-
--- --- @param e spellCastEventData
--- local function spellCastCallback(e)
---     -- get sourceeffects
---     local effects = e.source.effects
-
---     local spellswordEffects = {}
-
---     local hasElementalEffect = false
---     local hasBoundEffect = false
-
-
---     for i = #effects, 1, -1 do
---         local magicEffect = effects[i]
---         local magicEffectId = magicEffect.id
-
---         if magicEffectId == tes3.effect.fireDamage or
---             magicEffectId == tes3.effect.frostDamage or
---             magicEffectId == tes3.effect.shockDamage or
---             magicEffectId == tes3.effect.poison then
---             if magicEffect.rangeType == tes3.effectRange.self then
---                 hasElementalEffect = true
---             end
---         end
---         -- check bound effect
---         if magicEffectId == tes3.effect.boundDagger or
---             magicEffectId == tes3.effect.boundLongsword or
---             magicEffectId == tes3.effect.boundMace or
---             magicEffectId == tes3.effect.boundBattleAxe or
---             magicEffectId == tes3.effect.boundSpear or
---             magicEffectId == tes3.effect.boundLongbow then
---             if magicEffect.rangeType == tes3.effectRange.self then
---                 hasBoundEffect = true
---             end
---         end
-
---         if hasBoundEffect and hasElementalEffect then
---             table.insert(spellswordEffects, {
---                 id = magicEffectId,
---                 min = magicEffect.min,
---                 max = magicEffect.max,
---             })
---         end
---     end
-
---     -- if the spell has an elemental effect and a bound effect, add the spellsword effect
---     if hasElementalEffect and hasBoundEffect and #spellswordEffects > 0 then
---         local final_effects = {}
---         for index, value in ipairs(spellswordEffects) do
---             local min = value.min
---             local max = value.max
---             local id = value.id
-
---             table.insert(final_effects, {
---                 id = tes3.effect.fireShield,
---                 min = min,
---                 max = max,
---                 rangeType = tes3.effectRange.self,
---                 duration = 10,
---             })
---         end
-
---         local id = "rf_spellsword" -- TODO generate id
-
---         local spell_spellsword = tes3.createObject({
---             objectType = tes3.objectType.spell,
---             castType = tes3.spellType.ability,
---             id = id,
---             name = "Spellsword",
---             effects = final_effects,
---             duration = 10,
---         })
-
---         tes3.addSpell({
---             reference = e.caster,
---             spell = spell_spellsword
---         })
-
-
---         return false
---     end
--- end
--- event.register(tes3.event.spellCast, spellCastCallback)
-
--- local function myOnAttackCallback(e)
---     -- Someone other than the player is attacking.
---     if (e.reference ~= tes3.player) then
---         return
---     end
-
---     -- We hit someone!
---     if (e.targetReference ~= nil) then
---         -- check if I have the spellsword effect
---         if has_effect(e.reference.mobile, "rf_spellsword") then
---             tes3.messageBox("Spellsword: You hit %s!", e.targetReference.object.name or e.targetReference.object.id)
---             -- apply the effects
---         end
---     end
--- end
--- event.register(tes3.event.attack, myOnAttackCallback)
-
--- ENVIRONMENT EVENTS
-
-
--- --- @param e projectileExpireEventData
--- local function projectileExpireCallback(e)
---     local mobile = e.mobile
---     local z = mobile.position.z
---     local waterlevel = getWaterLevel(mobile.reference)
-
---     if z < (waterlevel + 6) then
---         mwse.log("Projectile expired at %s", z)
---         tes3.messageBox("Projectile expired at %s", z)
-
---         -- create explosion effect
-
-
---     end
--- end
--- event.register(tes3.event.projectileExpire, projectileExpireCallback)
