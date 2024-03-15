@@ -1,6 +1,6 @@
 local common = require("rfuzzo.ImmersiveTravel.common")
 
-local DEBUG = true
+local DEBUG = false
 
 local logger = require("logging.logger")
 local log = logger.new {
