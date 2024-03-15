@@ -7,7 +7,6 @@ local effect_cold
 local effect_charged
 local effect_warm
 
-
 local id_wet = "rf_ms_rain"
 -- resistances: fire
 -- weaknesses: shock
@@ -51,6 +50,23 @@ local function getSpellFromId(id)
     if id == id_warm then
         return effect_warm
     end
+end
+
+--- @param reference tes3reference
+--- @return number?
+local function getWaterLevel(reference)
+    if not reference.cell then
+        return nil
+    end
+    if not reference.cell.waterLevel then
+        return nil
+    end
+
+    local waterlevel = 0
+    if reference.cell and reference.cell.isInterior and reference.cell.waterLevel then
+        waterlevel = reference.cell.waterLevel
+    end
+    return waterlevel
 end
 
 --- @param mobile tes3mobileActor
@@ -97,23 +113,6 @@ local function remove_effect(mobile, effectname)
         })
         mwse.log("Removed effect from %s", mobile.reference)
     end
-end
-
---- @param reference tes3reference
---- @return number?
-local function getWaterLevel(reference)
-    if not reference.cell then
-        return nil
-    end
-    if not reference.cell.waterLevel then
-        return nil
-    end
-
-    local waterlevel = 0
-    if reference.cell and reference.cell.isInterior and reference.cell.waterLevel then
-        waterlevel = reference.cell.waterLevel
-    end
-    return waterlevel
 end
 
 --- @param mobile tes3mobileActor
