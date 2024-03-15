@@ -32,6 +32,12 @@ jobs:
           .\create_mod.ps1
           Move-Item -Path .\*.zip -Destination ..\build
 
+      - name: Pack MS mod
+        run: |
+          cd '.\MagicSynergies\'
+          .\create_mod.ps1
+          Move-Item -Path .\*.zip -Destination ..\build
+
       - name: Upload Artifacts 🔺 # The project is then uploaded as an artifact named 'site'.
         uses: actions/upload-artifact@v1
         with:
