@@ -311,7 +311,7 @@ local function handle_shock(reference, damage)
     end
 
     local threshold = get_threshold(reference, tes3.effect.shockDamage)
-    if reference.tempData.rf_ms_shock < threshold then
+    if reference.tempData.rf_ms_shock > threshold then
         -- reset tempdata
         reference.tempData.rf_ms_shock = 0
         -- add cooldown
@@ -354,7 +354,7 @@ local function handle_fire(reference, attackerReference, damage)
         -- mwse.log("Fire damage: %s", reference.tempData.rf_ms_fire)
         reference.tempData.rf_ms_fire_cooldown = true
         timer.start({
-            duration = 1,
+            duration = 2,
             callback = function()
                 reference.tempData.rf_ms_fire_cooldown = nil
             end
@@ -362,7 +362,7 @@ local function handle_fire(reference, attackerReference, damage)
     end
 
     local threshold = get_threshold(reference, tes3.effect.fireDamage)
-    if reference.tempData.rf_ms_fire < threshold then
+    if reference.tempData.rf_ms_fire > threshold then
         -- reset tempdata
         reference.tempData.rf_ms_fire = 0
         -- add cooldown
@@ -421,7 +421,7 @@ local function handle_frost(reference, damage)
     end
 
     local threshold = get_threshold(reference, tes3.effect.frostDamage)
-    if reference.tempData.rf_ms_frost < threshold then
+    if reference.tempData.rf_ms_frost > threshold then
         -- reset tempdata
         reference.tempData.rf_ms_frost = 0
         -- add cooldown
@@ -467,7 +467,7 @@ local function handle_poison(reference, damage)
 
     -- check if tempdata is over threshold
     local threshold = get_threshold(reference, tes3.effect.poison)
-    if reference.tempData.rf_ms_poison < threshold then
+    if reference.tempData.rf_ms_poison > threshold then
         -- reset tempdata
         reference.tempData.rf_ms_poison = 0
         -- add cooldown
