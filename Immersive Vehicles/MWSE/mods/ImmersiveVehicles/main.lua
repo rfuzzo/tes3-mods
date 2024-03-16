@@ -12,11 +12,10 @@ local log = logger.new {
 
 -- CONSTANTS
 
--- TODO read from files
 ---@type string[]
 local mounts = {}
 
-local localmodpath = "mods\\rfuzzo\\ImmersiveVehicles\\"
+local localmodpath = "mods\\ImmersiveVehicles\\"
 local fullmodpath = "Data Files\\MWSE\\" .. localmodpath
 
 local sway_max_amplitude = 3       -- how much the ship can sway in a turn
@@ -603,6 +602,13 @@ local function startTravel()
     -- fade out
     tes3.fadeOut({ duration = 1 })
 
+    -- register events
+    event.register(tes3.event.mouseWheel, mouseWheelCallback)
+    event.register(tes3.event.keyDown, mountKeyDownCallback)
+    event.register(tes3.event.keyUp, keyUpCallback)
+    event.register(tes3.event.simulated, mountSimulatedCallback)
+
+
     -- fade back in
     timer.start({
         type = timer.simulate,
@@ -692,11 +698,6 @@ local function startTravel()
                 loop = true
             })
 
-            -- register events
-            event.register(tes3.event.mouseWheel, mouseWheelCallback)
-            event.register(tes3.event.keyDown, mountKeyDownCallback)
-            event.register(tes3.event.keyUp, keyUpCallback)
-            event.register(tes3.event.simulated, mountSimulatedCallback)
 
             log:debug("starting timer")
             myTimer = timer.start({
@@ -737,7 +738,7 @@ local function keyDownCallback(e)
     -- leave editor and spawn vehicle
     if DEBUG then
         if e.keyCode == tes3.scanCode["o"] and editmode and mountMarker and dbg_mount_id then
-            -- add vehicles selections
+            -- spawn vehicle
             local obj = tes3.createReference {
                 object = dbg_mount_id,
                 position = mountMarker.translation,
@@ -826,6 +827,101 @@ event.register(tes3.event.load, loadCallback)
 local function activateCallback(e) activateMount(e.target) end
 event.register(tes3.event.activate, activateCallback)
 
+
+-- //////////////////////////////////////////////////////////////////////////////////////////
+-- UI MENU
+
+local function spawnGondola(ref)
+    local id = "a_gondola_01"
+    mountData = loadMountData(getMountForId(id))
+    if not mountData then return nil end
+
+    local positionInWater = ref.position
+    -- TODO find closest water to ref
+
+
+    local obj = tes3.createReference {
+        object = id,
+        position = positionInWater,
+        orientation = ref.orientation,
+        scale = mountData.scale
+    }
+end
+
+--- no idea why this is needed
+---@param menu tes3uiElement
+local function updateServiceButton(menu)
+    timer.frame.delayOneFrame(function()
+        if not menu then return end
+        local serviceButton = menu:findChild("rf_id_purchase_topic")
+        if not serviceButton then return end
+        serviceButton.visible = true
+        serviceButton.disabled = false
+    end)
+end
+
+---@param menu tes3uiElement
+---@param ref tes3reference
+local function createPurchaseTopic(menu, ref)
+    local divider = menu:findChild("MenuDialog_divider")
+    local topicsList = divider.parent
+    local button = topicsList:createTextSelect({
+        id = "rf_id_purchase_topic",
+        text = "Purchase..."
+    })
+    button.widthProportional = 1.0
+    button.visible = true
+    button.disabled = false
+
+    topicsList:reorderChildren(divider, button, 1)
+
+    button:register("mouseClick", function()
+        tes3ui.showMessageMenu {
+            message = "Do you want to buy a canoe for 100g?",
+            buttons = {
+                {
+                    text = "Yes",
+                    callback = function()
+                        -- TODO deduct gold
+                        -- check if player has enough gold
+
+
+
+                        tes3.messageBox("You bought a canoe!")
+                        spawnGondola(ref)
+
+                        tes3ui.leaveMenuMode()
+                    end
+                }
+            },
+            cancels = true
+        }
+    end)
+    menu:registerAfter("update", function() updateServiceButton(menu) end)
+end
+
+-- upon entering the dialog menu, create the travel menu
+---@param e uiActivatedEventData
+local function onMenuDialog(e)
+    local menuDialog = e.element
+    local mobileActor = menuDialog:getPropertyObject("PartHyperText_actor") ---@cast mobileActor tes3mobileActor
+    if mobileActor.actorType == tes3.actorType.npc then
+        local ref = mobileActor.reference
+        local obj = ref.baseObject
+        local npc = obj ---@cast obj tes3npc
+
+        -- check if npc is Shipmaster
+        if npc.class.id == "Shipmaster" then
+            log:debug("createPurchaseTopic for %s", npc.id)
+            createPurchaseTopic(menuDialog, ref)
+            menuDialog:updateLayout()
+        end
+    end
+end
+event.register("uiActivated", onMenuDialog, { filter = "MenuDialog" })
+
+-- //////////////////////////////////////////////////////////////////////////////////////////
+-- CRAFTING FRAMEWORK
 -- RECIPES
 
 local CraftingFramework = include("CraftingFramework")
