@@ -1,11 +1,11 @@
 @ECHO off
 
-set "location=D:\games\Morrowind2\Data Files"
+set "location=C:\games\Morrowind\Data Files"
 set "cd=%CD%"
 
 echo %cd%
 
-mklink /J "%location%\MWSE\mods\rfuzzo\ImmersiveVehicles" "%cd%\MWSE\mods\rfuzzo\ImmersiveVehicles"
+mklink /J "%location%\MWSE\mods\ImmersiveVehicles" "%cd%\MWSE\mods\ImmersiveVehicles"
 
 pause
 
