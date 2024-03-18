@@ -1,0 +1,46 @@
+{
+  "sound": [
+    "Boat Creak"
+  ],
+  "loopSound": true,
+  "mesh": "dim\\dim_mushroomdola1.nif",
+  "offset": 40,
+  "sway": 1,
+  "speed": 2,
+  "turnspeed": 30,
+  "scale": 1,
+  "slots": [
+    {
+      "animationGroup": [
+        "idle6"
+      ],
+      "animationFile": "VA_sitting.nif",
+      "position": {
+        "x": -30,
+        "y": 0,
+        "z": -13
+      }
+    }
+  ],
+  "clutter": [],
+  "minSpeed": -2,
+  "maxSpeed": 7,
+  "changeSpeed": 1.5,
+  "freedomtype": "boat",
+  "name": "Mushroomdola",
+  "price": 100,
+  "materials": [
+    {
+      "material": "wood",
+      "count": 10
+    },
+    {
+      "material": "rope",
+      "count": 3
+    },
+    {
+      "material": "fabric",
+      "count": 7
+    }
+  ]
+}

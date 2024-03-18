@@ -1,0 +1,42 @@
+{
+  "sound": [
+    "Boat Creak"
+  ],
+  "loopSound": true,
+  "mesh": "dim\\dim_telvcatboatS.nif",
+  "offset": 0,
+  "sway": 1,
+  "speed": 2,
+  "turnspeed": 30,
+  "scale": 1,
+  "slots": [
+    {
+      "position": {
+        "x": -109,
+        "y": -403,
+        "z": 111
+      }
+    }
+  ],
+  "clutter": [],
+  "minSpeed": -2,
+  "maxSpeed": 7,
+  "changeSpeed": 1.5,
+  "freedomtype": "boat",
+  "name": "Catboat",
+  "price": 100,
+  "materials": [
+    {
+      "material": "wood",
+      "count": 50
+    },
+    {
+      "material": "rope",
+      "count": 6
+    },
+    {
+      "material": "fabric",
+      "count": 40
+    }
+  ]
+}

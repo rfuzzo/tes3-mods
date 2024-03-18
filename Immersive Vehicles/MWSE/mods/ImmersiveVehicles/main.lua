@@ -214,13 +214,15 @@ local function mountSimulatedCallback(e)
     -- collision
     if not editmode and is_on_mount and mountHandle and mountHandle:valid() and mountData then
         -- raytest at sealevel to detect shore transition
-        local bbox = mountHandle:getObject().object.boundingBox
+        local box = mountHandle:getObject().object.boundingBox
+        local max = box.max * mountData.scale
+        local min = box.min * mountData.scale
         local t = mountHandle:getObject().sceneNode.worldTransform
 
         if current_speed > 0 then
             -- detect shore
             if mountData.freedomtype == "boat" then
-                local bowPos = t * tes3vector3.new(0, bbox.max.y, bbox.min.z + mountData.offset)
+                local bowPos = t * tes3vector3.new(0, max.y, min.z + (mountData.offset * mountData.scale))
                 local hitResult1 = tes3.rayTest({
                     position = bowPos,
                     direction = tes3vector3.new(0, 0, -1),
@@ -230,25 +232,28 @@ local function mountSimulatedCallback(e)
                 if (hitResult1 == nil) then
                     current_speed = 0
                     if DEBUG then tes3.messageBox("HIT Shore Fwd") end
+                    log:debug("HIT Shore Fwd")
                 end
             end
 
             -- raytest from above to detect objects in water
-            local bowPosTop = t * tes3vector3.new(0, bbox.max.y, bbox.max.z)
+            local bowPosTop = t * tes3vector3.new(0, max.y, max.z)
             local hitResult2 = tes3.rayTest({
                 position = bowPosTop,
                 direction = tes3vector3.new(0, 0, -1),
                 root = tes3.game.worldObjectRoot,
-                maxDistance = bbox.max.z
+                ignore = { mountHandle:getObject() },
+                maxDistance = max.z * mountData.scale
             })
             if (hitResult2 ~= nil) then
                 current_speed = 0
                 if DEBUG then tes3.messageBox("HIT Object Fwd") end
+                log:debug("HIT Object Fwd")
             end
         elseif current_speed < 0 then
             -- detect shore
             if mountData.freedomtype == "boat" then
-                local sternPos = t * tes3vector3.new(0, bbox.min.y, bbox.min.z + mountData.offset)
+                local sternPos = t * tes3vector3.new(0, min.y, min.z + (mountData.offset * mountData.scale))
                 local hitResult1 = tes3.rayTest({
                     position = sternPos,
                     direction = tes3vector3.new(0, 0, -1),
@@ -258,20 +263,23 @@ local function mountSimulatedCallback(e)
                 if (hitResult1 == nil) then
                     current_speed = 0
                     if DEBUG then tes3.messageBox("HIT Shore Back") end
+                    log:debug("HIT Shore Back")
                 end
             end
 
             -- raytest from above to detect objects in water
-            local sternPosTop = t * tes3vector3.new(0, bbox.min.y, bbox.max.z)
+            local sternPosTop = t * tes3vector3.new(0, min.y, max.z)
             local hitResult2 = tes3.rayTest({
                 position = sternPosTop,
                 direction = tes3vector3.new(0, 0, -1),
                 root = tes3.game.worldObjectRoot,
-                maxDistance = bbox.max.z
+                ignore = { mountHandle:getObject() },
+                maxDistance = max.z
             })
             if (hitResult2 ~= nil) then
                 current_speed = 0
                 if DEBUG then tes3.messageBox("HIT Object Back") end
+                log:debug("HIT Object Back")
             end
         end
     end
@@ -859,10 +867,12 @@ local function trySpawnBoat(ref, id)
     if not mountData then return false end
 
     local refpos = ref.position
-    log:debug("Try spawning gondola at position %s", refpos)
+    log:debug("Try spawning %s at position %s", id, refpos)
 
-    -- local t = ref.sceneNode.worldTransform
-    local rotation = ref.sceneNode.worldTransform.rotation
+    -- local rotation = ref.sceneNode.worldTransform.rotation
+    local orientation = tes3.player.orientation
+    local rotation = tes3matrix33.new()
+    rotation:fromEulerXYZ(orientation.x, orientation.y, orientation.z)
 
     -- go in concentric circles around ref
     for i = 1, 10, 1 do
@@ -895,7 +905,9 @@ local function trySpawnBoat(ref, id)
                 local translation = testpos
                 local t = tes3transform:new(rotation, translation, scale)
 
-                local bowPosTop = t * tes3vector3.new(0, 100, refpos.z + 100)
+                -- TODO get proper bounding box
+                local sternAftOffset = 300 * scale
+                local bowPosTop = t * tes3vector3.new(0, sternAftOffset, refpos.z + 100)
                 local hitResultBow = tes3.rayTest({
                     position = bowPosTop,
                     direction = tes3vector3.new(0, 0, -1),
@@ -903,7 +915,7 @@ local function trySpawnBoat(ref, id)
                     maxDistance = 1024
                 })
 
-                local sternPosTop = t * tes3vector3.new(0, -100, refpos.z + 100)
+                local sternPosTop = t * tes3vector3.new(0, -sternAftOffset, refpos.z + 100)
                 local hitResultStern = tes3.rayTest({
                     position = sternPosTop,
                     direction = tes3vector3.new(0, 0, -1),
@@ -922,7 +934,7 @@ local function trySpawnBoat(ref, id)
                         orientation = ref.orientation,
                         scale = mountData.scale
                     }
-                    log:debug("Spawning gondola at %s", pos)
+                    log:debug("Spawning %s at %s", id, pos)
                     return true
                 end
             end
