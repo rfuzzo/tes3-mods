@@ -1,4 +1,4 @@
-$modname = "PickpocketMinigame.zip"
+$modname = "compare_tooltips_mwse.zip"
 
 if (Test-Path $modname) {
     Remove-Item -Path $modname

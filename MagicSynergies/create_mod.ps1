@@ -1,7 +1,7 @@
-Copy-Item -PATH MWSE -Destination "_out/MWSE" -Recurse
+$modname = "MagicSynergies.zip"
 
-if (Test-Path MagicSynergies.zip) {
-	Remove-Item -Path MagicSynergies.zip
+if (Test-Path $modname) {
+	Remove-Item -Path $modname
 }
-Compress-Archive -PATH _out/* -DestinationPath "MagicSynergies.zip"
-Remove-Item -Path _out -Recurse
+
+Compress-Archive -Path "MWSE", "*.toml"  -DestinationPath $modname

@@ -1,4 +1,4 @@
-$modname = "PickpocketMinigame.zip"
+$modname = "Immersive Bosmer Corpse Disposal.zip"
 
 if (Test-Path $modname) {
     Remove-Item -Path $modname

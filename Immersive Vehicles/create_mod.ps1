@@ -1,5 +1,7 @@
-if (Test-Path ImmersiveVehicles.zip) {
-	Remove-Item -Path ImmersiveVehicles.zip
+$modname = "ImmersiveVehicles.zip"
+
+if (Test-Path $modname) {
+	Remove-Item -Path $modname
 }
 
-Compress-Archive -Path "MWSE", "*.toml"  -DestinationPath "ImmersiveVehicles.zip"
+Compress-Archive -Path "MWSE", "*.toml"  -DestinationPath $modname

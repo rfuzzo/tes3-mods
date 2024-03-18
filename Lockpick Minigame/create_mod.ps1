@@ -1,5 +1,7 @@
-Copy-Item -PATH MWSE -Destination "_out/MWSE" -Recurse
+$modname = "LockpickMinigame.zip"
 
-Remove-Item -Path LockpickMinigame.zip
-Compress-Archive -PATH _out/* -DestinationPath "LockpickMinigame.zip"
-Remove-Item -Path _out -Recurse
+if (Test-Path $modname) {
+    Remove-Item -Path $modname
+}
+
+Compress-Archive -Path "MWSE", "*.toml"  -DestinationPath $modname

@@ -19,24 +19,8 @@ jobs:
       - name: Checkout 🛎️
         uses: actions/checkout@v3
 
-      - name: Pack IT mod
-        run: |
-          mkdir build
-          cd '.\Immersive Travel\'
-          .\create_mod.ps1
-          Move-Item -Path .\*.zip -Destination ..\build
-
-      - name: Pack IV mod
-        run: |
-          cd '.\Immersive Vehicles\'
-          .\create_mod.ps1
-          Move-Item -Path .\*.zip -Destination ..\build
-
-      - name: Pack MS mod
-        run: |
-          cd '.\MagicSynergies\'
-          .\create_mod.ps1
-          Move-Item -Path .\*.zip -Destination ..\build
+      - name: Pack mods
+        run: .\create_mods.ps1
 
       - name: Upload Artifacts 🔺 # The project is then uploaded as an artifact named 'site'.
         uses: actions/upload-artifact@v1

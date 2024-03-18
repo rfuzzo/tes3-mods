@@ -1,5 +1,7 @@
-Copy-Item -PATH MWSE -Destination "_out/MWSE" -Recurse
+$modname = "simplelevel.zip"
 
-Remove-Item -Path simplelevel.zip
-Compress-Archive -PATH _out/* -DestinationPath "simplelevel.zip"
-Remove-Item -Path _out -Recurse
+if (Test-Path $modname) {
+    Remove-Item -Path $modname
+}
+
+Compress-Archive -Path "MWSE", "*.toml"  -DestinationPath $modname

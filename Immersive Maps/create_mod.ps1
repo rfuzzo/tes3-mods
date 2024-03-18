@@ -10,6 +10,8 @@ Copy-Item -PATH immersive_maps_gridmap.esp -Destination "_out/02 Gridmaps Integr
 mkdir "_out/03 Mels Map Pack Integration"
 Copy-Item -PATH immersive_maps_mel.esp -Destination "_out/03 Mels Map Pack Integration"
 
-Remove-Item -Path ImmersiveMaps.zip
+if (Test-Path ImmersiveMaps.zip) {
+    Remove-Item -Path ImmersiveMaps.zip
+}
 Compress-Archive -PATH _out/* -DestinationPath "ImmersiveMaps.zip"
 Remove-Item -Path _out -Recurse

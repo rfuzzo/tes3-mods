@@ -1,6 +1,7 @@
-Copy-Item -PATH MWSE -Destination "_out/MWSE" -Recurse
+$modname = "AudiobooksOfMorrowind_mwse.zip"
 
+if (Test-Path $modname) {
+    Remove-Item -Path $modname
+}
 
-Remove-Item -Path AudiobooksOfMorrowind_mwse.zip
-Compress-Archive -PATH _out/* -DestinationPath "AudiobooksOfMorrowind_mwse.zip"
-Remove-Item -Path _out -Recurse
+Compress-Archive -Path "MWSE", "*.toml"  -DestinationPath $modname
