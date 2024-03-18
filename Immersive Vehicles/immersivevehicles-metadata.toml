@@ -11,14 +11,3 @@ lua-mod = "rfuzzo.ImmersiveVehicles"
 
 [dependencies.mwse]
 buildnumber = 3676
-
-[dependencies.mods."Immersive Travel"]
-plugin = "immersivetravel.esm"
-mwse-module = "rfuzzo.ImmersiveTravel.common"
-version = ">=1.1.0"
-url = "https://www.nexusmods.com/morrowind/mods/54063"
-
-# [dependencies.mods."The Crafting Framework"]
-# mwse-module = "CraftingFramework"
-# version = "^1.21.0"
-# url = "https://www.nexusmods.com/morrowind/mods/51009?tab=files"
