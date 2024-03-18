@@ -44,6 +44,8 @@
   "maxSpeed": 7,
   "changeSpeed": 1.5,
   "freedomtype": "boat",
+  "name": "Gondola",
+  "price": 100,
   "materials": [
     {
       "material": "wood",

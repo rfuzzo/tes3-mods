@@ -72,6 +72,24 @@ local function getGroundZ(from)
     return nil
 end
 
+--- @param from tes3vector3
+--- @return number|nil
+local function testCollisionZ(from)
+    local rayhit = tes3.rayTest {
+        position = from,
+        direction = tes3vector3.new(0, 0, -1),
+        returnNormal = true,
+        root = tes3.game.worldObjectRoot
+    }
+
+    if (rayhit) then
+        local to = rayhit.intersection
+        return to.z
+    end
+
+    return nil
+end
+
 --- EVENTS
 
 --- @param e mouseWheelEventData
@@ -200,6 +218,7 @@ local function mountSimulatedCallback(e)
         local t = mountHandle:getObject().sceneNode.worldTransform
 
         if current_speed > 0 then
+            -- detect shore
             if mountData.freedomtype == "boat" then
                 local bowPos = t * tes3vector3.new(0, bbox.max.y, bbox.min.z + mountData.offset)
                 local hitResult1 = tes3.rayTest({
@@ -227,6 +246,7 @@ local function mountSimulatedCallback(e)
                 if DEBUG then tes3.messageBox("HIT Object Fwd") end
             end
         elseif current_speed < 0 then
+            -- detect shore
             if mountData.freedomtype == "boat" then
                 local sternPos = t * tes3vector3.new(0, bbox.min.y, bbox.min.z + mountData.offset)
                 local hitResult1 = tes3.rayTest({
@@ -831,21 +851,87 @@ event.register(tes3.event.activate, activateCallback)
 -- //////////////////////////////////////////////////////////////////////////////////////////
 -- UI MENU
 
-local function spawnGondola(ref)
-    local id = "a_gondola_01"
+--- @param ref tes3reference
+--- @param id string
+---@return boolean
+local function trySpawnBoat(ref, id)
     mountData = loadMountData(getMountForId(id))
-    if not mountData then return nil end
+    if not mountData then return false end
 
-    local positionInWater = ref.position
-    -- TODO find closest water to ref
+    local refpos = ref.position
+    log:debug("Try spawning gondola at position %s", refpos)
 
+    -- local t = ref.sceneNode.worldTransform
+    local rotation = ref.sceneNode.worldTransform.rotation
 
-    local obj = tes3.createReference {
-        object = id,
-        position = positionInWater,
-        orientation = ref.orientation,
-        scale = mountData.scale
-    }
+    -- go in concentric circles around ref
+    for i = 1, 10, 1 do
+        local radius = i * 50
+        -- check in a circle around ref in 45 degree steps
+        for angle = 0, 360, 45 do
+            local angle_rad = math.rad(angle)
+
+            local x = refpos.x + radius * math.cos(angle_rad)
+            local y = refpos.y + radius * math.sin(angle_rad)
+            local testpos = tes3vector3.new(x, y, refpos.z + 100)
+
+            -- raycast fore and aft to check boundaries
+            local hitResult = tes3.rayTest({
+                position = testpos,
+                direction = tes3vector3.new(0, 0, -1),
+                root = tes3.game.worldObjectRoot,
+                maxDistance = 1024
+            })
+
+            local z = nil
+            if hitResult then
+                z = hitResult.intersection.z
+            end
+            log:debug("#(%s,%s) test %s: z %s", i, angle, testpos, z)
+
+            if not hitResult then
+                -- also test bow and stern
+                local scale = mountData.scale
+                local translation = testpos
+                local t = tes3transform:new(rotation, translation, scale)
+
+                local bowPosTop = t * tes3vector3.new(0, 100, refpos.z + 100)
+                local hitResultBow = tes3.rayTest({
+                    position = bowPosTop,
+                    direction = tes3vector3.new(0, 0, -1),
+                    root = tes3.game.worldObjectRoot,
+                    maxDistance = 1024
+                })
+
+                local sternPosTop = t * tes3vector3.new(0, -100, refpos.z + 100)
+                local hitResultStern = tes3.rayTest({
+                    position = sternPosTop,
+                    direction = tes3vector3.new(0, 0, -1),
+                    root = tes3.game.worldObjectRoot,
+                    maxDistance = 1024
+                })
+
+                log:debug("bowresult: %s, sternresult: %s", hitResultBow, hitResultStern)
+
+                if hitResultBow == nil and hitResultStern == nil then
+                    local posz = mountData.offset * mountData.scale
+                    local pos = tes3vector3.new(x, y, posz)
+                    local obj = tes3.createReference {
+                        object = id,
+                        position = pos,
+                        orientation = ref.orientation,
+                        scale = mountData.scale
+                    }
+                    log:debug("Spawning gondola at %s", pos)
+                    return true
+                end
+            end
+        end
+    end
+
+    log:debug("No suitable position found")
+    tes3.messageBox("No suitable position found")
+    return false
 end
 
 --- no idea why this is needed
@@ -867,7 +953,7 @@ local function createPurchaseTopic(menu, ref)
     local topicsList = divider.parent
     local button = topicsList:createTextSelect({
         id = "rf_id_purchase_topic",
-        text = "Purchase..."
+        text = "Purchase"
     })
     button.widthProportional = 1.0
     button.visible = true
@@ -876,26 +962,41 @@ local function createPurchaseTopic(menu, ref)
     topicsList:reorderChildren(divider, button, 1)
 
     button:register("mouseClick", function()
-        tes3ui.showMessageMenu {
-            message = "Do you want to buy a canoe for 100g?",
-            buttons = {
-                {
-                    text = "Yes",
-                    callback = function()
-                        -- TODO deduct gold
-                        -- check if player has enough gold
+        local buttons = {}
+        local mountsServices = loadMounts()
 
+        for _, id in ipairs(mountsServices) do
+            local data = loadMountData(getMountForId(id))
+            -- check if data is a boat
+            -- TODO message by vehicle
+            if data and data.freedomtype == "boat" then
+                local buttonText = string.format("Buy %s for %s gold", data.name, data.price)
+                table.insert(buttons, {
+                    text = buttonText,
+                    callback = function(e)
+                        -- check gold
+                        local goldCount = tes3.getPlayerGold()
+                        if data.price and goldCount < data.price then
+                            tes3.messageBox("You don't have enough gold")
+                            return
+                        end
 
-
-                        tes3.messageBox("You bought a canoe!")
-                        spawnGondola(ref)
+                        local success = tes3.payMerchant({ merchant = ref.mobile, cost = data.price })
+                        if success then
+                            if trySpawnBoat(ref, id) then
+                                tes3.messageBox("You bought a new boat!")
+                            end
+                        else
+                            tes3.messageBox("You don't have enough gold")
+                        end
 
                         tes3ui.leaveMenuMode()
-                    end
-                }
-            },
-            cancels = true
-        }
+                    end,
+                })
+            end
+        end
+        -- TODO message by class
+        tes3ui.showMessageMenu({ message = "Purchase a boat", buttons = buttons, cancels = true })
     end)
     menu:registerAfter("update", function() updateServiceButton(menu) end)
 end
