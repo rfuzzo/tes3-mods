@@ -1035,7 +1035,6 @@ event.register("uiActivated", onMenuDialog, { filter = "MenuDialog" })
 
 -- //////////////////////////////////////////////////////////////////////////////////////////
 -- CRAFTING FRAMEWORK
--- RECIPES
 
 local CraftingFramework = include("CraftingFramework")
 if not CraftingFramework then return end
@@ -1046,6 +1045,27 @@ local enterVehicle = {
         activateMount(e.reference)
     end
 }
+
+-- MATERIALS
+
+--Register your materials
+local materials = {
+    {
+        id = "mushroom",
+        name = "Mushroom",
+        ids = {
+            "ingred_russula_01",
+            "ingred_coprinus_01",
+            "ingred_bc_bungler's_bane",
+            "ingred_bc_hypha_facia",
+            "ingred_bloat_01"
+        }
+    },
+
+}
+CraftingFramework.Material:registerMaterials(materials)
+
+-- RECIPES
 
 ---get recipe with data
 ---@param id string
@@ -1059,7 +1079,7 @@ local function getRecipeFor(id)
             category = "Vehicles",
             materials = data.materials,
             scale = data.scale,
-            craftedOnly = false,
+            craftedOnly = true,
             additionalMenuOptions = { enterVehicle },
             -- secondaryMenu         = false,
             quickActivateCallback = function(_, e) activateMount(e.reference) end
@@ -1070,6 +1090,7 @@ local function getRecipeFor(id)
     return nil
 end
 
+---@diagnostic disable-next-line: undefined-doc-name
 ---@type CraftingFramework.Recipe.data[]
 local recipes = {}
 mounts = loadMounts()

@@ -32,15 +32,15 @@
   "materials": [
     {
       "material": "wood",
-      "count": 50
+      "count": 30
     },
     {
       "material": "rope",
-      "count": 6
+      "count": 10
     },
     {
       "material": "fabric",
-      "count": 40
+      "count": 20
     }
   ]
 }

@@ -32,11 +32,11 @@
     },
     {
       "material": "rope",
-      "count": 6
+      "count": 20
     },
     {
       "material": "fabric",
-      "count": 40
+      "count": 30
     }
   ]
 }
