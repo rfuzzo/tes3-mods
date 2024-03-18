@@ -10,6 +10,24 @@ local log = logger.new {
     includeTimestamp = true
 }
 
+-- TYPES
+
+---@class MountDataEx : MountData
+---@field minSpeed number?
+---@field maxSpeed number?
+---@field changeSpeed number?
+---@field freedomtype string? -- flying, boat, ground
+---@field accelerateAnimation string? -- animation to play while accelerating. slowing
+---@field forwardAnimation string? -- walk animation
+---@diagnostic disable-next-line: undefined-doc-name
+---@field materials CraftingFramework.MaterialRequirement[]? -- recipe materials for crafting the mount
+---@field nodeName string? -- niNode, slots are relative tho this
+---@field nodeOffset PositionRecord? -- position of the nodeName relative to sceneNode
+---@field name string? -- name of the mount
+---@field price number? -- price of the mount
+---@field length number? -- length of the mount
+---@field width number? -- width of the mount
+
 -- CONSTANTS
 
 ---@type string[]
@@ -41,7 +59,7 @@ local last_sway = 0 ---@type number
 local current_speed = 0 ---@type number
 local is_on_mount = false
 
-local mountData = nil ---@type MountData|nil
+local mountData = nil ---@type MountDataEx|nil
 local mountHandle = nil ---@type mwseSafeObjectHandle|nil
 
 local travelMarker = nil ---@type niNode?
@@ -389,7 +407,7 @@ end
 
 ---Checks if a reference is on water
 ---@param reference tes3reference
----@param data MountData
+---@param data MountDataEx
 ---@return boolean
 local function onWater(reference, data)
     local cell = tes3.player.cell
@@ -412,10 +430,10 @@ end
 
 --- load json static mount data
 ---@param id string
----@return MountData|nil
+---@return MountDataEx|nil
 local function loadMountData(id)
     local filePath = localmodpath .. "mounts\\" .. id .. ".json"
-    local result = nil ---@type MountData?
+    local result = nil ---@type MountDataEx?
     result = json.loadfile(filePath)
     if result then
         log:debug("loaded mount: " .. id)
@@ -711,6 +729,8 @@ local function startTravel()
                     end
                 end
             end
+
+            -- TODO register passengers
 
             -- start timer
             cameraOffset = tes3.get3rdPersonCameraOffset()
@@ -1093,7 +1113,7 @@ end
 ---@diagnostic disable-next-line: undefined-doc-name
 ---@type CraftingFramework.Recipe.data[]
 local recipes = {}
-mounts = loadMounts()
+local mounts = loadMounts()
 for _, id in ipairs(mounts) do
     local r = getRecipeFor(id)
     if r then

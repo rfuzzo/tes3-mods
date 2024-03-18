@@ -48,17 +48,6 @@
 ---@field clutter Clutter[]?
 ---@field idList string[]?
 ---@field scale number?
----@field minSpeed number?
----@field maxSpeed number?
----@field changeSpeed number?
----@field freedomtype string? -- flying, boat, ground
----@field accelerateAnimation string? -- animation to play while accelerating. slowing
----@field forwardAnimation string? -- walk animation
----@field materials CraftingFramework.MaterialRequirement[]? -- recipe materials for crafting the mount
----@field nodeName string? -- niNode, slots are relative tho this
----@field nodeOffset PositionRecord? -- position of the nodeName relative to sceneNode
----@field name string? -- name of the mount
----@field price number? -- price of the mount
 
 ---@class ReferenceRecord
 ---@field cell tes3cell The cell
