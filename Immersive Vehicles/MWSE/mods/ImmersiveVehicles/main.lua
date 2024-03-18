@@ -31,7 +31,7 @@ local log = logger.new {
 -- CONSTANTS
 
 ---@type string[]
-local mounts = {}
+local mount_ids = {}
 
 local localmodpath = "mods\\ImmersiveVehicles\\"
 local fullmodpath = "Data Files\\MWSE\\" .. localmodpath
@@ -454,7 +454,7 @@ end
 --- check if valid mount
 ---@param id string
 ---@return boolean
-local function validMount(id) return common.is_in(mounts, id) end
+local function validMount(id) return common.is_in(mount_ids, id) end
 
 --- Load all mounts
 ---@return table<string,ServiceData>|nil
@@ -802,7 +802,7 @@ local function keyDownCallback(e)
             editmode = false
         elseif e.keyCode == tes3.scanCode["o"] and not editmode and not is_on_mount then
             local buttons = {}
-            mounts = loadMounts()
+            local mounts = loadMounts()
             for _, id in ipairs(mounts) do
                 table.insert(buttons, {
                     text = id,
