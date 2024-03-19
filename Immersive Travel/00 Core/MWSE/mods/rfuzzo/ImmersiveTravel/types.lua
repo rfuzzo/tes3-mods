@@ -48,6 +48,10 @@
 ---@field clutter Clutter[]?
 ---@field idList string[]?
 ---@field scale number?
+---@field nodeName string? -- niNode, slots are relative tho this
+---@field nodeOffset PositionRecord? -- position of the nodeName relative to sceneNode
+---@field forwardAnimation string? -- walk animation
+
 
 ---@class ReferenceRecord
 ---@field cell tes3cell The cell

@@ -8,6 +8,7 @@ mwse real-time travel mod
 --
 require("rfuzzo.ImmersiveTravel.types")
 local common = require("rfuzzo.ImmersiveTravel.common")
+local interop = require("rfuzzo.ImmersiveTravel.interop")
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// CONFIGURATION
@@ -234,6 +235,22 @@ end
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// EVENTS
 
+--- @param e cellChangedEventData
+local function cellChangedCallback(e)
+    if not isTraveling() then return end
+    if not e.cell.isInterior then
+        local cellKey = string.format("(%s, %s)", e.cell.gridX, e.cell.gridY)
+        -- mwse.log("cell changed: %s", e.cell.editorName)
+        -- mwse.log("cell key: %s", cellKey)
+
+        -- check if quips contain key
+        if interop.quips[cellKey] then
+            local quip = interop.quips[cellKey]
+            tes3.messageBox(quip)
+        end
+    end
+end
+
 --- @param e mouseWheelEventData
 local function mouseWheelCallback(e)
     local isControlDown = tes3.worldController.inputController:isControlDown()
@@ -420,6 +437,7 @@ local function cleanup()
     event.unregister(tes3.event.keyDown, keyDownCallback)
     event.unregister(tes3.event.save, saveCallback)
     event.unregister(tes3.event.preventRest, preventRestCallback)
+    event.unregister(tes3.event.cellChanged, cellChangedCallback)
 end
 
 -- what happens when we reach the destination
@@ -962,6 +980,7 @@ local function startTravel(start, destination, service, guide)
             event.register(tes3.event.keyDown, keyDownCallback)
             event.register(tes3.event.save, saveCallback)
             event.register(tes3.event.preventRest, preventRestCallback)
+            event.register(tes3.event.cellChanged, cellChangedCallback)
 
             log:debug("starting timer")
             myTimer = timer.start({
@@ -1179,9 +1198,21 @@ event.register("uiActivated", onMenuDialog, { filter = "MenuDialog" })
 -- ////////////// CONFIG
 require("rfuzzo.ImmersiveTravel.mcm")
 
--- sitting mod
+-- sitting mod anims:
 -- idle2 ... praying
 -- idle3 ... crossed legs
 -- idle4 ... crossed legs
 -- idle5 ... hugging legs
 -- idle6 ... sitting
+
+-- INTEROP EXAMPLE
+--[[
+
+local interop = include("rfuzzo.ImmersiveTravel.interop")
+if interop then
+
+interop.insertQuip("(-6, -4)",
+    "Bitter Coast Region: Home to the dense marshes and treacherous swamps, the Bitter Coast is a challenging yet rewarding region for adventurers. Watch out for dangerous creatures and hidden treasures amidst the murky waters.")
+end
+
+]]

@@ -18,11 +18,8 @@ local log = logger.new {
 ---@field changeSpeed number?
 ---@field freedomtype string? -- flying, boat, ground
 ---@field accelerateAnimation string? -- animation to play while accelerating. slowing
----@field forwardAnimation string? -- walk animation
 ---@diagnostic disable-next-line: undefined-doc-name
 ---@field materials CraftingFramework.MaterialRequirement[]? -- recipe materials for crafting the mount
----@field nodeName string? -- niNode, slots are relative tho this
----@field nodeOffset PositionRecord? -- position of the nodeName relative to sceneNode
 ---@field name string? -- name of the mount
 ---@field price number? -- price of the mount
 ---@field length number? -- length of the mount
@@ -953,6 +950,22 @@ local function trySpawnBoat(ref, id)
             local x = refpos.x + radius * math.cos(angle_rad)
             local y = refpos.y + radius * math.sin(angle_rad)
             local testpos = tes3vector3.new(x, y, data.offset)
+
+            -- check angles in 45 degree steps
+
+
+            -- for z = 0, 360, 45 do
+            --     -- rotate matrix 45 degrees
+            --     if z > 0 then
+            --         rotation = rotation * tes3matrix33.new(
+            --             math.cos(math.rad(z)), -math.sin(math.rad(z)), 0,
+            --             math.sin(math.rad(z)), math.cos(math.rad(z)), 0,
+            --             0, 0, 1
+            --         )
+            --     end
+
+
+
             local t = tes3transform:new(rotation, testpos, data.scale)
 
             -- test four corners of bounding box from top and X
@@ -967,6 +980,9 @@ local function trySpawnBoat(ref, id)
             tests[7] = t * tes3vector3.new(min.x, 0, 0)
             tests[8] = t * tes3vector3.new(0, max.y, 0)
             tests[9] = t * tes3vector3.new(0, min.y, 0)
+            tests[10] = t * tes3vector3.new(max.x / 2, 0, 0)
+            tests[11] = t * tes3vector3.new(min.x / 2, 0, 0)
+
 
             local collision = false
             for _, test in ipairs(tests) do
@@ -1004,6 +1020,7 @@ local function trySpawnBoat(ref, id)
                 log:debug("\tSpawning %s at %s", id, testpos)
                 return true
             end
+            -- end
         end
     end
 
