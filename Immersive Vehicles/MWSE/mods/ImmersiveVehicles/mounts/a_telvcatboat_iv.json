@@ -24,7 +24,7 @@
   "changeSpeed": 1.5,
   "freedomtype": "boat",
   "name": "Catboat",
-  "price": 100,
+  "price": 1000,
   "materials": [
     {
       "material": "wood",

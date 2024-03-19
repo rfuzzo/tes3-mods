@@ -28,7 +28,7 @@
   "changeSpeed": 1.5,
   "freedomtype": "boat",
   "name": "Mushroomdola",
-  "price": 100,
+  "price": 300,
   "materials": [
     {
       "material": "wood",

@@ -1,4 +1,4 @@
-# 70 Usable Vehicles
+# Immersive Vehicles
 
 The Immersive Vehicles mod enhances the gameplay experience in Morrowind by adding immersive vehicles such as boats, flying mounts, and ground mounts. This mod introduces new features and mechanics related to vehicle movement, animations, and interactions.
 
@@ -46,7 +46,7 @@ There is integrated Crafting Framework integration allowing you to craft the boa
 ## Special thanks to
 
 - The MCM community for immense help on diverse features over the long time I worked on this mod
-- DimNussen for the mushroomdola models
+- DimNussens for the mushroomdola models
 - TR Data team for the sailboat mesh
 - The MWSE team for MWSE
 - The CSSE team for CSSE

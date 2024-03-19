@@ -4,7 +4,7 @@ description = "A mod that adds real-time travel with a number of vehicles."
 homepage = "https://www.nexusmods.com/morrowind/mods/54063"
 repository = "https://github.com/rfuzzo/tes3-mods"
 authors = ["rfuzzo"]
-version = "1.0.0"
+version = "0.1.0"
 
 [tools.mwse]
 lua-mod = "rfuzzo.ImmersiveVehicles"

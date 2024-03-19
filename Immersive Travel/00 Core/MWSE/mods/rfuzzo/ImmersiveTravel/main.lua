@@ -240,8 +240,6 @@ local function cellChangedCallback(e)
     if not isTraveling() then return end
     if not e.cell.isInterior then
         local cellKey = string.format("(%s, %s)", e.cell.gridX, e.cell.gridY)
-        -- mwse.log("cell changed: %s", e.cell.editorName)
-        -- mwse.log("cell key: %s", cellKey)
 
         -- check if quips contain key
         if interop.quips[cellKey] then

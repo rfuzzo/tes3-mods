@@ -28,7 +28,7 @@
   "changeSpeed": 1.5,
   "freedomtype": "boat",
   "name": "Small Boat",
-  "price": 100,
+  "price": 700,
   "materials": [
     {
       "material": "wood",
