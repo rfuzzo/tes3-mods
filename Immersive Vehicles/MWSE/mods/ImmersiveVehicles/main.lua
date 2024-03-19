@@ -900,6 +900,15 @@ local function checkIsCollision(testpos)
         maxDistance = 2048
     })
 
+    if not hitResult then
+        hitResult = tes3.rayTest({
+            position = testpos,
+            direction = tes3vector3.new(0, 0, -1),
+            root = tes3.game.worldPickRoot,
+            maxDistance = 2048
+        })
+    end
+
     -- no result means no collision
     return hitResult ~= nil
 end
@@ -926,8 +935,6 @@ local function trySpawnBoat(ref, id)
         -1, 0, 0,
         0, 0, 1
     )
-
-
 
     -- get bounding box
     local mesh = tes3.loadMesh(data.mesh)
