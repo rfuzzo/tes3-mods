@@ -1213,6 +1213,7 @@ if interop then
 
 interop.insertQuip("(-6, -4)",
     "Bitter Coast Region: Home to the dense marshes and treacherous swamps, the Bitter Coast is a challenging yet rewarding region for adventurers. Watch out for dangerous creatures and hidden treasures amidst the murky waters.")
+
 end
 
 ]]
