@@ -4,7 +4,7 @@
   ],
   "loopSound": true,
   "mesh": "iv\\sky_ex_fisherboat_02.nif",
-  "offset": 40,
+  "offset": 20,
   "sway": 1,
   "speed": 2,
   "turnspeed": 30,

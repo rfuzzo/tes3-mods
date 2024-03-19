@@ -4,7 +4,7 @@
   ],
   "loopSound": true,
   "mesh": "dim\\dim_telvcatboatS.nif",
-  "offset": 0,
+  "offset": 20,
   "sway": 1,
   "speed": 2,
   "turnspeed": 30,

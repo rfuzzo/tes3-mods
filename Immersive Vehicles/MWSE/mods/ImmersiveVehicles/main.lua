@@ -5,7 +5,7 @@ local DEBUG = false
 local logger = require("logging.logger")
 local log = logger.new {
     name = "Immersive Vehicles",
-    logLevel = "DEBUG", -- TODO add to mcm?
+    logLevel = "INFO", -- TODO add to mcm?
     logToConsole = true,
     includeTimestamp = true
 }
@@ -29,9 +29,6 @@ local log = logger.new {
 ---@field width number? -- width of the mount
 
 -- CONSTANTS
-
----@type string[]
-local mount_ids = {}
 
 local localmodpath = "mods\\ImmersiveVehicles\\"
 local fullmodpath = "Data Files\\MWSE\\" .. localmodpath
@@ -249,8 +246,10 @@ local function mountSimulatedCallback(e)
                 })
                 if (hitResult1 == nil) then
                     current_speed = 0
-                    if DEBUG then tes3.messageBox("HIT Shore Fwd") end
-                    log:debug("HIT Shore Fwd")
+                    if DEBUG then
+                        tes3.messageBox("HIT Shore Fwd")
+                        log:debug("HIT Shore Fwd")
+                    end
                 end
             end
 
@@ -265,8 +264,10 @@ local function mountSimulatedCallback(e)
             })
             if (hitResult2 ~= nil) then
                 current_speed = 0
-                if DEBUG then tes3.messageBox("HIT Object Fwd") end
-                log:debug("HIT Object Fwd")
+                if DEBUG then
+                    tes3.messageBox("HIT Object Fwd")
+                    log:debug("HIT Object Fwd")
+                end
             end
         elseif current_speed < 0 then
             -- detect shore
@@ -280,8 +281,10 @@ local function mountSimulatedCallback(e)
                 })
                 if (hitResult1 == nil) then
                     current_speed = 0
-                    if DEBUG then tes3.messageBox("HIT Shore Back") end
-                    log:debug("HIT Shore Back")
+                    if DEBUG then
+                        tes3.messageBox("HIT Shore Back")
+                        log:debug("HIT Shore Back")
+                    end
                 end
             end
 
@@ -296,8 +299,10 @@ local function mountSimulatedCallback(e)
             })
             if (hitResult2 ~= nil) then
                 current_speed = 0
-                if DEBUG then tes3.messageBox("HIT Object Back") end
-                log:debug("HIT Object Back")
+                if DEBUG then
+                    tes3.messageBox("HIT Object Back")
+                    log:debug("HIT Object Back")
+                end
             end
         end
     end
@@ -451,33 +456,28 @@ end
 
 -- LOGIC
 
+--- Load all mounts
+---@return string[]
+local function loadMountNames()
+    log:debug("Loading mount names...")
+
+    ---@type string[]
+    local names = {}
+    for fileName in lfs.dir(fullmodpath .. "mounts") do
+        if (string.endswith(fileName, ".json")) then
+            table.insert(names, fileName:sub(0, -6))
+        end
+    end
+    return names
+end
+
 --- check if valid mount
 ---@param id string
 ---@return boolean
-local function validMount(id) return common.is_in(mount_ids, id) end
-
---- Load all mounts
----@return table<string,ServiceData>|nil
-local function loadMounts()
-    log:debug("Loading mounts...")
-
+local function validMount(id)
     ---@type string[]
-    local services = {}
-    for fileName in lfs.dir(fullmodpath .. "mounts") do
-        if (string.endswith(fileName, ".json")) then
-            -- parse
-            local fullpath = localmodpath .. "mounts\\" .. fileName
-            local r = json.loadfile(fullpath)
-            if r then
-                table.insert(services, fileName:sub(0, -6))
-
-                log:trace("Loaded " .. fullpath)
-            else
-                log:error("!!! failed to load " .. fileName)
-            end
-        end
-    end
-    return services
+    local mount_ids = loadMountNames()
+    return common.is_in(mount_ids, id)
 end
 
 --- map ids to mounts
@@ -777,6 +777,16 @@ local function activateMount(reference)
     end
 end
 
+--- destroy the vehicle
+---@param reference tes3reference
+local function destroyMount(reference)
+    -- stop
+    safeCancelTimer()
+    destinationReached()
+    reference:disable()
+    reference:delete()
+end
+
 -- EVENTS
 
 local dbg_mount_id = nil ---@type string?
@@ -802,7 +812,7 @@ local function keyDownCallback(e)
             editmode = false
         elseif e.keyCode == tes3.scanCode["o"] and not editmode and not is_on_mount then
             local buttons = {}
-            local mounts = loadMounts()
+            local mounts = loadMountNames()
             for _, id in ipairs(mounts) do
                 table.insert(buttons, {
                     text = id,
@@ -878,85 +888,114 @@ event.register(tes3.event.activate, activateCallback)
 
 -- //////////////////////////////////////////////////////////////////////////////////////////
 -- UI MENU
+---comment
+---@param testpos tes3vector3
+---@return boolean
+local function checkIsCollision(testpos)
+    -- raycast fore and aft to check boundaries
+    local hitResult = tes3.rayTest({
+        position = testpos,
+        direction = tes3vector3.new(0, 0, -1),
+        root = tes3.game.worldObjectRoot,
+        maxDistance = 2048
+    })
+
+    -- no result means no collision
+    return hitResult ~= nil
+end
 
 --- @param ref tes3reference
 --- @param id string
 ---@return boolean
 local function trySpawnBoat(ref, id)
-    mountData = loadMountData(getMountForId(id))
-    if not mountData then return false end
+    local data = loadMountData(getMountForId(id))
+    if not data then return false end
 
     local refpos = ref.position
+    local playerEyePositionZ = tes3.getPlayerEyePosition().z
     log:debug("Try spawning %s at position %s", id, refpos)
 
     -- local rotation = ref.sceneNode.worldTransform.rotation
+    -- local rotation = tes3.player.sceneNode.worldTransform.rotation
     local orientation = tes3.player.orientation
     local rotation = tes3matrix33.new()
     rotation:fromEulerXYZ(orientation.x, orientation.y, orientation.z)
+    -- rotate matrix 90 degrees
+    rotation = rotation * tes3matrix33.new(
+        0, 1, 0,
+        -1, 0, 0,
+        0, 0, 1
+    )
+
+
+
+    -- get bounding box
+    local mesh = tes3.loadMesh(data.mesh)
+    local box = mesh:createBoundingBox()
+    local max = box.max
+    local min = box.min
 
     -- go in concentric circles around ref
-    for i = 1, 10, 1 do
+    for i = 1, 20, 1 do
         local radius = i * 50
         -- check in a circle around ref in 45 degree steps
         for angle = 0, 360, 45 do
             local angle_rad = math.rad(angle)
 
+            -- test position in water
             local x = refpos.x + radius * math.cos(angle_rad)
             local y = refpos.y + radius * math.sin(angle_rad)
-            local testpos = tes3vector3.new(x, y, refpos.z + 100)
+            local testpos = tes3vector3.new(x, y, data.offset)
+            local t = tes3transform:new(rotation, testpos, data.scale)
 
-            -- raycast fore and aft to check boundaries
-            local hitResult = tes3.rayTest({
-                position = testpos,
-                direction = tes3vector3.new(0, 0, -1),
-                root = tes3.game.worldObjectRoot,
-                maxDistance = 1024
-            })
+            -- test four corners of bounding box from top and X
+            --- @type tes3vector3[]
+            local tests = {}
+            tests[1] = t * tes3vector3.new(0, 0, 0)
+            tests[2] = t * tes3vector3.new(max.x, max.y, 0)
+            tests[3] = t * tes3vector3.new(max.x, min.y, 0)
+            tests[4] = t * tes3vector3.new(min.x, max.y, 0)
+            tests[5] = t * tes3vector3.new(min.x, min.y, 0)
+            tests[6] = t * tes3vector3.new(max.x, 0, 0)
+            tests[7] = t * tes3vector3.new(min.x, 0, 0)
+            tests[8] = t * tes3vector3.new(0, max.y, 0)
+            tests[9] = t * tes3vector3.new(0, min.y, 0)
 
-            local z = nil
-            if hitResult then
-                z = hitResult.intersection.z
-            end
-            log:debug("#(%s,%s) test %s: z %s", i, angle, testpos, z)
-
-            if not hitResult then
-                -- also test bow and stern
-                local scale = mountData.scale
-                local translation = testpos
-                local t = tes3transform:new(rotation, translation, scale)
-
-                -- TODO get proper bounding box
-                local sternAftOffset = 300 * scale
-                local bowPosTop = t * tes3vector3.new(0, sternAftOffset, refpos.z + 100)
-                local hitResultBow = tes3.rayTest({
-                    position = bowPosTop,
-                    direction = tes3vector3.new(0, 0, -1),
-                    root = tes3.game.worldObjectRoot,
-                    maxDistance = 1024
-                })
-
-                local sternPosTop = t * tes3vector3.new(0, -sternAftOffset, refpos.z + 100)
-                local hitResultStern = tes3.rayTest({
-                    position = sternPosTop,
-                    direction = tes3vector3.new(0, 0, -1),
-                    root = tes3.game.worldObjectRoot,
-                    maxDistance = 1024
-                })
-
-                log:debug("bowresult: %s, sternresult: %s", hitResultBow, hitResultStern)
-
-                if hitResultBow == nil and hitResultStern == nil then
-                    local posz = mountData.offset * mountData.scale
-                    local pos = tes3vector3.new(x, y, posz)
-                    local obj = tes3.createReference {
-                        object = id,
-                        position = pos,
-                        orientation = ref.orientation,
-                        scale = mountData.scale
-                    }
-                    log:debug("Spawning %s at %s", id, pos)
-                    return true
+            local collision = false
+            for _, test in ipairs(tests) do
+                test.z = playerEyePositionZ
+                -- check if a collision found
+                if checkIsCollision(test) then
+                    collision = true
+                    break
                 end
+            end
+
+            if not collision then
+                -- debug
+                -- local vfxRoot = tes3.worldController.vfxManager.worldVFXRoot
+                -- vfxRoot:detachAllChildren()
+
+                -- for _, test in ipairs(tests) do
+                --     if travelMarkerMesh then
+                --         local child = travelMarkerMesh:clone()
+                --         child.translation = test
+                --         child.rotation = rotation
+                --         child.appCulled = false
+                --         ---@diagnostic disable-next-line: param-type-mismatch
+                --         vfxRoot:attachChild(child)
+                --     end
+                -- end
+                -- vfxRoot:update()
+
+                tes3.createReference {
+                    object = id,
+                    position = testpos,
+                    orientation = rotation:toEulerXYZ(),
+                    scale = data.scale
+                }
+                log:debug("\tSpawning %s at %s", id, testpos)
+                return true
             end
         end
     end
@@ -968,13 +1007,13 @@ end
 
 --- no idea why this is needed
 ---@param menu tes3uiElement
-local function updateServiceButton(menu)
+local function updatePurchaseButton(menu)
     timer.frame.delayOneFrame(function()
         if not menu then return end
-        local serviceButton = menu:findChild("rf_id_purchase_topic")
-        if not serviceButton then return end
-        serviceButton.visible = true
-        serviceButton.disabled = false
+        local button = menu:findChild("rf_id_purchase_topic")
+        if not button then return end
+        button.visible = true
+        button.disabled = false
     end)
 end
 
@@ -995,9 +1034,9 @@ local function createPurchaseTopic(menu, ref)
 
     button:register("mouseClick", function()
         local buttons = {}
-        local mountsServices = loadMounts()
+        local mountNames = loadMountNames()
 
-        for _, id in ipairs(mountsServices) do
+        for _, id in ipairs(mountNames) do
             local data = loadMountData(getMountForId(id))
             -- check if data is a boat
             -- TODO message by vehicle
@@ -1030,7 +1069,7 @@ local function createPurchaseTopic(menu, ref)
         -- TODO message by class
         tes3ui.showMessageMenu({ message = "Purchase a boat", buttons = buttons, cancels = true })
     end)
-    menu:registerAfter("update", function() updateServiceButton(menu) end)
+    menu:registerAfter("update", function() updatePurchaseButton(menu) end)
 end
 
 -- upon entering the dialog menu, create the travel menu
@@ -1063,6 +1102,13 @@ local enterVehicle = {
     text = "Get in/out",
     callback = function(e)
         activateMount(e.reference)
+    end
+}
+
+local destroyVehicle = {
+    text = "Destroy",
+    callback = function(e)
+        destroyMount(e.reference)
     end
 }
 
@@ -1099,8 +1145,8 @@ local function getRecipeFor(id)
             category = "Vehicles",
             materials = data.materials,
             scale = data.scale,
-            craftedOnly = true,
-            additionalMenuOptions = { enterVehicle },
+            craftedOnly = false,
+            additionalMenuOptions = { enterVehicle, destroyVehicle },
             -- secondaryMenu         = false,
             quickActivateCallback = function(_, e) activateMount(e.reference) end
         }
@@ -1113,7 +1159,7 @@ end
 ---@diagnostic disable-next-line: undefined-doc-name
 ---@type CraftingFramework.Recipe.data[]
 local recipes = {}
-local mounts = loadMounts()
+local mounts = loadMountNames()
 for _, id in ipairs(mounts) do
     local r = getRecipeFor(id)
     if r then
@@ -1125,3 +1171,35 @@ local function registerRecipes(e)
     if e.menuActivator then e.menuActivator:registerRecipes(recipes) end
 end
 event.register("Ashfall:ActivateBushcrafting:Registered", registerRecipes)
+
+--[[
+
+-- boats
+
+Mount a_gondola_01
+  Bounding Box min: (-71.20,-356.43,-86.24)
+  Bounding Box max: (71.20,356.43,86.24)
+Mount a_mushroomdola_iv
+  Bounding Box min: (-192.74,-332.32,-86.24)
+  Bounding Box max: (183.23,453.84,223.41)
+Mount a_rowboat_iv
+  Bounding Box min: (-67.72,-175.68,-36.73)
+  Bounding Box max: (67.75,179.42,36.73)
+Mount a_sailboat_iv
+  Bounding Box min: (-108.11,-320.38,-74.86)
+  Bounding Box max: (210.41,444.66,809.85)
+Mount a_telvcatboat_iv
+  Bounding Box min: (-283.74,-908.30,-282.73)
+  Bounding Box max: (225.16,830.83,658.28)
+
+
+-- creatures
+
+Mount a_cliffracer
+  Bounding Box min: (-205.65,-420.28,-67.17)
+  Bounding Box max: (205.41,41.53,251.36)
+Mount a_nix-hound
+  Bounding Box min: (-75.46,-230.34,-34.39)
+  Bounding Box max: (135.54,11.85,161.92)
+
+]]

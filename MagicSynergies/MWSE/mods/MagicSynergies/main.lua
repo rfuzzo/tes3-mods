@@ -99,7 +99,7 @@ local function apply_effect(reference, effectname)
             reference = reference,
             spell = getSpellFromId(effectname)
         })
-        mwse.log("Added effect to %s", reference)
+        mwse.log("Added effect %s to %s", effectname, reference)
     end
 end
 
@@ -111,7 +111,7 @@ local function remove_effect(mobile, effectname)
             reference = mobile.reference,
             spell = getSpellFromId(effectname)
         })
-        mwse.log("Removed effect from %s", mobile.reference)
+        mwse.log("Removed effect %s from %s", effectname, mobile.reference)
     end
 end
 
