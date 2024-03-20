@@ -554,21 +554,20 @@ local function onTimerTick()
         return
     end
 
+    local boneOffset = tes3vector3.new(0, 0, 0)
+    local rootBone = mount.sceneNode
+    if mountData.nodeName then
+        rootBone = mount.sceneNode:getObjectByName(mountData.nodeName) --[[@as niNode]]
+        boneOffset = vec(mountData.nodeOffset)
+    end
+    if rootBone == nil then
+        rootBone = mount.sceneNode
+    end
+    if rootBone == nil then
+        return
+    end
+
     if splineIndex <= #currentSpline then
-        local boneOffset = tes3vector3.new(0, 0, 0)
-        local rootBone = mount.sceneNode
-        if mountData.nodeName then
-            rootBone = mount.sceneNode:getObjectByName(mountData.nodeName) --[[@as niNode]]
-            boneOffset = vec(mountData.nodeOffset)
-        end
-        if rootBone == nil then
-            rootBone = mount.sceneNode
-        end
-        if rootBone == nil then
-            return
-        end
-
-
         local mountOffset = tes3vector3.new(0, 0, mountData.offset)
         local nextPos = vec(currentSpline[splineIndex])
         local currentPos = last_position - mountOffset
@@ -577,16 +576,12 @@ local function onTimerTick()
         local forwardDirection = last_forwardDirection
         forwardDirection:normalize()
         local d = (nextPos - currentPos):normalized()
-        local lerp = forwardDirection:lerp(d, mountData.turnspeed / 10)
-            :normalized()
+        local lerp = forwardDirection:lerp(d, mountData.turnspeed / 10):normalized()
 
         -- calculate position
-        local forward = tes3vector3.new(mount.forwardDirection.x,
-            mount.forwardDirection.y, lerp.z):normalized()
+        local forward = tes3vector3.new(mount.forwardDirection.x, mount.forwardDirection.y, lerp.z):normalized()
         local delta = forward * mountData.speed
-
-        local playerShipLocal = rootBone.worldTransform:invert() *
-            tes3.player.position
+        local playerShipLocal = rootBone.worldTransform:invert() * tes3.player.position
 
         -- calculate facing
         local turn = 0
@@ -607,7 +602,7 @@ local function onTimerTick()
             facing = new_facing
         end
 
-        -- move ship
+        -- move
         mount.facing = facing
         mount.position = currentPos + delta + mountOffset
 
