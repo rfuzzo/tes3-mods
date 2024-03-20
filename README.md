@@ -4,6 +4,14 @@ My TES3 Morrowind mods and modding utility tools.
 
 ## Mods
 
+### 🚧 ImmersiveTravelAddonWorld
+>
+> nightly link: <https://rfuzzo.github.io/tes3-mods/ImmersiveTravelAddonWorld.zip>
+>
+> nexus link:<https://www.nexusmods.com/morrowind/mods/54336>
+
+This mod expands upon the Immersive Travel mod by adding Silt Striders and boats to various locations in the world. These new transportation options will follow the predefined routes. [Readme](/MagicSynergies/README.md)
+
 ### 🚧 Magic Synergies
 >
 > nightly link: <https://rfuzzo.github.io/tes3-mods/MagicSynergies.zip>
@@ -12,11 +20,11 @@ My TES3 Morrowind mods and modding utility tools.
 
 Magic effects with environment and school synergies. [Readme](/MagicSynergies/README.md)
 
-### 🚧 Immersive Vehicles
+### ✅ Immersive Vehicles
 >
 > nightly link: <https://rfuzzo.github.io/tes3-mods/ImmersiveVehicles.zip>
 >
-> nexus link:
+> nexus link: <https://www.nexusmods.com/morrowind/mods/54333>
 
 Usable vehicles with smooth movement. [Readme](/Immersive%20Vehicles/README.md)
 
