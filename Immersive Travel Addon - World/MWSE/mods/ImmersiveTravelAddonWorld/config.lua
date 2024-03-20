@@ -14,4 +14,4 @@ local defaultConfig = {
     budget = 100
 }
 
-return mwse.loadConfig("ImmersiveTravelAddon", defaultConfig)
+return mwse.loadConfig("ImmersiveTravelAddonWorld", defaultConfig)

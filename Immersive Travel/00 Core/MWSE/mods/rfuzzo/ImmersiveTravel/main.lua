@@ -554,21 +554,21 @@ local function onTimerTick()
         return
     end
 
-    local boneOffset = tes3vector3.new(0, 0, 0)
-    local rootBone = mount.sceneNode
-    if mountData.nodeName then
-        rootBone = mount.sceneNode:getObjectByName(mountData.nodeName) --[[@as niNode]]
-        boneOffset = vec(mountData.nodeOffset)
-    end
-    if rootBone == nil then
-        rootBone = mount.sceneNode
-    end
-    if rootBone == nil then
-        return
-    end
-
-
     if splineIndex <= #currentSpline then
+        local boneOffset = tes3vector3.new(0, 0, 0)
+        local rootBone = mount.sceneNode
+        if mountData.nodeName then
+            rootBone = mount.sceneNode:getObjectByName(mountData.nodeName) --[[@as niNode]]
+            boneOffset = vec(mountData.nodeOffset)
+        end
+        if rootBone == nil then
+            rootBone = mount.sceneNode
+        end
+        if rootBone == nil then
+            return
+        end
+
+
         local mountOffset = tes3vector3.new(0, 0, mountData.offset)
         local nextPos = vec(currentSpline[splineIndex])
         local currentPos = last_position - mountOffset

@@ -2,28 +2,28 @@ local logger = require("logging.logger")
 
 --- Setup MCM.
 local function registerModConfig()
-    local config = require("rfuzzo.ImmersiveTravelAddon.config")
+    local config = require("ImmersiveTravelAddonWorld.config")
     local log = logger.getLogger(config.mod)
     local template = mwse.mcm.createTemplate(config.mod)
-    template:saveOnClose("ImmersiveTravelAddon", config)
+    template:saveOnClose("ImmersiveTravelAddonWorld", config)
 
-    local page = template:createSideBarPage({label = "Settings"})
-    page.sidebar:createInfo{
+    local page = template:createSideBarPage({ label = "Settings" })
+    page.sidebar:createInfo {
         text = ("%s v%.1f\n\nBy %s"):format(config.mod, config.version,
-                                            config.author)
+            config.author)
     }
 
     local settingsPage = page:createCategory("Settings")
     local generalCategory = settingsPage:createCategory("General")
 
-    generalCategory:createDropdown{
+    generalCategory:createDropdown {
         label = "Logging Level",
         description = "Set the log level.",
         options = {
-            {label = "TRACE", value = "TRACE"},
-            {label = "DEBUG", value = "DEBUG"},
-            {label = "INFO", value = "INFO"}, {label = "WARN", value = "WARN"},
-            {label = "ERROR", value = "ERROR"}, {label = "NONE", value = "NONE"}
+            { label = "TRACE", value = "TRACE" },
+            { label = "DEBUG", value = "DEBUG" },
+            { label = "INFO",  value = "INFO" }, { label = "WARN", value = "WARN" },
+            { label = "ERROR", value = "ERROR" }, { label = "NONE", value = "NONE" }
         },
         variable = mwse.mcm.createTableVariable {
             id = "logLevel",
@@ -91,7 +91,7 @@ local function registerModConfig()
         max = 100,
         step = 1,
         jump = 10,
-        variable = mwse.mcm.createTableVariable {id = "budget", table = config}
+        variable = mwse.mcm.createTableVariable { id = "budget", table = config }
     })
 
     generalCategory:createSlider({
@@ -108,7 +108,6 @@ local function registerModConfig()
     })
 
     template:register()
-
 end
 
 event.register("modConfigReady", registerModConfig)
