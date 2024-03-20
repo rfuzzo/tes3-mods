@@ -23,8 +23,10 @@ local function registerModConfig()
         options = {
             { label = "TRACE", value = "TRACE" },
             { label = "DEBUG", value = "DEBUG" },
-            { label = "INFO",  value = "INFO" }, { label = "WARN", value = "WARN" },
-            { label = "ERROR", value = "ERROR" }, { label = "NONE", value = "NONE" }
+            { label = "INFO",  value = "INFO" },
+            { label = "WARN",  value = "WARN" },
+            { label = "ERROR", value = "ERROR" },
+            { label = "NONE",  value = "NONE" }
         },
         variable = mwse.mcm.createTableVariable {
             id = "logLevel",
@@ -34,6 +36,21 @@ local function registerModConfig()
             if log ~= nil then log:setLogLevel(self.variable.value) end
         end
     }
+
+    local striderCategory = settingsPage:createCategory("Silt Strider")
+    striderCategory:createDropdown {
+        label = "Silt Strider Walking Animation",
+        description = "Change the Strider walking animation.",
+        options = {
+            { label = "runForward",  value = "runForward" },
+            { label = "walkForward", value = "walkForward" }
+        },
+        variable = mwse.mcm.createTableVariable {
+            id = "a_siltstrider_forwardAnimation",
+            table = config
+        }
+    }
+
 
     template:register()
 end

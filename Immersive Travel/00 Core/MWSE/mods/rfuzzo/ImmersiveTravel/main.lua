@@ -863,7 +863,14 @@ local function startTravel(start, destination, service, guide)
             mount.facing = new_facing
             if mountData.forwardAnimation then
                 tes3.loadAnimation({ reference = mount })
-                tes3.playAnimation({ reference = mount, group = tes3.animationGroup[mountData.forwardAnimation] })
+
+                -- TODO make this generalized
+                local forwardAnimation = mountData.forwardAnimation
+                if mountId == "a_siltstrider" and config.a_siltstrider_forwardAnimation then
+                    forwardAnimation = config.a_siltstrider_forwardAnimation
+                end
+
+                tes3.playAnimation({ reference = mount, group = tes3.animationGroup[forwardAnimation] })
             end
             if mountData.loopSound then
                 local sound = mountData.sound[math.random(1, #mountData.sound)]
