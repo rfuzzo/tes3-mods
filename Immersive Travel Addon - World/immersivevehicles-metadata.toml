@@ -1,0 +1,16 @@
+[package]
+name = "Immersive Travel Addon - World"
+description = "This mod expands upon the Immersive Travel mod by adding Silt Striders and boats to various locations in the world. These new transportation options will follow the predefined routes."
+homepage = "https://www.nexusmods.com/morrowind/mods/54336"
+repository = "https://github.com/rfuzzo/tes3-mods"
+authors = ["rfuzzo"]
+version = "0.1.0"
+
+[tools.mwse]
+lua-mod = "ImmersiveTravelAddonWorld"
+
+[dependencies.mwse]
+buildnumber = 3676
+
+[dependencies.mods."ImmersiveTravelAddonWorld"]
+mwse-module = "rfuzzo.ImmersiveTravel"
