@@ -18,8 +18,8 @@ local logger = require("logging.logger")
 local log = logger.new {
     name = config.mod,
     logLevel = config.logLevel,
-    logToConsole = true,
-    includeTimestamp = true
+    logToConsole = false,
+    includeTimestamp = false
 }
 
 ---@class SPreviewData

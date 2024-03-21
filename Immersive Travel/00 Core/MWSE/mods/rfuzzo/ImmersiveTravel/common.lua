@@ -4,8 +4,8 @@ local logger = require("logging.logger")
 local log = logger.new {
     name = "Immersive Travel",
     logLevel = "DEBUG",
-    logToConsole = true,
-    includeTimestamp = true
+    logToConsole = false,
+    includeTimestamp = false
 }
 
 this.localmodpath = "mods\\rfuzzo\\ImmersiveTravel\\"
@@ -239,6 +239,32 @@ function this.registerStatic(data, handle, i)
     end
 end
 
+-- register a ref in the dedicated guide slot
+---@param data MountData
+---@param handle mwseSafeObjectHandle|nil
+function this.registerGuide(data, handle)
+    if data.guideSlot and handle and handle:valid() then
+        data.guideSlot.handle = handle
+        -- tcl
+        local reference = handle:getObject()
+        reference.mobile.movementCollision = false;
+        reference.data.rfuzzo_invincible = true;
+
+        -- play animation
+        local group = this.getRandomAnimGroup(data.guideSlot)
+        tes3.loadAnimation({ reference = reference })
+        if data.guideSlot.animationFile then
+            tes3.loadAnimation({
+                reference = reference,
+                file = data.guideSlot.animationFile
+            })
+        end
+        tes3.playAnimation({ reference = reference, group = group })
+
+        log:debug("registered %s in guide slot with animgroup %s", reference.id, group)
+    end
+end
+
 --- registers a ref in a slot
 ---@param data MountData
 ---@param handle mwseSafeObjectHandle|nil
@@ -323,7 +349,7 @@ function this.loadSpline(start, destination, data)
     if tes3.getFileExists("MWSE\\" .. filePath .. ".json") then
         local result = json.loadfile(filePath)
         if result ~= nil then
-            log:debug("loaded spline: " .. fileName)
+            -- log:debug("loaded spline: " .. fileName)
             return result
         else
             log:error("!!! failed to load spline: " .. fileName)
@@ -336,7 +362,7 @@ function this.loadSpline(start, destination, data)
         if tes3.getFileExists("MWSE\\" .. filePath .. ".json") then
             local result = json.loadfile(filePath)
             if result ~= nil then
-                log:debug("loaded spline: " .. fileName)
+                -- log:debug("loaded spline: " .. fileName)
 
                 -- reverse result
                 local reversed = {}
@@ -365,7 +391,6 @@ function this.loadMountData(id)
     local result = {} ---@type table<string, MountData>
     result = json.loadfile(filePath)
     if result then
-        log:debug("loaded mount: " .. id)
         return result
     else
         log:error("!!! failed to load mount: " .. id)

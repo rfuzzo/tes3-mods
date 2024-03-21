@@ -1,9 +1,12 @@
 --[[
-Immersive Travel Mod
-v 1.0
-by rfuzzo
 
-mwse real-time travel mod
+TODOS
+- only render in visible range
+- add passengers
+- add statics
+- add guide
+
+- evade the player ship as well
 
 --]]
 --
@@ -16,8 +19,8 @@ local logger = require("logging.logger")
 local log = logger.new {
     name = config.mod,
     logLevel = config.logLevel,
-    logToConsole = true,
-    includeTimestamp = true
+    logToConsole = false,
+    includeTimestamp = false
 }
 
 local timertick = 0.01
@@ -230,7 +233,7 @@ local function simulate(p)
 
     local boneOffset = tes3vector3.new(0, 0, 0)
     local rootBone = p.handle:getObject().sceneNode
-    if not rootBone then return end -- TODO WTF
+    if not rootBone then return end
     if p.mountData.nodeName then
         rootBone = p.handle:getObject().sceneNode:getObjectByName(p.mountData.nodeName) --[[@as niNode]]
         boneOffset = vec(p.mountData.nodeOffset)
@@ -247,24 +250,33 @@ local function simulate(p)
         local nextPos = vec(p.currentSpline[p.splineIndex])
         local currentPos = p.last_position - mountOffset
 
-        -- TODO change position when about to collide
-        -- local collision = false
-        -- for index, value in ipairs(tracked) do
-        --     if value ~= p and currentPos:distance(value.last_position) < 8192 then
-        --         -- TODO what values to use here?
-        --         local check = isPointInCone(currentPos, p.last_forwardDirection, value.last_position, 6144, 0.785)
-        --         if check then
-        --             collision = true
-        --             break
-        --         end
-        --     end
-        -- end
+
+
+        -- change position when about to collide
+        local collision = false
+        for index, value in ipairs(tracked) do
+            if value ~= p and currentPos:distance(value.last_position) < 8192 then
+                -- TODO what values to use here?
+                local check = isPointInCone(currentPos, p.last_forwardDirection, value.last_position, 6144, 0.785)
+                if check then
+                    collision = true
+                    break
+                end
+            end
+        end
+
+        -- evade
+        local virtualpos = nextPos
+        if collision then
+            -- override the next position temporarily
+            virtualpos = rootBone.worldTransform * tes3vector3.new(1204, 1024, nextPos.z)
+        end
 
         -- calculate diffs
         local forwardDirection = p.last_forwardDirection
         if forwardDirection == nil then return end
         forwardDirection:normalize()
-        local d = (nextPos - currentPos):normalized()
+        local d = (virtualpos - currentPos):normalized()
         local lerp = forwardDirection:lerp(d, mountData.turnspeed / 10):normalized()
 
         -- calculate position
@@ -320,9 +332,11 @@ local function simulate(p)
         -- TODO additional refs
 
         -- move to next marker
-        local isBehind = -- common.isPointBehindObject(nextPos, p.mount.position, f)
-            common.isPointBehindObject(nextPos, p.handle:getObject().position, delta)
-        if isBehind then p.splineIndex = p.splineIndex + 1 end
+        local isBehind = common.isPointBehindObject(nextPos, p.handle:getObject().position,
+            p.handle:getObject().forwardDirection)
+        if isBehind then
+            p.splineIndex = p.splineIndex + 1
+        end
     else -- if i is at the end of the list
         timer.start({
             type = timer.simulate,
@@ -353,22 +367,21 @@ end
 
 --- cull nodes in distance
 local function doCull()
+    ---@type SPoint[]
     local toremove = {}
     for index, s in ipairs(tracked) do
-        if s.last_position then
-            local d = tes3.player.position:distance(s.last_position)
-            if d > config.cullRadius * 8192 then table.insert(toremove, s) end
-            -- if d > mge.distantLandRenderConfig.drawDistance * 8192 then
-            --     table.insert(toremove, s)
-            -- end
-        end
+        local d = tes3.player.position:distance(s.last_position)
+        if d > config.cullRadius * 8192 then table.insert(toremove, s) end
+        -- if d > mge.distantLandRenderConfig.drawDistance * 8192 then
+        --     table.insert(toremove, s)
+        -- end
     end
 
     for index, s in ipairs(toremove) do
         -- cull
         cullObject(s)
 
-        log:debug("Culled ref at pos: " .. index)
+        log:debug("Culled %s on route %s", s.serviceId, s.routeId)
     end
 
     if #toremove > 0 then
@@ -424,7 +437,20 @@ local function doSpawn(point)
         tes3.playAnimation({ reference = mount, group = tes3.animationGroup[mountData.forwardAnimation] })
     end
 
-    -- simulate
+    -- TODO register additional refs
+
+    -- register guide
+    local guideId = service.guide
+    local guide2 = tes3.createReference {
+        object = guideId,
+        position = startPoint + mountOffset,
+        orientation = mount.orientation
+    }
+    guide2.mobile.hello = 0
+    log:debug("> registering guide")
+    common.registerGuide(mountData, tes3.makeSafeObjectHandle(guide2))
+
+    -- add
     ---@type SPoint
     local p = {
         point = point.point,
@@ -439,15 +465,8 @@ local function doSpawn(point)
     p.mountData = mountData
     p.handle = tes3.makeSafeObjectHandle(mount)
 
-    -- TODO register additional refs
-
     table.insert(tracked, p)
-
-    log:debug(mountId .. " spawned at: " .. p.point.x .. ", " .. p.point.y ..
-        ", " .. p.point.z)
-    -- tes3.messageBox(
-    --     mountId .. " spawned at: " .. p.point.x .. ", " .. p.point.y .. ", " ..
-    --         p.point.z)
+    log:debug(mountId .. " spawned at: " .. p.point.x .. ", " .. p.point.y .. ", " .. p.point.z)
 end
 
 --- all logic for all simulated nodes on timer tick
@@ -528,7 +547,9 @@ local function loadedCallback(e)
         instanceTimer = nil
     end
 
-    for index, value in ipairs(tracked) do cullObject(value) end
+    for index, value in ipairs(tracked) do
+        cullObject(value)
+    end
     tracked = {}
 
     if not instanceTimer then
@@ -626,9 +647,20 @@ local function cellChangedCallback(e)
 end
 event.register(tes3.event.cellChanged, cellChangedCallback)
 
+--- @param e saveEventData
+local function saveCallback(e)
+    -- go through all tracked objects and set .modified = false
+    for index, s in ipairs(tracked) do
+        if s.handle and s.handle:valid() then
+            s.handle:getObject().modified = false
+        end
+    end
+end
+event.register(tes3.event.save, saveCallback)
+
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// DEBUG
 
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// CONFIG
-require("rfuzzo.ImmersiveTravelAddonWorld.mcm")
+require("ImmersiveTravelAddonWorld.mcm")

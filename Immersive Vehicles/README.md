@@ -28,6 +28,10 @@ There is integrated Crafting Framework integration allowing you to craft the boa
 
 - MWSE
 - TR Data
+- Immersive Travel
+
+### Optional
+
 - Ashfall (adds wood to the game used for crafting)
 
 ## Installation

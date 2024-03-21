@@ -6,8 +6,8 @@ local logger = require("logging.logger")
 local log = logger.new {
     name = "Immersive Vehicles",
     logLevel = "INFO", -- TODO add to mcm?
-    logToConsole = true,
-    includeTimestamp = true
+    logToConsole = false,
+    includeTimestamp = false
 }
 
 -- TYPES
@@ -438,7 +438,6 @@ local function loadMountData(id)
     local result = nil ---@type MountDataEx?
     result = json.loadfile(filePath)
     if result then
-        log:debug("loaded mount: " .. id)
         -- set defaults
         if not result.scale then
             result.scale = 1.0

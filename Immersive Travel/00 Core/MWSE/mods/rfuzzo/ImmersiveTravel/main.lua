@@ -25,8 +25,8 @@ local logger = require("logging.logger")
 local log = logger.new {
     name = config.mod,
     logLevel = config.logLevel,
-    logToConsole = true,
-    includeTimestamp = true
+    logToConsole = false,
+    includeTimestamp = false
 }
 
 
@@ -163,32 +163,6 @@ local function isTraveling()
 end
 
 local function safeCancelTimer() if myTimer ~= nil then myTimer:cancel() end end
-
--- register a ref in the dedicated guide slot
----@param data MountData
----@param handle mwseSafeObjectHandle|nil
-local function registerGuide(data, handle)
-    if data.guideSlot and handle and handle:valid() then
-        data.guideSlot.handle = handle
-        -- tcl
-        local reference = handle:getObject()
-        reference.mobile.movementCollision = false;
-        reference.data.rfuzzo_invincible = true;
-
-        -- play animation
-        local group = common.getRandomAnimGroup(data.guideSlot)
-        tes3.loadAnimation({ reference = reference })
-        if data.guideSlot.animationFile then
-            tes3.loadAnimation({
-                reference = reference,
-                file = data.guideSlot.animationFile
-            })
-        end
-        tes3.playAnimation({ reference = reference, group = group })
-
-        log:debug("registered %s in guide slot with animgroup %s", reference.id, group)
-    end
-end
 
 -- register a ref in the hidden slot container
 ---@param data MountData
@@ -824,8 +798,6 @@ local function startTravel(start, destination, service, guide)
     -- load mount data
     mountData = common.loadMountData(mountId)
     if mountData == nil then return end
-    log:debug("loaded mount: %s", mountId)
-
     -- fade out
     tes3.fadeOut({ duration = 1 })
 
@@ -887,7 +859,7 @@ local function startTravel(start, destination, service, guide)
             }
             guide2.mobile.hello = 0
             log:debug("> registering guide")
-            registerGuide(mountData, tes3.makeSafeObjectHandle(guide2))
+            common.registerGuide(mountData, tes3.makeSafeObjectHandle(guide2))
 
             -- register player
             log:debug("> registering player")

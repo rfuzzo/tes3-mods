@@ -1,6 +1,6 @@
 local defaultConfig = {
     mod = "Immersive Travel World Addon",
-    id = "IT",
+    id = "ITWA",
     version = 1.0,
     author = "rfuzzo",
     -- configs
