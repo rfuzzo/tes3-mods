@@ -85,42 +85,6 @@ local function teleportToClosestMarker()
     end
 end
 
---- get a table of N actors in the current 9 cells
---- @param N integer
----@return string[]
-local function getRandomActorsInCell(N)
-    -- get all actors
-    local npcsTable = {} ---@type string[]
-    local cells = tes3.getActiveCells()
-    for _index, cell in ipairs(cells) do
-        local references = common.referenceListToTable(cell.actors)
-        for _, r in ipairs(references) do
-            if r.baseObject.objectType == tes3.objectType.npc then
-                -- only add non-scripted npcs as passengers
-                -- local script = r.baseObject.script
-                --if script == nil or (script and script.id == "nolore") then
-                local id = r.baseObject.id
-                if not common.is_in(npcsTable, id) then
-                    table.insert(npcsTable, id)
-                end
-                --end
-            end
-        end
-    end
-
-    -- get random pick
-    local result = {} ---@type string[]
-    for i = 1, math.min(N, #npcsTable) do
-        local randomIndex = math.random(1, #npcsTable)
-        local id = npcsTable[randomIndex]
-        if not common.is_in(result, id) then
-            table.insert(result, id)
-        end
-    end
-
-    return result
-end
-
 -- /////////////////////////////////////////////////////////////////////////////////////////
 -- ////////////// MOD
 
@@ -872,7 +836,7 @@ local function startTravel(start, destination, service, guide)
             if maxPassengers > 0 then
                 local n = math.random(maxPassengers);
                 log:debug("> registering %s / %s passengers", n, maxPassengers)
-                for _i, value in ipairs(getRandomActorsInCell(n)) do
+                for _i, value in ipairs(common.getRandomNpcsInCell(n)) do
                     local passenger = tes3.createReference {
                         object = value,
                         position = startPos + mountOffset,

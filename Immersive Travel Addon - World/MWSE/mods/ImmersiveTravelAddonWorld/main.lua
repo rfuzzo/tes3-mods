@@ -346,6 +346,23 @@ local function simulate(p)
         })
         guide.facing = facing
 
+        -- passengers
+        for index, slot in ipairs(mountData.slots) do
+            if slot.handle and slot.handle:valid() then
+                local obj = slot.handle:getObject()
+
+                slot.handle:getObject().position = rootBone.worldTransform *
+                    common.getSlotTransform(vec(slot.position), boneOffset, mountData)
+
+                if obj ~= tes3.player then
+                    -- disable scripts
+                    if obj.baseObject.script and not common.isFollower(obj.mobile) and obj.data.rfuzzo_noscript then
+                        obj.attachments.variables.script = nil
+                    end
+                end
+            end
+        end
+
         -- move to next marker
         local isBehind = common.isPointBehindObject(nextPos, p.handle:getObject().position,
             p.handle:getObject().forwardDirection)
@@ -467,6 +484,30 @@ local function doSpawn(point)
         guide2.mobile.hello = 0
         log:debug("> registering guide")
         common.registerGuide(mountData, tes3.makeSafeObjectHandle(guide2))
+    end
+
+    -- register passengers
+    local maxPassengers = math.max(0, #mountData.slots - 2)
+    if maxPassengers > 0 then
+        local n = math.random(maxPassengers);
+        log:debug("> registering %s / %s passengers", n, maxPassengers)
+        for _i, value in ipairs(common.getRandomActorsInCell(n)) do
+            local passenger = tes3.createReference {
+                object = value,
+                position = startPoint + mountOffset,
+                orientation = mount.orientation
+            }
+            -- disable scripts
+            if passenger.baseObject.script then
+                passenger.attachments.variables.script = nil
+                passenger.data.rfuzzo_noscript = true;
+
+                log:debug("Disabled script %s on %s", passenger.baseObject.script.id, passenger.baseObject.id)
+            end
+
+            local refHandle = tes3.makeSafeObjectHandle(passenger)
+            common.registerRefInRandomSlot(mountData, refHandle)
+        end
     end
 
     -- add
