@@ -13,6 +13,7 @@
 ---@field override_mount table<string,string[]>? register specific mounts with the service
 ---@field routes table<string, string[]>? routes
 ---@field ground_offset number DEPRECATED: editor marker offset
+---@field guide string[]? guide npcs
 
 ---@class Slot
 ---@field position PositionRecord slot

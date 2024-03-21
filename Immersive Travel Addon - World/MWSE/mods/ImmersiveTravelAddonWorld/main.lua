@@ -253,6 +253,7 @@ local function simulate(p)
 
 
         -- change position when about to collide
+        local evade_right = false
         local collision = false
         for index, value in ipairs(tracked) do
             if value ~= p and currentPos:distance(value.last_position) < 8192 then
@@ -260,16 +261,22 @@ local function simulate(p)
                 local check = isPointInCone(currentPos, p.last_forwardDirection, value.last_position, 6144, 0.785)
                 if check then
                     collision = true
+                    evade_right = isVectorRight(p.last_forwardDirection, value.last_position - currentPos)
                     break
                 end
             end
         end
-
         -- evade
         local virtualpos = nextPos
         if collision then
             -- override the next position temporarily
-            virtualpos = rootBone.worldTransform * tes3vector3.new(1204, 1024, nextPos.z)
+            if evade_right then
+                -- evade to the right
+                virtualpos = rootBone.worldTransform * tes3vector3.new(1204, 1024, nextPos.z)
+            else
+                -- evade to the left
+                -- virtualpos = rootBone.worldTransform * tes3vector3.new(-1204, 1024, nextPos.z)
+            end
         end
 
         -- calculate diffs
@@ -330,6 +337,14 @@ local function simulate(p)
         -- end
 
         -- TODO additional refs
+        -- guide
+        local guide = mountData.guideSlot.handle:getObject()
+        tes3.positionCell({
+            reference = guide,
+            position = rootBone.worldTransform *
+                common.getSlotTransform(vec(mountData.guideSlot.position), boneOffset, mountData)
+        })
+        guide.facing = facing
 
         -- move to next marker
         local isBehind = common.isPointBehindObject(nextPos, p.handle:getObject().position,
@@ -440,15 +455,19 @@ local function doSpawn(point)
     -- TODO register additional refs
 
     -- register guide
-    local guideId = service.guide
-    local guide2 = tes3.createReference {
-        object = guideId,
-        position = startPoint + mountOffset,
-        orientation = mount.orientation
-    }
-    guide2.mobile.hello = 0
-    log:debug("> registering guide")
-    common.registerGuide(mountData, tes3.makeSafeObjectHandle(guide2))
+    local guides = service.guide
+    if guides then
+        local randomIndex = math.random(1, #guides)
+        local guideId = guides[randomIndex]
+        local guide2 = tes3.createReference {
+            object = guideId,
+            position = startPoint + mountOffset,
+            orientation = mount.orientation
+        }
+        guide2.mobile.hello = 0
+        log:debug("> registering guide")
+        common.registerGuide(mountData, tes3.makeSafeObjectHandle(guide2))
+    end
 
     -- add
     ---@type SPoint

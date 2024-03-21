@@ -473,4 +473,16 @@ function this.loadRoutes(service)
     service.routes = r
 end
 
+---@param slotPosition tes3vector3
+---@param boneOffset tes3vector3
+---@param mountData MountData
+function this.getSlotTransform(slotPosition, boneOffset, mountData)
+    local transform = slotPosition
+    if mountData.nodeName then
+        local o = slotPosition - boneOffset
+        transform = tes3vector3.new(o.x, -o.z, o.y)
+    end
+    return transform
+end
+
 return this

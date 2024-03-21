@@ -483,18 +483,6 @@ local function destinationReached(force)
     cleanup()
 end
 
----@param slotPosition tes3vector3
----@param boneOffset tes3vector3
----@param mountData MountData
-local function getSlotTransform(slotPosition, boneOffset, mountData)
-    local transform = slotPosition
-    if mountData.nodeName then
-        local o = slotPosition - boneOffset
-        transform = tes3vector3.new(o.x, -o.z, o.y)
-    end
-    return transform
-end
-
 -- main loop
 local function onTimerTick()
     -- checks
@@ -644,7 +632,7 @@ local function onTimerTick()
                     tes3.positionCell({
                         reference = handle:getObject(),
                         position = rootBone.worldTransform *
-                            getSlotTransform(vec(mountData.hiddenSlot.position), boneOffset, mountData)
+                            common.getSlotTransform(vec(mountData.hiddenSlot.position), boneOffset, mountData)
                     })
                 end
             end
@@ -655,7 +643,7 @@ local function onTimerTick()
         tes3.positionCell({
             reference = guide,
             position = rootBone.worldTransform *
-                getSlotTransform(vec(mountData.guideSlot.position), boneOffset, mountData)
+                common.getSlotTransform(vec(mountData.guideSlot.position), boneOffset, mountData)
         })
         guide.facing = mount.facing
         -- only change anims if behind player
@@ -687,7 +675,7 @@ local function onTimerTick()
                 local obj = slot.handle:getObject()
 
                 slot.handle:getObject().position = rootBone.worldTransform *
-                    getSlotTransform(vec(slot.position), boneOffset, mountData)
+                    common.getSlotTransform(vec(slot.position), boneOffset, mountData)
 
                 if obj ~= tes3.player then
                     -- disable scripts
@@ -729,7 +717,7 @@ local function onTimerTick()
             for index, clutter in ipairs(mountData.clutter) do
                 if clutter.handle and clutter.handle:valid() then
                     clutter.handle:getObject().position = rootBone.worldTransform *
-                        getSlotTransform(vec(clutter.position), boneOffset, mountData)
+                        common.getSlotTransform(vec(clutter.position), boneOffset, mountData)
                     if clutter.orientation then
                         clutter.handle:getObject().orientation =
                             common.toWorldOrientation(radvec(clutter.orientation), mount.orientation)
