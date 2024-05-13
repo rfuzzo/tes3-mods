@@ -1,0 +1,56 @@
+objects:
+- type: Header
+  flags: ''
+  version: 1.3
+  file_type:
+    type: Esp
+  author: ''
+  description: ''
+  num_objects: 2
+  masters:
+  - - Morrowind.esm
+    - 79837557
+  - - Tribunal.esm
+    - 4565686
+  - - Bloodmoon.esm
+    - 9631798
+- type: Dialogue
+  flags: ''
+  id: Flin game
+  kind:
+    type: Topic
+- type: DialogueInfo
+  flags: ''
+  id: '149571444119799400'
+  prev_id: ''
+  next_id: ''
+  data:
+    kind:
+      type: Topic
+    disposition: 30
+    speaker_rank: -1
+    speaker_sex:
+      type: Any
+    player_rank: -1
+  speaker_id: ''
+  speaker_race: ''
+  speaker_class: ''
+  speaker_faction: ''
+  speaker_cell: ''
+  player_faction: ''
+  sound_path: ''
+  text: Care for a round of Flin?
+  filters:
+  - slot:
+      type: Slot0
+    kind:
+      type: NotLocal
+    function:
+      type: VariableCompare
+    comparison:
+      type: Equal
+    id: NoLore
+    value:
+      type: Integer
+      data: 0
+  script_text: ''

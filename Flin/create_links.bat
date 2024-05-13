@@ -1,9 +1,10 @@
 @ECHO off
 
-set "location=C:\games\Morrowind\Data Files"
+rem get the environment variable with name TES3PATH
+set "location=%TES3PATH%\Data Files"
 set "cd=%CD%"
 
-echo %cd%
+echo gamepath: %location%
 
 mklink /J "%location%\MWSE\mods\Flin" "%cd%\MWSE\mods\Flin"
 

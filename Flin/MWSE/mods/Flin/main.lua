@@ -66,18 +66,43 @@ local function onMenuDialog(e)
     --     createFlinButton(menuDialog, ref)
     --     menuDialog:updateLayout()
     -- end
+end
+event.register("uiActivated", onMenuDialog, { filter = "MenuDialog" })
+
+--- @param e loadedEventData
+local function loadedCallback(e)
     local result = tes3.addTopic({
         topic = "Flin game"
     })
     debug.log(result)
 end
-event.register("uiActivated", onMenuDialog, { filter = "MenuDialog" })
+event.register(tes3.event.loaded, loadedCallback)
 
----@param e infoFilterEventData
-local function infoFilterCallback(e)
+--- @param e infoResponseEventData
+local function infoResponseCallback(e)
+    debug.log(e.dialogue.id)
+    debug.log(e.info.id)
+    tes3.messageBox("infoResponse dialogue %s", e.dialogue.id)
+    tes3.messageBox("infoResponse info %s", e.info.id)
 
+    if e.dialogue.id == "Flin game" then
+        tes3.messageBox("Care for a round of Gwent?")
+    end
 end
-event.register(tes3.event.infoFilter, infoFilterCallback)
+event.register(tes3.event.infoResponse, infoResponseCallback)
+
+--- @param e postInfoResponseEventData
+local function postInfoResponseCallback(e)
+    debug.log(e.dialogue.id)
+    debug.log(e.info.id)
+    tes3.messageBox("postInfoResponse dialogue %s", e.dialogue.id)
+    tes3.messageBox("postInfoResponse info %s", e.info.id)
+
+    if e.dialogue.id == "Flin game" then
+        tes3.messageBox("Care for a round of Gwent?")
+    end
+end
+event.register(tes3.event.postInfoResponse, postInfoResponseCallback)
 
 --- @param e keyDownEventData
 local function keyDownCallback(e)
