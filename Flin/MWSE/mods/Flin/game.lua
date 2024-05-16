@@ -1,247 +1,48 @@
-local lib                    = require("Flin.lib")
-local log                    = lib.log
+local lib                   = require("Flin.lib")
+local log                   = lib.log
 
-local this                   = {}
+local CardSlot              = require("Flin.cardSlot")
+local Card                  = require("Flin.card")
 
-this.FLIN_DECK_ID            = "flin_deck_20"
-this.FLIN_DECK_ID_FACEDOWN   = "a_flin_deck_20_r"
+local ESuit                 = lib.ESuit
+local EValue                = lib.EValue
+local GameState             = lib.GameState
 
-local SETUP_WARNING_DISTANCE = 200
-local SETUP_FORFEIT_DISTANCE = 300
-local GAME_WARNING_DISTANCE  = SETUP_WARNING_DISTANCE
-local GAME_FORFEIT_DISTANCE  = SETUP_FORFEIT_DISTANCE
-
----@enum GameState
-local GameState              = {
-    INVALID = 0,
-    DEAL = 1,
-    PLAYER_TURN = 2,
-    NPC_TURN = 3,
-    GAME_END = 4
-}
-
----@param state GameState
----@return string
-local function stateToString(state)
-    if state == GameState.INVALID then
-        return "INVALID"
-    elseif state == GameState.DEAL then
-        return "DEAL"
-    elseif state == GameState.PLAYER_TURN then
-        return "PLAYER_TURN"
-    elseif state == GameState.NPC_TURN then
-        return "NPC_TURN"
-    elseif state == GameState.GAME_END then
-        return "GAME_END"
-    end
-    return "Unknown"
-end
-
----@enum ESuit
-this.ESuit = {
-    Hearts = 1,
-    Bells = 2,
-    Acorns = 3,
-    Leaves = 4
-}
-
----@param suit ESuit
----@return string
-local function suitToString(suit)
-    if suit == this.ESuit.Hearts then
-        return "Hearts"
-    elseif suit == this.ESuit.Bells then
-        return "Bells"
-    elseif suit == this.ESuit.Acorns then
-        return "Acorns"
-    elseif suit == this.ESuit.Leaves then
-        return "Leaves"
-    end
-    return "Unknown"
-end
-
----@enum EValue
-this.EValue = {
-    Unter = 2,
-    Ober = 3,
-    King = 4,
-    X = 10,
-    Ace = 11,
-}
-
--- TODO english names
----@param value EValue
----@return string
-local function valueToString(value)
-    if value == this.EValue.Unter then
-        return "Unter"
-    elseif value == this.EValue.Ober then
-        return "Ober"
-    elseif value == this.EValue.King then
-        return "King"
-    elseif value == this.EValue.X then
-        return "X"
-    elseif value == this.EValue.Ace then
-        return "Ace"
-    end
-    return "Unknown"
-end
-
----@param suit ESuit
----@param value EValue
----@return string?
-function this.GetCardMiscItemName(suit, value)
-    local suitName = suitToString(suit):lower()
-    if suitName == "unknown" then
-        return nil
-    end
-
-    local valueName = valueToString(value):lower()
-    if valueName == "unknown" then
-        return nil
-    end
-
-    return string.format("card_%s_%s", suitName, valueName)
-end
-
----@param suit ESuit
----@param value EValue
----@return string?
-function this.GetCardActivatorName(suit, value)
-    local suitName = suitToString(suit):lower()
-    if suitName == "unknown" then
-        return nil
-    end
-
-    local valueName = valueToString(value):lower()
-    if valueName == "unknown" then
-        return nil
-    end
-
-    return string.format("a_%s_%s", suitName, valueName)
-end
-
----@param suit ESuit
----@param value EValue
----@return string?
-function this.GetCardMeshName(suit, value)
-    local suitName = suitToString(suit)
-    if suitName == "Unknown" then
-        return nil
-    end
-
-    local valueName = valueToString(value)
-    if valueName == "Unknown" then
-        return nil
-    end
-
-    return string.format("rf\\%s.%s.nif", suitName, valueName)
-end
-
----@param card Card
----@return string
-local function cardToString(card)
-    return string.format("%s %s", suitToString(card.suit), valueToString(card.value))
-end
-
--- card class
---- @class Card
---- @field value EValue?
---- @field suit ESuit?
-local Card     = {
-    value = nil,
-    suit = nil
-}
-
--- card slot class
---- @class CardSlot
---- @field card Card?
---- @field handle mwseSafeObjectHandle?
---- @field position tes3vector3?
---- @field orientation tes3vector3
-local CardSlot = {
-    position = nil,
-    orientation = tes3vector3.new(0, 0, 0),
-    card = nil,
-    handle = nil
-}
-
----@param slot CardSlot
----@param card Card
-local function AddCardToSlot(slot, card)
-    slot.card = card
-    slot.handle = tes3.makeSafeObjectHandle(
-        tes3.createReference({
-            object = this.GetCardActivatorName(card.suit, card.value),
-            position = slot.position,
-            orientation = slot.orientation,
-            cell = tes3.player.cell
-        })
-    )
-end
-
----@param slot CardSlot
----@return Card?
-local function RemoveCardFromSlot(slot)
-    if slot.handle then
-        if slot.handle:valid() then
-            slot.handle:getObject():delete()
-        end
-        slot.handle = nil
-    end
-
-    local card_ = slot.card
-    slot.card = nil
-
-    return card_
-end
-
----@param slot CardSlot?
-local function CleanupSlot(slot)
-    if slot then
-        RemoveCardFromSlot(slot)
-        slot = nil
-    end
-end
+-- constants
+local GAME_WARNING_DISTANCE = 200
+local GAME_FORFEIT_DISTANCE = 300
 
 
-local currentState = GameState.DEAL
+---@class FlinGame
+---@field currentState GameState
+---@field pot number
+---@field handle mwseSafeObjectHandle?
+---@field talon Card[]
+---@field trumpSuit ESuit?
+---@field playerHand Card[]
+---@field npcHand Card[]
+---@field talonSlot CardSlot?
+---@field trumpCardSlot CardSlot?
+---@field trickPCSlot CardSlot?
+---@field trickNPCSlot CardSlot?
+---@field wonCardsPc Card[]
+---@field wonCardsNpc Card[]
+local FlinGame = {}
 
-
-local setupWarned        = false
-local gameWarned         = false
-
-local pot                = 0
-
-local talon              = {}  --- @type Card[]
-local trumpSuit          = nil --- @type ESuit?
-local talonEmpty         = false
-
-local playerHand         = {}  --- @type Card[]
-local npcHand            = {}  --- @type Card[]
-
-local wonCardsPc         = {}  --- @type Card[]
-local wonCardsNpc        = {}  --- @type Card[]
-
-local npcLocation        = nil --- @type tes3vector3?
-
-local talonSlot          = nil --- @type CardSlot?
-local trumpCardSlot      = nil --- @type CardSlot?
-local trickPCSlot        = nil --- @type CardSlot?
-local trickNPCSlot       = nil --- @type CardSlot?
-
-local wonCardsPcPos      = nil --- @type CardSlot?
-local wonCardsNpcPos     = nil --- @type CardSlot?
 
 -- temp
 local playerDrewCard     = false
 local firstTurn          = false
 local playerJustHitTrick = false
 local callbacklock       = false
+local setupWarned        = false
+local gameWarned         = false
 
 ---@param id string
-local function IsNpcTrick(id)
+---@return boolean
+function FlinGame:IsNpcTrick(id)
     -- get the id of the trick activator
+    local trickNPCSlot = self.trickNPCSlot
     if trickNPCSlot and trickNPCSlot.handle and trickNPCSlot.handle:valid() then
         if trickNPCSlot.handle:getObject().id == id then
             return true
@@ -252,8 +53,10 @@ local function IsNpcTrick(id)
 end
 
 ---@param id string
-local function IsTrumpCard(id)
+---@return boolean
+function FlinGame:IsTrumpCard(id)
     -- get the id of the trump card activator
+    local trumpCardSlot = self.trumpCardSlot
     if trumpCardSlot and trumpCardSlot.handle and trumpCardSlot.handle:valid() then
         if trumpCardSlot.handle:getObject().id == id then
             return true
@@ -263,74 +66,67 @@ local function IsTrumpCard(id)
     return false
 end
 
-local function GetPlayerPoints()
+---@return number
+function FlinGame:GetPlayerPoints()
     local points = 0
-    for _, card in ipairs(wonCardsPc) do
+    for _, card in ipairs(self.wonCardsPc) do
         points = points + card.value
     end
     return points
 end
 
-local function GetNpcPoints()
+---@return number
+function FlinGame:GetNpcPoints()
     local points = 0
-    for _, card in ipairs(wonCardsNpc) do
+    for _, card in ipairs(self.wonCardsNpc) do
         points = points + card.value
     end
     return points
 end
 
-function this.shuffleDeck(deck)
-    for i = #deck, 2, -1 do
+function FlinGame:ShuffleDeck()
+    for i = #self.talon, 2, -1 do
         local j = math.random(i)
-        deck[i], deck[j] = deck[j], deck[i]
+        self.talon[i], self.talon[j] = self.talon[j], self.talon[i]
     end
 end
 
----@param suit ESuit
----@param value EValue
----@return Card
-local function newCard(suit, value)
-    local card = {
-        suit = suit,
-        value = value
-    } ---@type Card
-    return card
-end
+function FlinGame:SetNewTalon()
+    local talon = {}
 
-function this.newTalon()
-    talon = {}
+    table.insert(talon, Card.new(ESuit.Hearts, EValue.Unter))
+    table.insert(talon, Card.new(ESuit.Hearts, EValue.Ober))
+    table.insert(talon, Card.new(ESuit.Hearts, EValue.King))
+    table.insert(talon, Card.new(ESuit.Hearts, EValue.X))
+    table.insert(talon, Card.new(ESuit.Hearts, EValue.Ace))
 
-    table.insert(talon, newCard(this.ESuit.Hearts, this.EValue.Unter))
-    table.insert(talon, newCard(this.ESuit.Hearts, this.EValue.Ober))
-    table.insert(talon, newCard(this.ESuit.Hearts, this.EValue.King))
-    table.insert(talon, newCard(this.ESuit.Hearts, this.EValue.X))
-    table.insert(talon, newCard(this.ESuit.Hearts, this.EValue.Ace))
+    table.insert(talon, Card.new(ESuit.Bells, EValue.Unter))
+    table.insert(talon, Card.new(ESuit.Bells, EValue.Ober))
+    table.insert(talon, Card.new(ESuit.Bells, EValue.King))
+    table.insert(talon, Card.new(ESuit.Bells, EValue.X))
+    table.insert(talon, Card.new(ESuit.Bells, EValue.Ace))
 
-    table.insert(talon, newCard(this.ESuit.Bells, this.EValue.Unter))
-    table.insert(talon, newCard(this.ESuit.Bells, this.EValue.Ober))
-    table.insert(talon, newCard(this.ESuit.Bells, this.EValue.King))
-    table.insert(talon, newCard(this.ESuit.Bells, this.EValue.X))
-    table.insert(talon, newCard(this.ESuit.Bells, this.EValue.Ace))
+    table.insert(talon, Card.new(ESuit.Acorns, EValue.Unter))
+    table.insert(talon, Card.new(ESuit.Acorns, EValue.Ober))
+    table.insert(talon, Card.new(ESuit.Acorns, EValue.King))
+    table.insert(talon, Card.new(ESuit.Acorns, EValue.X))
+    table.insert(talon, Card.new(ESuit.Acorns, EValue.Ace))
 
-    table.insert(talon, newCard(this.ESuit.Acorns, this.EValue.Unter))
-    table.insert(talon, newCard(this.ESuit.Acorns, this.EValue.Ober))
-    table.insert(talon, newCard(this.ESuit.Acorns, this.EValue.King))
-    table.insert(talon, newCard(this.ESuit.Acorns, this.EValue.X))
-    table.insert(talon, newCard(this.ESuit.Acorns, this.EValue.Ace))
+    table.insert(talon, Card.new(ESuit.Leaves, EValue.Unter))
+    table.insert(talon, Card.new(ESuit.Leaves, EValue.Ober))
+    table.insert(talon, Card.new(ESuit.Leaves, EValue.King))
+    table.insert(talon, Card.new(ESuit.Leaves, EValue.X))
+    table.insert(talon, Card.new(ESuit.Leaves, EValue.Ace))
 
-    table.insert(talon, newCard(this.ESuit.Leaves, this.EValue.Unter))
-    table.insert(talon, newCard(this.ESuit.Leaves, this.EValue.Ober))
-    table.insert(talon, newCard(this.ESuit.Leaves, this.EValue.King))
-    table.insert(talon, newCard(this.ESuit.Leaves, this.EValue.X))
-    table.insert(talon, newCard(this.ESuit.Leaves, this.EValue.Ace))
-
-    this.shuffleDeck(talon)
+    self.talon = talon
+    self:ShuffleDeck()
 end
 
 ---@return Card?
-local function talonPop()
-    if #talon == 0 then
+function FlinGame:talonPop()
+    if #self.talon == 0 then
         -- update slot
+        local talonSlot = self.talonSlot
         if talonSlot and talonSlot.handle and talonSlot.handle:valid() then
             talonSlot.handle:getObject():delete()
             talonSlot.handle = nil
@@ -339,161 +135,27 @@ local function talonPop()
         return nil
     end
 
-    local card = talon[1]
-    table.remove(talon, 1)
+    local card = self.talon[1]
+    table.remove(self.talon, 1)
     return card
 end
 
+---@return boolean
+function FlinGame:IsTalonEmpty()
+    return #self.talon == 0 and not self.trumpCardSlot.card
+end
+
 ---@param isPlayer boolean
-local function dealCardTo(isPlayer)
+function FlinGame:dealCardTo(isPlayer)
     if isPlayer then
-        table.insert(playerHand, talonPop())
+        table.insert(self.playerHand, self:talonPop())
     else
-        table.insert(npcHand, talonPop())
+        table.insert(self.npcHand, self:talonPop())
     end
-end
-
-function this.dealCards()
-    log:trace("Dealing cards")
-
-    -- Code to deal cards to players
-    -- first init the talon
-    this.newTalon()
-
-    -- deal 3 cards to each player, remove them from the talon
-    for i = 1, 3 do
-        dealCardTo(true)
-        dealCardTo(false)
-    end
-
-    -- the trump card is the next card in the talon
-    local trumpCard = talonPop()
-    if not trumpCard then
-        log:error("No trump card")
-        currentState = GameState.INVALID
-        return
-    end
-    AddCardToSlot(trumpCardSlot, trumpCard)
-    -- save the trump suit
-    trumpSuit = trumpCard.suit
-    log:debug("Trump suit: %s", suitToString(trumpSuit))
-    -- tes3.messageBox("Trump suit: %s", suitToString(trumpSuit))
-
-    -- deal the rest of the cards to the players
-    -- 2 cards to the player, 2 cards to the npc
-    for i = 1, 2 do
-        dealCardTo(true)
-        dealCardTo(false)
-    end
-end
-
--- AI logic
-
----@return Card
-local function chooseNpcCardPhase1()
-    -- make it depend on if the NPC goes first or second
-    if trickPCSlot and trickPCSlot.card then
-        -- if the NPC goes second
-
-        -- if the current trick is of low value then just dump a low non trump card
-        if trickPCSlot.card.value <= this.EValue.King then
-            for i, card in ipairs(npcHand) do
-                if card.suit ~= trumpSuit and card.value <= this.EValue.King then
-                    return table.remove(npcHand, i)
-                end
-            end
-
-            -- we couldn't find a low non-trump card to dump
-        end
-
-        -- if the current trick is of high value then try to win it with a non-trump card of the same suit
-        if trickPCSlot.card.value > this.EValue.King then
-            for i, card in ipairs(npcHand) do
-                if card.suit ~= trumpSuit and card.suit == trickPCSlot.card.suit then
-                    return table.remove(npcHand, i)
-                end
-            end
-
-            -- now try to win it with a high trump card
-            for i, card in ipairs(npcHand) do
-                if card.suit == trumpSuit and card.value > this.EValue.King then
-                    return table.remove(npcHand, i)
-                end
-            end
-
-            -- now try to win it with any trump card
-            for i, card in ipairs(npcHand) do
-                if card.suit == trumpSuit then
-                    return table.remove(npcHand, i)
-                end
-            end
-
-            -- we couldn't find a card to win the trick
-        end
-    else
-        -- if we go first
-        -- if we have a high trump card then play it and try to win the trick
-        for i, card in ipairs(npcHand) do
-            if card.suit == trumpSuit and card.value > this.EValue.King then
-                return table.remove(npcHand, i)
-            end
-        end
-
-        -- we don't have a high trump card so try to dump a low non-trump card
-        for i, card in ipairs(npcHand) do
-            if card.suit ~= trumpSuit and card.value <= this.EValue.King then
-                return table.remove(npcHand, i)
-            end
-        end
-
-        -- we couldn't find a low non-trump card to dump
-    end
-
-    -- if no card was found then just play a random card
-    local idx = math.random(#npcHand)
-    return table.remove(npcHand, idx)
-end
-
----@return Card
-local function chooseNpcCardPhase2()
-    -- TODO implement phase 2
-    return chooseNpcCardPhase1()
-end
-
----@return Card
-local function chooseNpcCardToPlay()
-    if talonEmpty then
-        return chooseNpcCardPhase2()
-    else
-        return chooseNpcCardPhase1()
-    end
-end
-
----@param card Card
-function this.PcPlayCard(card)
-    for i, c in ipairs(playerHand) do
-        if c == card then
-            local result = table.remove(playerHand, i)
-            AddCardToSlot(trickPCSlot, result)
-
-            log:debug("PC plays card: %s", cardToString(result))
-            -- tes3.messageBox("You play: %s", cardToString(result))
-
-            return
-        end
-    end
-end
-
----@param card Card
-function this.NpcPlayCard(card)
-    AddCardToSlot(trickNPCSlot, card)
-
-    log:debug("NPC plays card: %s", cardToString(card))
-    -- tes3.messageBox("NPC plays: %s", cardToString(card))
 end
 
 ---@return boolean
-function this.drawCard(isPlayer)
+function FlinGame:drawCard(isPlayer)
     -- log:trace("============")
     -- log:trace("player hand:")
     -- for i, c in ipairs(playerHand) do
@@ -518,22 +180,21 @@ function this.drawCard(isPlayer)
     -- log:trace("============")
 
     -- only draw a card if the hand is less than 5 cards
-    if isPlayer and #playerHand >= 5 then
+    if isPlayer and #self.playerHand >= 5 then
         return false
     end
 
-    if not isPlayer and #npcHand >= 5 then
+    if not isPlayer and #self.npcHand >= 5 then
         return false
     end
 
-    local card = talonPop()
+    local card = self:talonPop()
 
     -- if the talon is empty then the trump card is the last card in the talon
-    if not card and trumpCardSlot and trumpCardSlot.card then
+    if not card and self.trumpCardSlot and self.trumpCardSlot.card then
         log:debug("No more cards in the talon")
         tes3.messageBox("No more cards in the talon")
-        talonEmpty = true
-        card = RemoveCardFromSlot(trumpCardSlot)
+        card = self.trumpCardSlot:RemoveCardFromSlot()
     end
 
     if not card then
@@ -542,13 +203,13 @@ function this.drawCard(isPlayer)
     end
 
     if isPlayer then
-        log:debug("player draws card: %s", cardToString(card))
-        tes3.messageBox("You draw: %s", cardToString(card))
+        log:debug("player draws card: %s", lib.cardToString(card))
+        tes3.messageBox("You draw: %s", lib.cardToString(card))
 
-        table.insert(playerHand, card)
+        table.insert(self.playerHand, card)
     else
-        log:debug("NPC draws card: %s", cardToString(card))
-        table.insert(npcHand, card)
+        log:debug("NPC draws card: %s", lib.cardToString(card))
+        table.insert(self.npcHand, card)
     end
 
 
@@ -568,7 +229,7 @@ function this.drawCard(isPlayer)
 end
 
 ---@return GameState
-function this.evaluate()
+local function evaluate()
     log:trace("evaluate")
 
     if not trickPCSlot then
@@ -685,177 +346,7 @@ function this.evaluate()
     return GameState.INVALID
 end
 
-local function getHeaderText()
-    return string.format("Choose a card to play (Trump is %s)", suitToString(trumpSuit))
-end
-
-local function getMessageText()
-    local trick = ""
-    if trickNPCSlot and trickNPCSlot.card then
-        trick = string.format("Trick: %s", cardToString(trickNPCSlot.card))
-    end
-
-    return string.format(
-        "Player's turn (you have %s points, NPC has %s points).\n%s",
-        GetPlayerPoints(),
-        GetNpcPoints(), trick)
-end
-
-local function choosePcCardToPlay()
-    local buttons = {}
-    for i, card in ipairs(playerHand) do
-        local buttonText = string.format("%s %s", suitToString(card.suit), valueToString(card.value))
-        table.insert(
-            buttons,
-            {
-                text = buttonText,
-                callback = function()
-                    this.PcPlayCard(card)
-                    this.determineNextState()
-
-                    -- wait one second before updating
-                    timer.start({
-                        duration = 1,
-                        callback = function()
-                            this.update()
-                        end
-                    })
-                end
-            })
-    end
-
-    -- add custom block to call game
-    tes3ui.showMessageMenu({
-        header = getHeaderText(),
-        message = getMessageText(),
-        buttons = buttons,
-        cancels = true,
-        cancelCallback = function()
-            playerJustHitTrick = false
-        end,
-        customBlock = function(parent)
-            -- only show if player has >= 66 points
-            if GetPlayerPoints() < 66 then
-                return
-            end
-
-            parent.childAlignX = 0.5
-            parent.paddingAllSides = 8
-
-            local callButton = parent:createButton({
-                text = "Call the game",
-                id = tes3ui.registerID("flin:callGame")
-            })
-            callButton:register("mouseClick", function()
-                log:debug("Player calls the game")
-                tes3ui.leaveMenuMode()
-                parent:destroy()
-
-                currentState = GameState.GAME_END
-                this.update()
-            end)
-        end,
-    })
-end
-
-function this.playerDrawCard()
-    -- if we're not in player turn state then return
-    if currentState ~= GameState.PLAYER_TURN then
-        return
-    end
-
-    -- Code for the player's turn
-    -- draw a card
-    if not this.drawCard(true) then
-        log:debug("Player cannot draw a card")
-        tes3.messageBox("You cannot draw another card")
-    else
-        playerDrewCard = true
-    end
-end
-
-function this.playerHitTrick()
-    -- if we're not in player turn state then return
-    if currentState ~= GameState.PLAYER_TURN then
-        return
-    end
-
-    log:debug("> Player turn")
-
-    -- hacks for first turn and phase 2 turns
-    if talonEmpty and trumpCardSlot and not trumpCardSlot.card then
-        playerDrewCard = true
-    end
-
-    -- if the player has not drawn a card then they cannot hit the trick
-    if not playerDrewCard then
-        log:debug("Player cannot hit the trick, they must draw a card first")
-        tes3.messageBox("You must draw a card first")
-        playerJustHitTrick = false
-        return
-    end
-
-    -- get the card the player wants to play
-    choosePcCardToPlay()
-end
-
-function this.npcTurn()
-    log:debug("NPC turn")
-
-    this.drawCard(false)
-
-    local card = chooseNpcCardToPlay()
-    this.NpcPlayCard(card)
-
-    -- npc went last
-    if trickPCSlot and trickNPCSlot and trickPCSlot.card and trickNPCSlot.card then
-        -- if the npc went last, they can call the game if they think they have more than 66 points
-        if GetNpcPoints() >= 66 then
-            log:debug("NPC calls the game")
-            tes3.messageBox("NPC calls the game")
-            currentState = GameState.GAME_END
-        end
-    end
-end
-
-function this.endGame()
-    -- Code for ending the game
-    log:debug("Game ended")
-
-    -- calculate the points
-    local playerPoints = GetPlayerPoints()
-    local npcPoints = GetNpcPoints()
-
-    log:debug("Player points: %s, NPC points: %s", playerPoints, npcPoints)
-    log:debug("Pot: %s", pot)
-
-    -- determine the winner
-    if playerPoints >= 66 then
-        log:debug("Player wins")
-        tes3.messageBox("You won the game and the pot of %s gold", pot)
-
-        -- give the player the pot
-        tes3.addItem({ reference = tes3.player, item = "Gold_001", count = pot })
-        tes3.playSound({ sound = "Item Gold Up" })
-    elseif npcPoints >= 66 then
-        log:debug("NPC wins")
-        tes3.messageBox("You lose!")
-
-        -- TODO give npc the pot
-    else
-        log:debug("It's a draw")
-        tes3.messageBox("It's a draw!")
-
-        -- give the player half the pot
-        tes3.addItem({ reference = tes3.player, item = "Gold_001", count = math.floor(pot / 2) })
-        tes3.playSound({ sound = "Item Gold Up" })
-    end
-
-    -- cleanup
-    this.cleanup()
-end
-
-function this.determineNextState()
+local function determineNextState()
     if currentState == GameState.DEAL then
         -- determine at random who goes next
         local startPlayer = math.random(2)
@@ -882,7 +373,7 @@ function this.determineNextState()
     log:trace("Next state: %s", stateToString(currentState))
 end
 
-function this.update()
+local function update()
     log:trace("currentState %s", stateToString(currentState))
 
     playerJustHitTrick = false
@@ -926,47 +417,6 @@ function this.update()
     elseif currentState == GameState.INVALID then
         log:error("Invalid state: Cleaning up")
         this.cleanup()
-    end
-end
-
---- @param e activateEventData
-local function SetupActivateCallback(e)
-    if e.target and e.target.object.id == this.FLIN_DECK_ID then
-        this.startGame(e.target)
-        e.claim = true
-        return false
-    end
-end
-
---- @param e simulateEventData
-local function SetupWarningCheck(e)
-    if not npcLocation then
-        return
-    end
-
-    -- TODO check cells too
-
-    if setupWarned then
-        -- calculate the distance between the NPC and the player
-        local distance = npcLocation:distance(tes3.player.position)
-        if distance > SETUP_FORFEIT_DISTANCE then
-            -- warn the player and forfeit the game
-            tes3.messageBox("You lose the game")
-            -- TODO give npc the pot
-
-            event.unregister(tes3.event.activate, SetupActivateCallback)
-            event.unregister(tes3.event.simulate, SetupWarningCheck)
-
-            this.cleanup()
-        end
-    else
-        -- calculate the distance between the NPC and the player
-        local distance = npcLocation:distance(tes3.player.position)
-        if distance > SETUP_WARNING_DISTANCE then
-            -- warn the player
-            tes3.messageBox("You are too far away to continue the game, you will forfeit if you move further away")
-            setupWarned = true
-        end
     end
 end
 
@@ -1073,28 +523,8 @@ local function GameKeyDownCallback(e)
 end
 
 
---- @param ref tes3reference
---- @param gold number
-function this.setupGame(ref, gold)
-    this.cleanup()
-
-    log:info("Setup game with gold: %s", gold)
-    tes3.messageBox("Place the deck somewhere and and activate it to start the game")
-
-    -- store the NPC location for checks
-    npcLocation = ref.position
-
-    -- store the gold in the pot
-    pot = gold * 2
-    tes3.removeItem({ reference = tes3.player, item = "Gold_001", count = gold })
-    tes3.playSound({ sound = "Item Gold Up" })
-
-    event.register(tes3.event.activate, SetupActivateCallback)
-    event.register(tes3.event.simulate, SetupWarningCheck)
-end
-
 --- @param deck tes3reference
-function this.startGame(deck)
+function FlinGame:startGame(deck)
     log:info("Starting game")
     tes3.messageBox("The game is on! The pot is %s gold", pot)
 
@@ -1177,37 +607,32 @@ function this.startGame(deck)
     this.update()
 end
 
-function this.cleanup()
+function FlinGame:cleanup()
     log:trace("Cleaning up")
 
-    currentState = GameState.INVALID
+    self.currentState = GameState.INVALID
 
-    setupWarned = false
     gameWarned = false
 
-    pot = 0
+    self.pot = 0
 
-    talon = {}
-    trumpSuit = nil
-    talonEmpty = false
+    self.talon = {}
+    self.trumpSuit = nil
+    self.talonEmpty = false
 
-    playerHand = {}
-    npcHand = {}
+    self.playerHand = {}
+    self.npcHand = {}
 
-    wonCardsPc = {}
-    wonCardsNpc = {}
-
-    npcLocation = nil
+    self.wonCardsPc = {}
+    self.wonCardsNpc = {}
 
     -- cleanup handles and references
+    self.handle = nil
 
-    CleanupSlot(talonSlot)
-    CleanupSlot(trumpCardSlot)
-    CleanupSlot(trickPCSlot)
-    CleanupSlot(trickNPCSlot)
-
-    wonCardsPcPos = nil
-    wonCardsNpcPos = nil
+    CardSlot.CleanupSlot(talonSlot)
+    CardSlot.CleanupSlot(trumpCardSlot)
+    CardSlot.CleanupSlot(trickPCSlot)
+    CardSlot.CleanupSlot(trickNPCSlot)
 
     -- temps
     playerDrewCard = false
@@ -1220,4 +645,4 @@ function this.cleanup()
     event.unregister(tes3.event.keyDown, GameKeyDownCallback)
 end
 
-return this
+return FlinGame
