@@ -208,33 +208,36 @@ end
 local currentState = GameState.DEAL
 
 
-local setupWarned    = false
-local gameWarned     = false
+local setupWarned        = false
+local gameWarned         = false
 
-local pot            = 0
+local pot                = 0
 
-local talon          = {}  --- @type Card[]
-local trumpSuit      = nil --- @type ESuit?
-local talonEmpty     = false
+local talon              = {}  --- @type Card[]
+local trumpSuit          = nil --- @type ESuit?
+local talonEmpty         = false
 
-local playerHand     = {}  --- @type Card[]
-local npcHand        = {}  --- @type Card[]
+local playerHand         = {}  --- @type Card[]
+local npcHand            = {}  --- @type Card[]
 
-local wonCardsPc     = {}  --- @type Card[]
-local wonCardsNpc    = {}  --- @type Card[]
+local wonCardsPc         = {}  --- @type Card[]
+local wonCardsNpc        = {}  --- @type Card[]
 
-local npcLocation    = nil --- @type tes3vector3?
+local npcLocation        = nil --- @type tes3vector3?
 
-local talonSlot      = nil --- @type CardSlot?
-local trumpCardSlot  = nil --- @type CardSlot?
-local trickPCSlot    = nil --- @type CardSlot?
-local trickNPCSlot   = nil --- @type CardSlot?
+local talonSlot          = nil --- @type CardSlot?
+local trumpCardSlot      = nil --- @type CardSlot?
+local trickPCSlot        = nil --- @type CardSlot?
+local trickNPCSlot       = nil --- @type CardSlot?
 
-local wonCardsPcPos  = nil --- @type CardSlot?
-local wonCardsNpcPos = nil --- @type CardSlot?
+local wonCardsPcPos      = nil --- @type CardSlot?
+local wonCardsNpcPos     = nil --- @type CardSlot?
 
 -- temp
-local playerDrewCard = false
+local playerDrewCard     = false
+local firstTurn          = false
+local playerJustHitTrick = false
+local callbacklock       = false
 
 ---@param id string
 local function IsNpcTrick(id)
@@ -491,28 +494,28 @@ end
 
 ---@return boolean
 function this.drawCard(isPlayer)
-    log:trace("============")
-    log:trace("player hand:")
-    for i, c in ipairs(playerHand) do
-        log:debug("\t%s", cardToString(c))
-    end
-    log:trace("npc hand:")
-    for i, c in ipairs(npcHand) do
-        log:debug("\t%s", cardToString(c))
-    end
-    log:trace("talon:")
-    for i, c in ipairs(talon) do
-        log:debug("\t%s", cardToString(c))
-    end
-    log:trace("trick pc:")
-    if trickPCSlot and trickPCSlot.card then
-        log:debug("\t%s", cardToString(trickPCSlot.card))
-    end
-    log:trace("trick npc:")
-    if trickNPCSlot and trickNPCSlot.card then
-        log:debug("\t%s", cardToString(trickNPCSlot.card))
-    end
-    log:trace("============")
+    -- log:trace("============")
+    -- log:trace("player hand:")
+    -- for i, c in ipairs(playerHand) do
+    --     log:trace("\t%s", cardToString(c))
+    -- end
+    -- log:trace("npc hand:")
+    -- for i, c in ipairs(npcHand) do
+    --     log:trace("\t%s", cardToString(c))
+    -- end
+    -- log:trace("talon:")
+    -- for i, c in ipairs(talon) do
+    --     log:trace("\t%s", cardToString(c))
+    -- end
+    -- log:trace("trick pc:")
+    -- if trickPCSlot and trickPCSlot.card then
+    --     log:trace("\t%s", cardToString(trickPCSlot.card))
+    -- end
+    -- log:trace("trick npc:")
+    -- if trickNPCSlot and trickNPCSlot.card then
+    --     log:trace("\t%s", cardToString(trickNPCSlot.card))
+    -- end
+    -- log:trace("============")
 
     -- only draw a card if the hand is less than 5 cards
     if isPlayer and #playerHand >= 5 then
@@ -534,7 +537,7 @@ function this.drawCard(isPlayer)
     end
 
     if not card then
-        log:error("No more cards in the talon")
+        log:debug("No more cards in the talon")
         return false
     end
 
@@ -699,7 +702,6 @@ local function getMessageText()
 end
 
 local function choosePcCardToPlay()
-    -- UI
     local buttons = {}
     for i, card in ipairs(playerHand) do
         local buttonText = string.format("%s %s", suitToString(card.suit), valueToString(card.value))
@@ -728,6 +730,9 @@ local function choosePcCardToPlay()
         message = getMessageText(),
         buttons = buttons,
         cancels = true,
+        cancelCallback = function()
+            playerJustHitTrick = false
+        end,
         customBlock = function(parent)
             -- only show if player has >= 66 points
             if GetPlayerPoints() < 66 then
@@ -743,6 +748,8 @@ local function choosePcCardToPlay()
             })
             callButton:register("mouseClick", function()
                 log:debug("Player calls the game")
+                tes3ui.leaveMenuMode()
+                parent:destroy()
 
                 currentState = GameState.GAME_END
                 this.update()
@@ -776,9 +783,6 @@ function this.playerHitTrick()
     log:debug("> Player turn")
 
     -- hacks for first turn and phase 2 turns
-    if not playerDrewCard and #playerHand == 5 then
-        playerDrewCard = true
-    end
     if talonEmpty and trumpCardSlot and not trumpCardSlot.card then
         playerDrewCard = true
     end
@@ -787,6 +791,7 @@ function this.playerHitTrick()
     if not playerDrewCard then
         log:debug("Player cannot hit the trick, they must draw a card first")
         tes3.messageBox("You must draw a card first")
+        playerJustHitTrick = false
         return
     end
 
@@ -822,11 +827,12 @@ function this.endGame()
     local npcPoints = GetNpcPoints()
 
     log:debug("Player points: %s, NPC points: %s", playerPoints, npcPoints)
+    log:debug("Pot: %s", pot)
 
     -- determine the winner
     if playerPoints >= 66 then
         log:debug("Player wins")
-        tes3.messageBox("You win!")
+        tes3.messageBox("You won the game and the pot of %s gold", pot)
 
         -- give the player the pot
         tes3.addItem({ reference = tes3.player, item = "Gold_001", count = pot })
@@ -865,6 +871,7 @@ function this.determineNextState()
         else
             currentState = GameState.NPC_TURN
         end
+        firstTurn = true
     elseif currentState == GameState.PLAYER_TURN then
         currentState = this.evaluate()
     elseif currentState == GameState.NPC_TURN then
@@ -878,6 +885,8 @@ end
 function this.update()
     log:trace("currentState %s", stateToString(currentState))
 
+    playerJustHitTrick = false
+
     if currentState == GameState.DEAL then
         this.dealCards()
         this.determineNextState()
@@ -887,14 +896,15 @@ function this.update()
         -- the player is active so they get to chose when to push the statemachine
         playerDrewCard = false
 
-        -- NOTE this can be activated to play in dialogue
-        -- this.playerTurn()
-        -- this.determineNextState()
-        -- this.update()
+        if firstTurn then
+            playerDrewCard = true
+            firstTurn = false
+        end
     elseif currentState == GameState.NPC_TURN then
         this.npcTurn()
 
         -- wait one second before updating
+        callbacklock = true
         timer.start({
             duration = 1,
             callback = function()
@@ -905,6 +915,8 @@ function this.update()
                     duration = 1,
                     callback = function()
                         this.update()
+
+                        callbacklock = false
                     end
                 })
             end
@@ -919,8 +931,6 @@ end
 
 --- @param e activateEventData
 local function SetupActivateCallback(e)
-    log:trace("activateCallback")
-
     if e.target and e.target.object.id == this.FLIN_DECK_ID then
         this.startGame(e.target)
         e.claim = true
@@ -962,9 +972,13 @@ end
 
 --- @param e activateEventData
 local function GameActivateCallback(e)
-    log:trace("activateCallback")
+    log:trace("GameActivateCallback %s", e.target and e.target.object.id or "nil")
 
     if not e.target then
+        return
+    end
+
+    if callbacklock then
         return
     end
 
@@ -1033,6 +1047,9 @@ end
 
 --- @param e keyDownEventData
 local function GameKeyDownCallback(e)
+    if callbacklock then
+        return
+    end
     -- during the player turn
     if currentState ~= GameState.PLAYER_TURN then
         return
@@ -1041,7 +1058,14 @@ local function GameKeyDownCallback(e)
     -- this is only needed when the npctrick is null
     if trickNPCSlot and not trickNPCSlot.card then
         if e.keyCode == tes3.scanCode["o"] then
+            debug.log(playerJustHitTrick)
+
+            if playerJustHitTrick then
+                return
+            end
+
             log:debug("Player hits the trick")
+            playerJustHitTrick = true
 
             this.playerHitTrick()
         end
@@ -1052,8 +1076,10 @@ end
 --- @param ref tes3reference
 --- @param gold number
 function this.setupGame(ref, gold)
+    this.cleanup()
+
     log:info("Setup game with gold: %s", gold)
-    tes3.messageBox("Drop the deck to start the game")
+    tes3.messageBox("Place the deck somewhere and and activate it to start the game")
 
     -- store the NPC location for checks
     npcLocation = ref.position
@@ -1070,9 +1096,7 @@ end
 --- @param deck tes3reference
 function this.startGame(deck)
     log:info("Starting game")
-    -- tes3.messageBox("Starting game")
-
-    this.cleanup()
+    tes3.messageBox("The game is on! The pot is %s gold", pot)
 
     event.unregister(tes3.event.activate, SetupActivateCallback)
     event.unregister(tes3.event.simulate, SetupWarningCheck)
@@ -1124,9 +1148,9 @@ function this.startGame(deck)
     }
 
     -- trick slots are off to the side
-    local trickOrientation = tes3vector3.new(0, 0, 0)
+    local trickOrientation = deckOrientation
     trickPCSlot = {
-        position = deckPos + tes3vector3.new(0, -10, zOffsetTrump),
+        position = deckPos + tes3vector3.new(0, 10, zOffsetTrump),
         orientation = trickOrientation,
         card = nil,
         handle = nil
@@ -1143,7 +1167,7 @@ function this.startGame(deck)
     )
 
     trickNPCSlot = {
-        position = deckPos + tes3vector3.new(0, -10, zOffsetTrump),
+        position = deckPos + tes3vector3.new(0, 10, zOffsetTrump),
         orientation = rotation2:toEulerXYZ(),
         card = nil,
         handle = nil
@@ -1187,6 +1211,9 @@ function this.cleanup()
 
     -- temps
     playerDrewCard = false
+    firstTurn = false
+    playerJustHitTrick = false
+    callbacklock = false
 
     event.unregister(tes3.event.activate, GameActivateCallback)
     event.unregister(tes3.event.simulate, GameWarningCheck)

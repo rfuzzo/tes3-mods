@@ -71,7 +71,8 @@ function this.enter(reference, dialogue, info)
                 end,
             })
         else
-            tes3.messageBox("You need a Flin deck to play.")
+            tes3.messageBox(
+            "You need a deck of Flin cards to play. You should be able to buy one from the local publican.")
         end
     end
 end

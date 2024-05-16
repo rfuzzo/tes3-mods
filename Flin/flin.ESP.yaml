@@ -1,492 +1,487 @@
 objects:
-- type: Header
-  flags: ''
-  version: 1.3
-  file_type:
-    type: Esp
-  author: ''
-  description: ''
-  num_objects: 49
-  masters:
-  - - Morrowind.esm
-    - 79837557
-  - - Tribunal.esm
-    - 4565686
-  - - Bloodmoon.esm
-    - 9631798
-- type: MiscItem
-  flags: ''
-  id: card_acorns_unter
-  name: Unter of acorns
-  script: ''
-  mesh: rf\acorns.unter.nif
-  icon: rf\acorns.unter.dds
-  data:
-    weight: 1.0
-    value: 2
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_acorns_ober
-  name: Ober of acorns
-  script: ''
-  mesh: rf\acorns.ober.nif
-  icon: rf\acorns.ober.dds
-  data:
-    weight: 1.0
-    value: 3
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_acorns_king
-  name: King of acorns
-  script: ''
-  mesh: rf\acorns.king.nif
-  icon: rf\acorns.king.dds
-  data:
-    weight: 1.0
-    value: 4
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_acorns_x
-  name: Ten of acorns
-  script: ''
-  mesh: rf\acorns.x.nif
-  icon: rf\acorns.x.dds
-  data:
-    weight: 1.0
-    value: 10
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_acorns_ace
-  name: Ace of acorns
-  script: ''
-  mesh: rf\acorns.ace.nif
-  icon: rf\acorns.ace.dds
-  data:
-    weight: 1.0
-    value: 11
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_bells_unter
-  name: Unter of bells
-  script: ''
-  mesh: rf\bells.unter.nif
-  icon: rf\bells.unter.dds
-  data:
-    weight: 1.0
-    value: 2
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_bells_ober
-  name: Ober of bells
-  script: ''
-  mesh: rf\bells.ober.nif
-  icon: rf\bells.ober.dds
-  data:
-    weight: 1.0
-    value: 3
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_bells_king
-  name: King of bells
-  script: ''
-  mesh: rf\bells.king.nif
-  icon: rf\bells.king.dds
-  data:
-    weight: 1.0
-    value: 4
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_bells_x
-  name: Ten of bells
-  script: ''
-  mesh: rf\bells.x.nif
-  icon: rf\bells.x.dds
-  data:
-    weight: 1.0
-    value: 10
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_bells_ace
-  name: Ace of bells
-  script: ''
-  mesh: rf\bells.ace.nif
-  icon: rf\bells.ace.dds
-  data:
-    weight: 1.0
-    value: 11
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_hearts_unter
-  name: Unter of hearts
-  script: ''
-  mesh: rf\hearts.unter.nif
-  icon: rf\hearts.unter.dds
-  data:
-    weight: 1.0
-    value: 2
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_hearts_ober
-  name: Ober of hearts
-  script: ''
-  mesh: rf\hearts.ober.nif
-  icon: rf\hearts.ober.dds
-  data:
-    weight: 1.0
-    value: 3
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_hearts_king
-  name: King of hearts
-  script: ''
-  mesh: rf\hearts.king.nif
-  icon: rf\hearts.king.dds
-  data:
-    weight: 1.0
-    value: 4
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_hearts_x
-  name: Ten of hearts
-  script: ''
-  mesh: rf\hearts.x.nif
-  icon: rf\hearts.x.dds
-  data:
-    weight: 1.0
-    value: 10
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_hearts_ace
-  name: Ace of hearts
-  script: ''
-  mesh: rf\hearts.ace.nif
-  icon: rf\hearts.ace.dds
-  data:
-    weight: 1.0
-    value: 11
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_leaves_unter
-  name: Unter of leaves
-  script: ''
-  mesh: rf\leaves.unter.nif
-  icon: rf\leaves.unter.dds
-  data:
-    weight: 1.0
-    value: 2
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_leaves_ober
-  name: Ober of leaves
-  script: ''
-  mesh: rf\leaves.ober.nif
-  icon: rf\leaves.ober.dds
-  data:
-    weight: 1.0
-    value: 3
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_leaves_king
-  name: King of leaves
-  script: ''
-  mesh: rf\leaves.king.nif
-  icon: rf\leaves.king.dds
-  data:
-    weight: 1.0
-    value: 4
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_leaves_x
-  name: Ten of leaves
-  script: ''
-  mesh: rf\leaves.x.nif
-  icon: rf\leaves.x.dds
-  data:
-    weight: 1.0
-    value: 10
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: card_leaves_ace
-  name: Ace of leaves
-  script: ''
-  mesh: rf\leaves.ace.nif
-  icon: rf\leaves.ace.dds
-  data:
-    weight: 1.0
-    value: 11
-    flags: 0
-- type: Activator
-  flags: ''
-  id: a_acorns_unter
-  name: Unter of acorns
-  script: ''
-  mesh: rf\acorns.unter.nif
-- type: Activator
-  flags: ''
-  id: a_acorns_ober
-  name: Ober of acorns
-  script: ''
-  mesh: rf\acorns.ober.nif
-- type: Activator
-  flags: ''
-  id: a_acorns_king
-  name: King of acorns
-  script: ''
-  mesh: rf\acorns.king.nif
-- type: Activator
-  flags: ''
-  id: a_acorns_x
-  name: Ten of acorns
-  script: ''
-  mesh: rf\acorns.x.nif
-- type: Activator
-  flags: ''
-  id: a_acorns_ace
-  name: Ace of acorns
-  script: ''
-  mesh: rf\acorns.ace.nif
-- type: Activator
-  flags: ''
-  id: a_bells_unter
-  name: Unter of bells
-  script: ''
-  mesh: rf\bells.unter.nif
-- type: Activator
-  flags: ''
-  id: a_bells_ober
-  name: Ober of bells
-  script: ''
-  mesh: rf\bells.ober.nif
-- type: Activator
-  flags: ''
-  id: a_bells_king
-  name: King of bells
-  script: ''
-  mesh: rf\bells.king.nif
-- type: Activator
-  flags: ''
-  id: a_bells_x
-  name: Ten of bells
-  script: ''
-  mesh: rf\bells.x.nif
-- type: Activator
-  flags: ''
-  id: a_bells_ace
-  name: Ace of bells
-  script: ''
-  mesh: rf\bells.ace.nif
-- type: Activator
-  flags: ''
-  id: a_hearts_unter
-  name: Unter of hearts
-  script: ''
-  mesh: rf\hearts.unter.nif
-- type: Activator
-  flags: ''
-  id: a_hearts_ober
-  name: Ober of hearts
-  script: ''
-  mesh: rf\hearts.ober.nif
-- type: Activator
-  flags: ''
-  id: a_hearts_king
-  name: King of hearts
-  script: ''
-  mesh: rf\hearts.king.nif
-- type: Activator
-  flags: ''
-  id: a_hearts_x
-  name: Ten of hearts
-  script: ''
-  mesh: rf\hearts.x.nif
-- type: Activator
-  flags: ''
-  id: a_hearts_ace
-  name: Ace of hearts
-  script: ''
-  mesh: rf\hearts.ace.nif
-- type: Activator
-  flags: ''
-  id: a_leaves_unter
-  name: Unter of leaves
-  script: ''
-  mesh: rf\leaves.unter.nif
-- type: Activator
-  flags: ''
-  id: a_leaves_ober
-  name: Ober of leaves
-  script: ''
-  mesh: rf\leaves.ober.nif
-- type: Activator
-  flags: ''
-  id: a_leaves_king
-  name: King of leaves
-  script: ''
-  mesh: rf\leaves.king.nif
-- type: Activator
-  flags: ''
-  id: a_leaves_x
-  name: Ten of leaves
-  script: ''
-  mesh: rf\leaves.x.nif
-- type: Activator
-  flags: ''
-  id: a_leaves_ace
-  name: Ace of leaves
-  script: ''
-  mesh: rf\leaves.ace.nif
-- type: MiscItem
-  flags: ''
-  id: flin_deck_20
-  name: Deck of flin cards
-  script: ''
-  mesh: rf\flin_deck_20.nif
-  icon: rf\flin_deck_20.dds
-  data:
-    weight: 1.0
-    value: 120
-    flags: 0
-- type: MiscItem
-  flags: ''
-  id: flin_deck_20_r
-  name: Deck of flin cards 2
-  script: ''
-  mesh: rf\flin_deck_20_r.nif
-  icon: rf\flin_deck_20.dds
-  data:
-    weight: 1.0
-    value: 120
-    flags: 0
-- type: Activator
-  flags: ''
-  id: a_flin_deck_20_r
-  name: Talon
-  script: ''
-  mesh: rf\flin_deck_20_r.nif
-- type: Dialogue
-  flags: ''
-  id: deck of Flin cards
-  kind:
-    type: Topic
-- type: DialogueInfo
-  flags: ''
-  id: '31773312143182626739'
-  prev_id: ''
-  next_id: '64958221304719333'
-  data:
+  - type: Header
+    flags: ""
+    version: 1.3
+    file_type:
+      type: Esp
+    author: ""
+    description: ""
+    num_objects: 49
+    masters:
+      - - Morrowind.esm
+        - 79837557
+      - - Tribunal.esm
+        - 4565686
+      - - Bloodmoon.esm
+        - 9631798
+  - type: MiscItem
+    flags: ""
+    id: card_acorns_unter
+    name: Unter of acorns
+    script: ""
+    mesh: rf\acorns.unter.nif
+    icon: rf\acorns.unter.dds
+    data:
+      weight: 1.0
+      value: 2
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_acorns_ober
+    name: Ober of acorns
+    script: ""
+    mesh: rf\acorns.ober.nif
+    icon: rf\acorns.ober.dds
+    data:
+      weight: 1.0
+      value: 3
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_acorns_king
+    name: King of acorns
+    script: ""
+    mesh: rf\acorns.king.nif
+    icon: rf\acorns.king.dds
+    data:
+      weight: 1.0
+      value: 4
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_acorns_x
+    name: Ten of acorns
+    script: ""
+    mesh: rf\acorns.x.nif
+    icon: rf\acorns.x.dds
+    data:
+      weight: 1.0
+      value: 10
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_acorns_ace
+    name: Ace of acorns
+    script: ""
+    mesh: rf\acorns.ace.nif
+    icon: rf\acorns.ace.dds
+    data:
+      weight: 1.0
+      value: 11
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_bells_unter
+    name: Unter of bells
+    script: ""
+    mesh: rf\bells.unter.nif
+    icon: rf\bells.unter.dds
+    data:
+      weight: 1.0
+      value: 2
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_bells_ober
+    name: Ober of bells
+    script: ""
+    mesh: rf\bells.ober.nif
+    icon: rf\bells.ober.dds
+    data:
+      weight: 1.0
+      value: 3
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_bells_king
+    name: King of bells
+    script: ""
+    mesh: rf\bells.king.nif
+    icon: rf\bells.king.dds
+    data:
+      weight: 1.0
+      value: 4
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_bells_x
+    name: Ten of bells
+    script: ""
+    mesh: rf\bells.x.nif
+    icon: rf\bells.x.dds
+    data:
+      weight: 1.0
+      value: 10
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_bells_ace
+    name: Ace of bells
+    script: ""
+    mesh: rf\bells.ace.nif
+    icon: rf\bells.ace.dds
+    data:
+      weight: 1.0
+      value: 11
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_hearts_unter
+    name: Unter of hearts
+    script: ""
+    mesh: rf\hearts.unter.nif
+    icon: rf\hearts.unter.dds
+    data:
+      weight: 1.0
+      value: 2
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_hearts_ober
+    name: Ober of hearts
+    script: ""
+    mesh: rf\hearts.ober.nif
+    icon: rf\hearts.ober.dds
+    data:
+      weight: 1.0
+      value: 3
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_hearts_king
+    name: King of hearts
+    script: ""
+    mesh: rf\hearts.king.nif
+    icon: rf\hearts.king.dds
+    data:
+      weight: 1.0
+      value: 4
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_hearts_x
+    name: Ten of hearts
+    script: ""
+    mesh: rf\hearts.x.nif
+    icon: rf\hearts.x.dds
+    data:
+      weight: 1.0
+      value: 10
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_hearts_ace
+    name: Ace of hearts
+    script: ""
+    mesh: rf\hearts.ace.nif
+    icon: rf\hearts.ace.dds
+    data:
+      weight: 1.0
+      value: 11
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_leaves_unter
+    name: Unter of leaves
+    script: ""
+    mesh: rf\leaves.unter.nif
+    icon: rf\leaves.unter.dds
+    data:
+      weight: 1.0
+      value: 2
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_leaves_ober
+    name: Ober of leaves
+    script: ""
+    mesh: rf\leaves.ober.nif
+    icon: rf\leaves.ober.dds
+    data:
+      weight: 1.0
+      value: 3
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_leaves_king
+    name: King of leaves
+    script: ""
+    mesh: rf\leaves.king.nif
+    icon: rf\leaves.king.dds
+    data:
+      weight: 1.0
+      value: 4
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_leaves_x
+    name: Ten of leaves
+    script: ""
+    mesh: rf\leaves.x.nif
+    icon: rf\leaves.x.dds
+    data:
+      weight: 1.0
+      value: 10
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: card_leaves_ace
+    name: Ace of leaves
+    script: ""
+    mesh: rf\leaves.ace.nif
+    icon: rf\leaves.ace.dds
+    data:
+      weight: 1.0
+      value: 11
+      flags: 0
+  - type: Activator
+    flags: ""
+    id: a_acorns_unter
+    name: Unter of acorns
+    script: ""
+    mesh: rf\acorns.unter.nif
+  - type: Activator
+    flags: ""
+    id: a_acorns_ober
+    name: Ober of acorns
+    script: ""
+    mesh: rf\acorns.ober.nif
+  - type: Activator
+    flags: ""
+    id: a_acorns_king
+    name: King of acorns
+    script: ""
+    mesh: rf\acorns.king.nif
+  - type: Activator
+    flags: ""
+    id: a_acorns_x
+    name: Ten of acorns
+    script: ""
+    mesh: rf\acorns.x.nif
+  - type: Activator
+    flags: ""
+    id: a_acorns_ace
+    name: Ace of acorns
+    script: ""
+    mesh: rf\acorns.ace.nif
+  - type: Activator
+    flags: ""
+    id: a_bells_unter
+    name: Unter of bells
+    script: ""
+    mesh: rf\bells.unter.nif
+  - type: Activator
+    flags: ""
+    id: a_bells_ober
+    name: Ober of bells
+    script: ""
+    mesh: rf\bells.ober.nif
+  - type: Activator
+    flags: ""
+    id: a_bells_king
+    name: King of bells
+    script: ""
+    mesh: rf\bells.king.nif
+  - type: Activator
+    flags: ""
+    id: a_bells_x
+    name: Ten of bells
+    script: ""
+    mesh: rf\bells.x.nif
+  - type: Activator
+    flags: ""
+    id: a_bells_ace
+    name: Ace of bells
+    script: ""
+    mesh: rf\bells.ace.nif
+  - type: Activator
+    flags: ""
+    id: a_hearts_unter
+    name: Unter of hearts
+    script: ""
+    mesh: rf\hearts.unter.nif
+  - type: Activator
+    flags: ""
+    id: a_hearts_ober
+    name: Ober of hearts
+    script: ""
+    mesh: rf\hearts.ober.nif
+  - type: Activator
+    flags: ""
+    id: a_hearts_king
+    name: King of hearts
+    script: ""
+    mesh: rf\hearts.king.nif
+  - type: Activator
+    flags: ""
+    id: a_hearts_x
+    name: Ten of hearts
+    script: ""
+    mesh: rf\hearts.x.nif
+  - type: Activator
+    flags: ""
+    id: a_hearts_ace
+    name: Ace of hearts
+    script: ""
+    mesh: rf\hearts.ace.nif
+  - type: Activator
+    flags: ""
+    id: a_leaves_unter
+    name: Unter of leaves
+    script: ""
+    mesh: rf\leaves.unter.nif
+  - type: Activator
+    flags: ""
+    id: a_leaves_ober
+    name: Ober of leaves
+    script: ""
+    mesh: rf\leaves.ober.nif
+  - type: Activator
+    flags: ""
+    id: a_leaves_king
+    name: King of leaves
+    script: ""
+    mesh: rf\leaves.king.nif
+  - type: Activator
+    flags: ""
+    id: a_leaves_x
+    name: Ten of leaves
+    script: ""
+    mesh: rf\leaves.x.nif
+  - type: Activator
+    flags: ""
+    id: a_leaves_ace
+    name: Ace of leaves
+    script: ""
+    mesh: rf\leaves.ace.nif
+  - type: MiscItem
+    flags: ""
+    id: flin_deck_20
+    name: Deck of flin cards
+    script: ""
+    mesh: rf\flin_deck_20.nif
+    icon: rf\flin_deck_20.dds
+    data:
+      weight: 1.0
+      value: 120
+      flags: 0
+  - type: MiscItem
+    flags: ""
+    id: flin_deck_20_r
+    name: Deck of flin cards 2
+    script: ""
+    mesh: rf\flin_deck_20_r.nif
+    icon: rf\flin_deck_20.dds
+    data:
+      weight: 1.0
+      value: 120
+      flags: 0
+  - type: Activator
+    flags: ""
+    id: a_flin_deck_20_r
+    name: Talon
+    script: ""
+    mesh: rf\flin_deck_20_r.nif
+  - type: Dialogue
+    flags: ""
+    id: deck of Flin cards
     kind:
       type: Topic
-    disposition: 30
-    speaker_rank: -1
-    speaker_sex:
-      type: Any
-    player_rank: -1
-  speaker_id: ''
-  speaker_race: ''
-  speaker_class: Publican
-  speaker_faction: ''
-  speaker_cell: ''
-  player_faction: ''
-  sound_path: ''
-  text: Would you like to buy a deck of Flin cards?
-  filters: []
-  script_text: ";lua dialogueModule = require(\"Flin.dialogue\")\r\n;lua dialogueModule.buyDeck(reference, dialogue, info)\r\n;lua noMorrowindScript = true"
-- type: DialogueInfo
-  flags: ''
-  id: '64958221304719333'
-  prev_id: '31773312143182626739'
-  next_id: ''
-  data:
+  - type: DialogueInfo
+    flags: ""
+    id: "31773312143182626739"
+    prev_id: ""
+    next_id: "64958221304719333"
+    data:
+      kind:
+        type: Topic
+      disposition: 30
+      speaker_rank: -1
+      speaker_sex:
+        type: Any
+      player_rank: -1
+    speaker_id: ""
+    speaker_race: ""
+    speaker_class: Publican
+    speaker_faction: ""
+    speaker_cell: ""
+    player_faction: ""
+    sound_path: ""
+    text: Would you like to buy a deck of Flin cards?
+    filters: []
+    script_text: ";lua dialogueModule = require(\"Flin.dialogue\")\r\n;lua dialogueModule.buyDeck(reference, dialogue, info)\r\n;lua noMorrowindScript = true"
+  - type: DialogueInfo
+    flags: ""
+    id: "64958221304719333"
+    prev_id: "31773312143182626739"
+    next_id: ""
+    data:
+      kind:
+        type: Topic
+      disposition: 30
+      speaker_rank: -1
+      speaker_sex:
+        type: Any
+      player_rank: -1
+    speaker_id: ""
+    speaker_race: ""
+    speaker_class: ""
+    speaker_faction: ""
+    speaker_cell: ""
+    player_faction: ""
+    sound_path: ""
+    text: You can buy a deck of Flin cards at the local publican.
+    filters:
+      - slot:
+          type: Slot0
+        kind:
+          type: NotLocal
+        function:
+          type: VariableCompare
+        comparison:
+          type: Equal
+        id: NoLore
+        value:
+          type: Integer
+          data: 0
+    script_text: ""
+  - type: Dialogue
+    flags: ""
+    id: game of Flin
     kind:
       type: Topic
-    disposition: 30
-    speaker_rank: -1
-    speaker_sex:
-      type: Any
-    player_rank: -1
-  speaker_id: ''
-  speaker_race: ''
-  speaker_class: ''
-  speaker_faction: ''
-  speaker_cell: ''
-  player_faction: ''
-  sound_path: ''
-  text: You can buy a deck of Flin cards at the local publican
-  filters:
-  - slot:
-      type: Slot0
-    kind:
-      type: NotLocal
-    function:
-      type: VariableCompare
-    comparison:
-      type: Equal
-    id: NoLore
-    value:
-      type: Integer
-      data: 0
-  script_text: ''
-- type: Dialogue
-  flags: ''
-  id: game of Flin
-  kind:
-    type: Topic
-- type: DialogueInfo
-  flags: ''
-  id: '149571444119799400'
-  prev_id: ''
-  next_id: ''
-  data:
-    kind:
-      type: Topic
-    disposition: 30
-    speaker_rank: -1
-    speaker_sex:
-      type: Any
-    player_rank: -1
-  speaker_id: ''
-  speaker_race: ''
-  speaker_class: ''
-  speaker_faction: ''
-  speaker_cell: ''
-  player_faction: ''
-  sound_path: ''
-  text: Care for a round of Flin?
-  filters:
-  - slot:
-      type: Slot0
-    kind:
-      type: NotLocal
-    function:
-      type: VariableCompare
-    comparison:
-      type: Equal
-    id: NoLore
-    value:
-      type: Integer
-      data: 0
-  script_text: ";lua dialogueModule = require(\"Flin.dialogue\")\r\n;lua dialogueModule.enter(reference, dialogue, info)\r\n;lua noMorrowindScript = true"
-- type: Dialogue
-  flags: DELETED
-  id: ''
-  kind:
-    type: Topic
+  - type: DialogueInfo
+    flags: ""
+    id: "149571444119799400"
+    prev_id: ""
+    next_id: ""
+    data:
+      kind:
+        type: Topic
+      disposition: 30
+      speaker_rank: -1
+      speaker_sex:
+        type: Any
+      player_rank: -1
+    speaker_id: ""
+    speaker_race: ""
+    speaker_class: ""
+    speaker_faction: ""
+    speaker_cell: ""
+    player_faction: ""
+    sound_path: ""
+    text: Care for a round of Flin?
+    filters:
+      - slot:
+          type: Slot0
+        kind:
+          type: NotLocal
+        function:
+          type: VariableCompare
+        comparison:
+          type: Equal
+        id: NoLore
+        value:
+          type: Integer
+          data: 0
+    script_text: ";lua dialogueModule = require(\"Flin.dialogue\")\r\n;lua dialogueModule.enter(reference, dialogue, info)\r\n;lua noMorrowindScript = true"
