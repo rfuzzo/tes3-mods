@@ -1,126 +1,89 @@
-local game = require("Flin.game")
+local lib        = require("Flin.lib")
+local game       = require("Flin.game")
+local log        = lib.log
 
--- dbg enter
-
----@param menu tes3uiElement
-local function orderFlinButton(menu)
-    timer.frame.delayOneFrame(function()
-        if not menu then return end
-        local flinButton = menu:findChild("rf_fln_game_button")
-        local divider = menu:findChild("MenuDialog_divider")
-        if not flinButton then return end
-        flinButton.visible = true
-        flinButton.disabled = false
-
-        local topicsList = flinButton.parent
-        local children = topicsList.children
-
-        -- get index
-        local index = 0
-        for i, child in ipairs(children) do
-            if child == divider then
-                index = i
-                break
-            end
-        end
-
-        -- insert
-        topicsList:reorderChildren(children[index + 1], flinButton, 1)
-    end)
-end
-
----@param menu tes3uiElement
----@param ref tes3reference
-local function createFlinButton(menu, ref)
-    local divider = menu:findChild("MenuDialog_divider")
-    local topicsList = divider.parent
-    local button = topicsList:createTextSelect({
-        id = "rf_fln_game_button",
-        text = "Flin"
-    })
-    button.widthProportional = 1.0
-    button.visible = true
-    button.disabled = false
-
-    -- insert
-    topicsList:reorderChildren(divider, button, 1)
-
-    button:register("mouseClick", function()
-        tes3.messageBox("Care for a round of flin?")
-    end)
-    menu:registerAfter("update", function()
-        orderFlinButton(menu)
-    end)
-
-    debug.log("Flin button created")
-end
-
-
--- upon entering the dialog menu, create the travel menu
----@param e uiActivatedEventData
-local function onMenuDialog(e)
-    -- local menuDialog = e.element
-    -- local mobileActor = menuDialog:getPropertyObject("PartHyperText_actor") ---@cast mobileActor tes3mobileActor
-    -- if mobileActor.actorType == tes3.actorType.npc then
-    --     local ref = mobileActor.reference
-    --     createFlinButton(menuDialog, ref)
-    --     menuDialog:updateLayout()
-    -- end
-end
-event.register("uiActivated", onMenuDialog, { filter = "MenuDialog" })
+local GAME_TOPIC = "game of Flin"
 
 --- @param e loadedEventData
 local function loadedCallback(e)
     local result = tes3.addTopic({
-        topic = "Flin game"
+        topic = GAME_TOPIC
     })
-    debug.log(result)
+
+    log:debug("addTopic %s: %s", GAME_TOPIC, result)
 end
 event.register(tes3.event.loaded, loadedCallback)
 
---- @param e infoResponseEventData
-local function infoResponseCallback(e)
-    debug.log(e.dialogue.id)
-    debug.log(e.info.id)
-    tes3.messageBox("infoResponse dialogue %s", e.dialogue.id)
-    tes3.messageBox("infoResponse info %s", e.info.id)
 
-    if e.dialogue.id == "Flin game" then
-        tes3.messageBox("Care for a round of Gwent?")
+---@param ref tes3reference
+---@param npcPos tes3vector3
+local function findCardSpawnPoints(ref, npcPos)
+    -- get reference bounding box
+    local bb = ref.object.boundingBox:copy()
+    -- get reference transform
+    local t = ref.sceneNode.worldTransform
+    -- get middle of ref
+    local middle = ((bb.min + bb.max) / 2)
+    -- get top middle of ref in world space
+
+    local offset = 50
+    local startpos = t * tes3vector3.new(middle.x, middle.y, bb.max.z + offset)
+    -- get pos in world space
+    local endpos = tes3vector3.new(npcPos.x, npcPos.y, bb.max.z + offset)
+
+    local direction = (endpos - startpos)
+    local distance = direction:length()
+    direction = direction:normalized()
+    -- now go in a line from topMiddle to pos in 20 units steps
+    for i = 0, distance, 20 do
+        local pos = startpos + direction * i
+        local result = tes3.rayTest({
+            position = pos,
+            direction = tes3vector3.new(0, 0, -1),
+            ignore = { ref },
+            maxDistance = offset
+        })
+
+        if not result then
+            -- final pos is on the surface
+            local cardPos = pos - tes3vector3.new(0, 0, offset)
+            -- spawn mesh on top
+            --local cardName = game.GetCardMiscItemName(game.ESuit.Acorns, game.EValue.Ace)
+            local cardName = game.GetCardActivatorName(game.ESuit.Acorns, game.EValue.Ace)
+            if cardName then
+                --get top of the target position
+                local card = tes3.createReference({
+                    object = cardName,
+                    position = cardPos,
+                    orientation = tes3vector3.new(0, 0, 0), --target.orientation
+                    cell = tes3.getPlayerCell()
+                })
+                if card then
+                    debug.log(card)
+                    log:debug("Spawned card '%s' at %s", cardName, cardPos)
+                else
+                    log:debug("Failed to spawn card '%s' at %s", cardName, cardPos)
+                    return
+                end
+            end
+
+            break
+        end
     end
 end
-event.register(tes3.event.infoResponse, infoResponseCallback)
-
---- @param e postInfoResponseEventData
-local function postInfoResponseCallback(e)
-    debug.log(e.dialogue.id)
-    debug.log(e.info.id)
-    tes3.messageBox("postInfoResponse dialogue %s", e.dialogue.id)
-    tes3.messageBox("postInfoResponse info %s", e.info.id)
-
-    if e.dialogue.id == "Flin game" then
-        tes3.messageBox("Care for a round of Gwent?")
-    end
-end
-event.register(tes3.event.postInfoResponse, postInfoResponseCallback)
 
 --- @param e keyDownEventData
 local function keyDownCallback(e)
     if e.keyCode == tes3.scanCode["o"] then
-        -- TODO you can only enter a game at a table
-        -- local ref = tes3.getPlayerTarget()
-        -- if not ref then
-        --     return
-        -- end
+        -- spawn mesh
+        -- get target reference
+        local target = lib.getLookedAtReference()
+        if not target then
+            tes3.messageBox("No target")
+            return
+        end
 
-        game.startGame(nil)
-    end
-
-    -- mock taking a card
-    if e.keyCode == tes3.scanCode["l"] then
-        game.playerTurn()
+        lib.findPlayerPosition(target)
     end
 end
 event.register(tes3.event.keyDown, keyDownCallback)
-
--- TODO leave when out of range
