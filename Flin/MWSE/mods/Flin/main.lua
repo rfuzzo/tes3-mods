@@ -59,7 +59,6 @@ local function findCardSpawnPoints(ref, npcPos)
                     cell = tes3.getPlayerCell()
                 })
                 if card then
-                    debug.log(card)
                     log:debug("Spawned card '%s' at %s", cardName, cardPos)
                 else
                     log:debug("Failed to spawn card '%s' at %s", cardName, cardPos)
@@ -71,19 +70,3 @@ local function findCardSpawnPoints(ref, npcPos)
         end
     end
 end
-
---- @param e keyDownEventData
-local function keyDownCallback(e)
-    if e.keyCode == tes3.scanCode["o"] then
-        -- spawn mesh
-        -- get target reference
-        local target = lib.getLookedAtReference()
-        if not target then
-            tes3.messageBox("No target")
-            return
-        end
-
-        lib.findPlayerPosition(target)
-    end
-end
-event.register(tes3.event.keyDown, keyDownCallback)

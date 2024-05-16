@@ -8,8 +8,8 @@ this.FLIN_DECK_ID_FACEDOWN   = "a_flin_deck_20_r"
 
 local SETUP_WARNING_DISTANCE = 200
 local SETUP_FORFEIT_DISTANCE = 300
-local GAME_WARNING_DISTANCE  = 200
-local GAME_FORFEIT_DISTANCE  = 300
+local GAME_WARNING_DISTANCE  = SETUP_WARNING_DISTANCE
+local GAME_FORFEIT_DISTANCE  = SETUP_FORFEIT_DISTANCE
 
 ---@enum GameState
 local GameState              = {
@@ -174,7 +174,7 @@ local function AddCardToSlot(slot, card)
         tes3.createReference({
             object = this.GetCardActivatorName(card.suit, card.value),
             position = slot.position,
-            orientation = tes3vector3.new(0, 0, 0),
+            orientation = slot.orientation,
             cell = tes3.player.cell
         })
     )
@@ -209,6 +209,9 @@ local currentState = GameState.DEAL
 
 
 local setupWarned    = false
+local gameWarned     = false
+
+local pot            = 0
 
 local talon          = {}  --- @type Card[]
 local trumpSuit      = nil --- @type ESuit?
@@ -471,7 +474,7 @@ function this.PcPlayCard(card)
             AddCardToSlot(trickPCSlot, result)
 
             log:debug("PC plays card: %s", cardToString(result))
-            tes3.messageBox("You play: %s", cardToString(result))
+            -- tes3.messageBox("You play: %s", cardToString(result))
 
             return
         end
@@ -483,7 +486,7 @@ function this.NpcPlayCard(card)
     AddCardToSlot(trickNPCSlot, card)
 
     log:debug("NPC plays card: %s", cardToString(card))
-    tes3.messageBox("NPC plays: %s", cardToString(card))
+    -- tes3.messageBox("NPC plays: %s", cardToString(card))
 end
 
 ---@return boolean
@@ -537,6 +540,8 @@ function this.drawCard(isPlayer)
 
     if isPlayer then
         log:debug("player draws card: %s", cardToString(card))
+        tes3.messageBox("You draw: %s", cardToString(card))
+
         table.insert(playerHand, card)
     else
         log:debug("NPC draws card: %s", cardToString(card))
@@ -627,7 +632,7 @@ function this.evaluate()
         if playerWins then
             log:debug("> Player wins the trick (%s > %s)", cardToString(trickPCSlot.card),
                 cardToString(trickNPCSlot.card))
-            tes3.messageBox("> Player wins the trick (%s > %s)", cardToString(trickPCSlot.card),
+            tes3.messageBox("You won the trick (%s > %s)", cardToString(trickPCSlot.card),
                 cardToString(trickNPCSlot.card))
 
             -- move the cards to the player's won cards
@@ -635,7 +640,7 @@ function this.evaluate()
             table.insert(wonCardsPc, RemoveCardFromSlot(trickNPCSlot))
         else
             log:debug("> NPC wins the trick (%s > %s)", cardToString(trickNPCSlot.card), cardToString(trickPCSlot.card))
-            tes3.messageBox("> NPC wins the trick (%s > %s)", cardToString(trickNPCSlot.card),
+            tes3.messageBox("NPC won the trick (%s > %s)", cardToString(trickNPCSlot.card),
                 cardToString(trickPCSlot.card))
 
             -- move the cards to the NPC's won cards
@@ -717,13 +722,32 @@ local function choosePcCardToPlay()
             })
     end
 
-    -- TODO add custom block to call game
-    -- TODO add easy mode
+    -- add custom block to call game
     tes3ui.showMessageMenu({
         header = getHeaderText(),
         message = getMessageText(),
         buttons = buttons,
-        cancels = true
+        cancels = true,
+        customBlock = function(parent)
+            -- only show if player has >= 66 points
+            if GetPlayerPoints() < 66 then
+                return
+            end
+
+            parent.childAlignX = 0.5
+            parent.paddingAllSides = 8
+
+            local callButton = parent:createButton({
+                text = "Call the game",
+                id = tes3ui.registerID("flin:callGame")
+            })
+            callButton:register("mouseClick", function()
+                log:debug("Player calls the game")
+
+                currentState = GameState.GAME_END
+                this.update()
+            end)
+        end,
     })
 end
 
@@ -737,7 +761,7 @@ function this.playerDrawCard()
     -- draw a card
     if not this.drawCard(true) then
         log:debug("Player cannot draw a card")
-        tes3.messageBox("You cannot draw a card")
+        tes3.messageBox("You cannot draw another card")
     else
         playerDrewCard = true
     end
@@ -781,7 +805,7 @@ function this.npcTurn()
     -- npc went last
     if trickPCSlot and trickNPCSlot and trickPCSlot.card and trickNPCSlot.card then
         -- if the npc went last, they can call the game if they think they have more than 66 points
-        if GetNpcPoints() > 66 then
+        if GetNpcPoints() >= 66 then
             log:debug("NPC calls the game")
             tes3.messageBox("NPC calls the game")
             currentState = GameState.GAME_END
@@ -800,15 +824,25 @@ function this.endGame()
     log:debug("Player points: %s, NPC points: %s", playerPoints, npcPoints)
 
     -- determine the winner
-    if playerPoints > 66 then
+    if playerPoints >= 66 then
         log:debug("Player wins")
         tes3.messageBox("You win!")
-    elseif npcPoints > 66 then
+
+        -- give the player the pot
+        tes3.addItem({ reference = tes3.player, item = "Gold_001", count = pot })
+        tes3.playSound({ sound = "Item Gold Up" })
+    elseif npcPoints >= 66 then
         log:debug("NPC wins")
         tes3.messageBox("You lose!")
+
+        -- TODO give npc the pot
     else
         log:debug("It's a draw")
         tes3.messageBox("It's a draw!")
+
+        -- give the player half the pot
+        tes3.addItem({ reference = tes3.player, item = "Gold_001", count = math.floor(pot / 2) })
+        tes3.playSound({ sound = "Item Gold Up" })
     end
 
     -- cleanup
@@ -908,6 +942,7 @@ local function SetupWarningCheck(e)
         if distance > SETUP_FORFEIT_DISTANCE then
             -- warn the player and forfeit the game
             tes3.messageBox("You lose the game")
+            -- TODO give npc the pot
 
             event.unregister(tes3.event.activate, SetupActivateCallback)
             event.unregister(tes3.event.simulate, SetupWarningCheck)
@@ -919,7 +954,7 @@ local function SetupWarningCheck(e)
         local distance = npcLocation:distance(tes3.player.position)
         if distance > SETUP_WARNING_DISTANCE then
             -- warn the player
-            tes3.messageBox("You are too far away from the NPC")
+            tes3.messageBox("You are too far away to continue the game, you will forfeit if you move further away")
             setupWarned = true
         end
     end
@@ -948,7 +983,7 @@ local function GameActivateCallback(e)
     end
 
     -- if there is no trick then the player can draw a card to start their turn
-    if e.target.object.id == this.FLIN_DECK_ID then
+    if e.target.object.id == this.FLIN_DECK_ID_FACEDOWN then
         log:debug("Player draws a card")
 
         this.playerDrawCard()
@@ -965,51 +1000,68 @@ local function GameActivateCallback(e)
         this.playerDrawCard()
         return
     end
-
-    -- if everything is empty the player must hit the trick (= play a card from hand)
-    if talonEmpty and trumpCardSlot and not trumpCardSlot.card then
-        -- TODO add a way to play a card
-    end
 end
 
 --- @param e simulateEventData
 local function GameWarningCheck(e)
-    if not npcLocation then
+    if not talonSlot then
         return
     end
 
     -- TODO check cells too
 
-    if setupWarned then
+    if gameWarned then
         -- calculate the distance between the NPC and the player
-        local distance = npcLocation:distance(tes3.player.position)
+        local distance = talonSlot.position:distance(tes3.player.position)
         if distance > GAME_FORFEIT_DISTANCE then
             -- warn the player and forfeit the game
             tes3.messageBox("You lose the game")
+            -- TODO give npc the pot
 
-            event.unregister(tes3.event.activate, GameActivateCallback)
-            event.unregister(tes3.event.simulate, GameWarningCheck)
             this.cleanup()
         end
     else
         -- calculate the distance between the NPC and the player
-        local distance = npcLocation:distance(tes3.player.position)
+        local distance = talonSlot.position:distance(tes3.player.position)
         if distance > GAME_WARNING_DISTANCE then
             -- warn the player
-            tes3.messageBox("You are too far away from the NPC")
-            setupWarned = true
+            tes3.messageBox("You are too far away to continue the game, you will forfeit if you move further away")
+            gameWarned = true
+        end
+    end
+end
+
+--- @param e keyDownEventData
+local function GameKeyDownCallback(e)
+    -- during the player turn
+    if currentState ~= GameState.PLAYER_TURN then
+        return
+    end
+
+    -- this is only needed when the npctrick is null
+    if trickNPCSlot and not trickNPCSlot.card then
+        if e.keyCode == tes3.scanCode["o"] then
+            log:debug("Player hits the trick")
+
+            this.playerHitTrick()
         end
     end
 end
 
 
 --- @param ref tes3reference
-function this.setupGame(ref)
-    log:info("Setup game")
-    tes3.messageBox("Setup game")
+--- @param gold number
+function this.setupGame(ref, gold)
+    log:info("Setup game with gold: %s", gold)
+    tes3.messageBox("Drop the deck to start the game")
 
     -- store the NPC location for checks
     npcLocation = ref.position
+
+    -- store the gold in the pot
+    pot = gold * 2
+    tes3.removeItem({ reference = tes3.player, item = "Gold_001", count = gold })
+    tes3.playSound({ sound = "Item Gold Up" })
 
     event.register(tes3.event.activate, SetupActivateCallback)
     event.register(tes3.event.simulate, SetupWarningCheck)
@@ -1018,7 +1070,7 @@ end
 --- @param deck tes3reference
 function this.startGame(deck)
     log:info("Starting game")
-    tes3.messageBox("Starting game")
+    -- tes3.messageBox("Starting game")
 
     this.cleanup()
 
@@ -1027,49 +1079,72 @@ function this.startGame(deck)
 
     event.register(tes3.event.activate, GameActivateCallback)
     event.register(tes3.event.simulate, GameWarningCheck)
+    event.register(tes3.event.keyDown, GameKeyDownCallback)
+
+    local zOffsetTalon = 2
+    local zOffsetTrump = 1
 
     -- replace the deck with a facedown deck
     local deckPos = deck.position:copy()
     local deckOrientation = deck.orientation:copy()
     deck:delete()
-    local newDeck = tes3.createReference({
-        object = this.FLIN_DECK_ID_FACEDOWN,
-        position = deckPos,
-        orientation = deckOrientation,
-        cell = tes3.player.cell
-    })
 
     -- store positions: deck, trump, trickPC, trickNPC
     talonSlot = {
-        position = deckPos,
+        position = deckPos + tes3vector3.new(0, 0, zOffsetTalon),
         orientation = deckOrientation,
         card = nil,
-        handle = tes3.makeSafeObjectHandle(newDeck)
+        handle = tes3.makeSafeObjectHandle(
+            tes3.createReference({
+                object = this.FLIN_DECK_ID_FACEDOWN,
+                position = deckPos + tes3vector3.new(0, 0, zOffsetTalon),
+                orientation = deckOrientation,
+                cell = tes3.player.cell
+            })
+        )
     }
-    local trumpCardOrientation = deckOrientation:copy()
+
+    -- trick slot is under the talon and rotated
     -- rotate by 90 degrees around the z axis
-    trumpCardOrientation.z = trumpCardOrientation.z + math.rad(90)
+    local rotation = tes3matrix33.new()
+    rotation:fromEulerXYZ(deckOrientation.x, deckOrientation.y, deckOrientation.z)
+    rotation = rotation * tes3matrix33.new(
+        0, 1, 0,
+        -1, 0, 0,
+        0, 0, 1
+    )
+    local trumpOrientation = rotation:toEulerXYZ()
+    -- move it a bit along the orientation
+    local trumpPosition = deckPos + rotation:transpose() * tes3vector3.new(0, 6, 0)
     trumpCardSlot = {
-        position = deckPos + tes3vector3.new(0, 0, 2),
-        orientation = trumpCardOrientation,
+        position = trumpPosition + tes3vector3.new(0, 0, zOffsetTrump),
+        orientation = trumpOrientation,
         card = nil,
         handle = nil
     }
 
+    -- trick slots are off to the side
     local trickOrientation = tes3vector3.new(0, 0, 0)
-    local trickOffset = tes3vector3.new(0, -10, 2)
     trickPCSlot = {
-        position = deckPos + trickOffset,
+        position = deckPos + tes3vector3.new(0, -10, zOffsetTrump),
         orientation = trickOrientation,
         card = nil,
         handle = nil
     }
-    local trickOrientation2 = trickOrientation:copy()
     -- rotate by 45 degrees around the z axis
-    trickOrientation2.z = trickOrientation2.z + math.rad(45)
+    -- angle_rad = math.rad(45)
+    local rotation2 = tes3matrix33.new()
+    rotation2:fromEulerXYZ(trickOrientation.x, trickOrientation.y, trickOrientation.z)
+    -- rotate matrix 90 degrees
+    rotation2 = rotation2 * tes3matrix33.new(
+        0, 1, 0,
+        -1, 0, 0,
+        0, 0, 1
+    )
+
     trickNPCSlot = {
-        position = deckPos + trickOffset,
-        orientation = trickOrientation,
+        position = deckPos + tes3vector3.new(0, -10, zOffsetTrump),
+        orientation = rotation2:toEulerXYZ(),
         card = nil,
         handle = nil
     }
@@ -1084,6 +1159,9 @@ function this.cleanup()
     currentState = GameState.INVALID
 
     setupWarned = false
+    gameWarned = false
+
+    pot = 0
 
     talon = {}
     trumpSuit = nil
@@ -1112,6 +1190,7 @@ function this.cleanup()
 
     event.unregister(tes3.event.activate, GameActivateCallback)
     event.unregister(tes3.event.simulate, GameWarningCheck)
+    event.unregister(tes3.event.keyDown, GameKeyDownCallback)
 end
 
 return this

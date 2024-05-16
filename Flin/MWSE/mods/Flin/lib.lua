@@ -4,7 +4,7 @@ local this   = {}
 
 this.log     = logger.new {
     name = "Flin",
-    logLevel = "TRACE",
+    logLevel = "TRACE", --TODO INFO
     logToConsole = false,
     includeTimestamp = false
 }
@@ -59,7 +59,6 @@ function this.findPlayerPosition(ref)
     end
     -- insert end pos
     table.insert(xsteps, bb.max.x)
-    debug.log(xsteps)
     -- get y steps in a table
     local ysteps = {}
     for y = bb.min.y, bb.max.y, stepsize do
@@ -67,7 +66,6 @@ function this.findPlayerPosition(ref)
     end
     -- insert end pos
     table.insert(ysteps, bb.max.y)
-    debug.log(ysteps)
 
     -- get all positions on the edge of the bounding box in xyoffset step
     local testOffset = 10
