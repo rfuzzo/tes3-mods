@@ -122,7 +122,7 @@ function state:enterState()
     game:drawCard(false)
 
     local card = chooseNpcCardToPlay(game)
-    game.trickNPCSlot:AddCardToSlot(card)
+    game:NpcPlayCard(card)
 
     log:debug("NPC plays card: %s", card:toString())
     -- tes3.messageBox("NPC plays: %s", card:toString())

@@ -24,22 +24,6 @@ function state:new(game)
 end
 
 ---@param game FlinGame
----@param card Card
-local function PcPlayCard(game, card)
-    for i, c in ipairs(game.playerHand) do
-        if c == card then
-            local result = table.remove(game.playerHand, i)
-            game.trickPCSlot:AddCardToSlot(result)
-
-            log:debug("PC plays card: %s", result:toString())
-            -- tes3.messageBox("You play: %s", result:toString())
-
-            return
-        end
-    end
-end
-
----@param game FlinGame
 local function getHeaderText(game)
     return string.format("Choose a card to play (Trump is %s)", lib.suitToString(game.trumpSuit))
 end
@@ -68,13 +52,14 @@ local function openHandMenu(game)
             {
                 text = buttonText,
                 callback = function()
-                    PcPlayCard(game, card)
+                    game:PcPlayCard(card)
+                    local nextState = game:evaluateTrick()
 
                     -- wait one second before updating
                     timer.start({
                         duration = 1,
                         callback = function()
-                            game:PushState(game:evaluateTrick())
+                            game:PushState(nextState)
                         end
                     })
                 end
@@ -121,7 +106,8 @@ local function playerDrawCard(game)
     end
 
     -- draw a card
-    if not game:drawCard(true) then
+    local card = game:drawCard(true)
+    if not card then
         log:debug("Player cannot draw a card")
         tes3.messageBox("You cannot draw another card")
         return
@@ -129,6 +115,12 @@ local function playerDrawCard(game)
 
     -- set the playerDrewCard flag to true
     bb.getInstance():setData("playerDrewCard", true)
+
+
+    -- get the key from the tes3.scanCode table with value 24
+    ---@diagnostic disable-next-line: need-check-nil
+    local key = tes3.scanCode[config.openkeybind.keyCode]
+    tes3.messageBox("You draw: %s, press %s to play a card!", card:toString(), key)
 end
 
 --#region event callbacks
@@ -140,6 +132,8 @@ local function KeyDownCallback(e)
     local playerDrewCard = bb.getInstance():getData("playerDrewCard") ---@type boolean
     if playerDrewCard and not game:GetNpcTrickRef() then
         openHandMenu(game)
+    else
+        tes3.messageBox("You must draw a card first")
     end
 end
 
@@ -148,25 +142,34 @@ local function ActivateCallback(e)
     local game = bb.getInstance():getData("game") ---@type FlinGame
 
     local playerDrewCard = bb.getInstance():getData("playerDrewCard") ---@type boolean
-
     if playerDrewCard then
+        -- activate the trick
         if game:GetNpcTrickRef() and e.target.id == game:GetNpcTrickRef().id then
-            log:trace("ActivateTrickCallback")
+            -- hit the trick
             openHandMenu(game)
             return
         end
-    else
+
+        -- activate the talon
         if game:GetTalonRef() and e.target.id == game:GetTalonRef().id then
-            log:trace("ActivateDeckCallback")
+            tes3.messageBox("You cannot draw another card")
+            return
+        end
+    else
+        -- activate the talon
+        if game:GetTalonRef() and e.target.id == game:GetTalonRef().id then
             playerDrawCard(game)
             return
-        else
+        elseif game:IsTalonEmpty() and game:GetTrumpCardRef() and e.target.id == game:GetTrumpCardRef().id then
             -- if the talon is empty and there is a trump card then the player can draw the trump card
-            if game:IsTalonEmpty() and game:GetTrumpCardRef() and e.target.id == game:GetTrumpCardRef().id then
-                log:trace("ActivateTrumpCallback")
-                playerDrawCard(game)
-                return
-            end
+            playerDrawCard(game)
+            return
+        end
+
+        -- activate the trick
+        if game:GetNpcTrickRef() and e.target.id == game:GetNpcTrickRef().id then
+            tes3.messageBox("You must draw a card first")
+            return
         end
     end
 end
@@ -176,14 +179,26 @@ end
 function state:enterState()
     log:debug("OnEnter: PlayerTurnState")
 
+
+
+
     -- register event callbacks
     local game = self.game
 
-    debug.log(#game.playerHand)
-    if #game.playerHand == 5 then
+    if #game.playerHand == 5 or game:IsPhase2() then
         bb.getInstance():setData("playerDrewCard", true)
+
+        if game:GetNpcTrickRef() then
+            tes3.messageBox("It's your turn, hit the trick!")
+        else
+            ---@diagnostic disable-next-line: need-check-nil
+            local key = tes3.scanCode[config.openkeybind.keyCode]
+            tes3.messageBox("It's your turn, press %s to play a card!", key)
+        end
     else
         bb.getInstance():setData("playerDrewCard", false)
+
+        tes3.messageBox("It's your turn, draw a card from the talon!")
     end
 
     -- register event callbacks
@@ -198,7 +213,8 @@ end
 function state:endState()
     -- unregister event callbacks
     event.unregister(tes3.event.activate, ActivateCallback)
-    event.unregister(tes3.event.keyDown, KeyDownCallback)
+    ---@diagnostic disable-next-line: need-check-nil
+    event.unregister(tes3.event.keyDown, KeyDownCallback, { filter = config.openkeybind.keyCode })
     -- remove game from blackboard
     bb.getInstance():removeData("game")
     -- remove playerDrewCard from bb

@@ -129,6 +129,29 @@ function FlinGame:talonPop()
     return card
 end
 
+-- TODO move the tricks up and down
+
+---@param card Card
+function FlinGame:PcPlayCard(card)
+    for i, c in ipairs(self.playerHand) do
+        if c == card then
+            local result = table.remove(self.playerHand, i)
+            self.trickPCSlot:AddCardToSlot(result)
+
+            log:debug("PC plays card: %s", result:toString())
+
+            return
+        end
+    end
+end
+
+---@param card Card
+function FlinGame:NpcPlayCard(card)
+    self.trickNPCSlot:AddCardToSlot(card)
+
+    log:debug("NPC plays card: %s", card:toString())
+end
+
 ---@return boolean
 function FlinGame:IsTalonEmpty()
     return #self.talon == 0
@@ -205,15 +228,15 @@ function FlinGame:DEBUG_printCards()
     log:trace("============")
 end
 
----@return boolean
+---@return Card?
 function FlinGame:drawCard(isPlayer)
     -- only draw a card if the hand is less than 5 cards
     if isPlayer and #self.playerHand >= 5 then
-        return false
+        return nil
     end
 
     if not isPlayer and #self.npcHand >= 5 then
-        return false
+        return nil
     end
 
     local card = self:talonPop()
@@ -227,12 +250,11 @@ function FlinGame:drawCard(isPlayer)
 
     if not card then
         log:debug("No more cards in the talon")
-        return false
+        return nil
     end
 
     if isPlayer then
         log:debug("player draws card: %s", card:toString())
-        tes3.messageBox("You draw: %s", card:toString())
 
         table.insert(self.playerHand, card)
     else
@@ -253,7 +275,7 @@ function FlinGame:drawCard(isPlayer)
     })
 
 
-    return true
+    return card
 end
 
 ---@return GameState

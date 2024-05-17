@@ -18,3 +18,7 @@ local function loadedCallback(e)
     log:debug("addTopic %s: %s", DECK_TOPIC, result2)
 end
 event.register(tes3.event.loaded, loadedCallback)
+
+-- /////////////////////////////////////////////////////////////////////////////////////////
+-- ////////////// CONFIG
+require("Flin.mcm")

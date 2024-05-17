@@ -29,7 +29,7 @@ function this.enter(reference, dialogue, info)
         local player = tes3.player
         local hasDeck = player.object.inventory:contains("flin_deck_20")
         if hasDeck then
-            local gold = 0
+            local gold = 1
 
             -- add slider ui with inventory money
             local buttons = {}
@@ -60,7 +60,7 @@ function this.enter(reference, dialogue, info)
                     local goldCount = tes3.getPlayerGold()
 
                     local slider = parent:createSlider({
-                        current = 0,
+                        current = gold,
                         max = goldCount,
                         step = 1,
                         jump = 10
