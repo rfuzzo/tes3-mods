@@ -115,7 +115,7 @@ function this.GetCardMeshName(suit, value)
 end
 
 ---@enum GameState
-local GameState = {
+this.GameState = {
     INVALID = 0,
     SETUP = 1,
     DEAL = 2,
@@ -127,15 +127,17 @@ local GameState = {
 ---@param state GameState
 ---@return string
 function this.stateToString(state)
-    if state == GameState.INVALID then
+    if state == this.GameState.INVALID then
         return "INVALID"
-    elseif state == GameState.DEAL then
+    elseif state == this.GameState.SETUP then
+        return "SETUP"
+    elseif state == this.GameState.DEAL then
         return "DEAL"
-    elseif state == GameState.PLAYER_TURN then
+    elseif state == this.GameState.PLAYER_TURN then
         return "PLAYER_TURN"
-    elseif state == GameState.NPC_TURN then
+    elseif state == this.GameState.NPC_TURN then
         return "NPC_TURN"
-    elseif state == GameState.GAME_END then
+    elseif state == this.GameState.GAME_END then
         return "GAME_END"
     end
     return "Unknown"

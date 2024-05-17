@@ -1,19 +1,30 @@
----@meta
-
 local lib = require("Flin.lib")
 
 -- card slot class
 --- @class CardSlot
 --- @field card Card?
 --- @field handle mwseSafeObjectHandle?
---- @field position tes3vector3?
+--- @field position tes3vector3
 --- @field orientation tes3vector3
 local CardSlot = {
-    position = nil,
-    orientation = tes3vector3.new(0, 0, 0),
     card = nil,
     handle = nil
 }
+
+-- constructor
+--- @param position tes3vector3
+--- @param orientation tes3vector3
+--- @return CardSlot
+function CardSlot:new(position, orientation)
+    ---@type CardSlot
+    local newObj = {
+        position = position,
+        orientation = orientation
+    }
+    setmetatable(newObj, self)
+    self.__index = self
+    return newObj
+end
 
 ---@param card Card
 function CardSlot:AddCardToSlot(card)
@@ -43,10 +54,4 @@ function CardSlot:RemoveCardFromSlot()
     return card_
 end
 
----@param slot CardSlot?
-function CardSlot.CleanupSlot(slot)
-    if slot then
-        CardSlot.RemoveCardFromSlot(slot)
-        slot = nil
-    end
-end
+return CardSlot

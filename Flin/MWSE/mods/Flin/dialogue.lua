@@ -1,4 +1,5 @@
 local game = require("Flin.game")
+local lib = require("Flin.lib")
 
 local this = {}
 
@@ -40,7 +41,13 @@ function this.enter(reference, dialogue, info)
                         -- exit dialogue
                         npc_menu:destroy()
                         tes3ui.leaveMenuMode()
-                        game.setupGame(reference, gold)
+
+                        -- store the gold in the pot
+                        tes3.removeItem({ reference = tes3.player, item = "Gold_001", count = gold })
+                        tes3.playSound({ sound = "Item Gold Up" })
+                        local g = game:new(gold * 2, tes3.makeSafeObjectHandle(reference))
+
+                        g:PushState(lib.GameState.SETUP)
                     end
                 })
             tes3ui.showMessageMenu({
@@ -72,7 +79,7 @@ function this.enter(reference, dialogue, info)
             })
         else
             tes3.messageBox(
-            "You need a deck of Flin cards to play. You should be able to buy one from the local publican.")
+                "You need a deck of Flin cards to play. You should be able to buy one from the local publican.")
         end
     end
 end

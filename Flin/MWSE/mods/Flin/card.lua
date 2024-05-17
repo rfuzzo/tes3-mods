@@ -1,5 +1,3 @@
----@meta
-
 local lib = require("Flin.lib")
 
 -- card class
@@ -11,6 +9,21 @@ local Card = {
     suit = nil
 }
 
+-- constructor
+--- @param suit ESuit
+--- @param value EValue
+--- @return Card
+function Card:new(suit, value)
+    ---@type Card
+    local newObj = {
+        suit = suit,
+        value = value
+    }
+    setmetatable(newObj, self)
+    self.__index = self
+    return newObj
+end
+
 ---@return string
 function Card:toString()
     return string.format("%s %s",
@@ -19,13 +32,4 @@ function Card:toString()
     )
 end
 
----@param suit ESuit
----@param value EValue
----@return Card
-function Card.new(suit, value)
-    local card = {
-        suit = suit,
-        value = value
-    } ---@type Card
-    return card
-end
+return Card

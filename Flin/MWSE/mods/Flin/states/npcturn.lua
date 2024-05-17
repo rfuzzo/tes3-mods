@@ -1,11 +1,13 @@
 local lib = require("Flin.lib")
 local log = lib.log
 
----@class NpcTurnState
----@field game FlinGame
-local state = {
+local EValue = lib.EValue
+local AbstractState = require("Flin.states.abstractState")
 
-}
+---@class NpcTurnState: AbstractState
+---@field game FlinGame
+local state = {}
+setmetatable(state, { __index = AbstractState })
 
 ---@param game FlinGame
 ---@return NpcTurnState
@@ -20,10 +22,17 @@ function state:new(game)
     return newObj
 end
 
--- AI logic
+--#region AI logic
 
+
+---@param game FlinGame
 ---@return Card
-local function chooseNpcCardPhase1()
+local function chooseNpcCardPhase1(game)
+    local trickPCSlot = game.trickPCSlot
+    local trickNPCSlot = game.trickNPCSlot
+    local trumpSuit = game.trumpSuit
+    local npcHand = game.npcHand
+
     -- make it depend on if the NPC goes first or second
     if trickPCSlot and trickPCSlot.card then
         -- if the NPC goes second
@@ -88,43 +97,59 @@ local function chooseNpcCardPhase1()
 end
 
 ---@return Card
-local function chooseNpcCardPhase2()
+---@param game FlinGame
+local function chooseNpcCardPhase2(game)
     -- TODO implement phase 2
-    return chooseNpcCardPhase1()
+    return chooseNpcCardPhase1(game)
 end
 
 ---@return Card
-function state:chooseNpcCardToPlay()
-    if self.game:IsTalonEmpty() then
-        return chooseNpcCardPhase2()
+local function chooseNpcCardToPlay(game)
+    if game:IsPhase2() then
+        return chooseNpcCardPhase2(game)
     else
-        return chooseNpcCardPhase1()
+        return chooseNpcCardPhase1(game)
     end
 end
+
+--#endregion
 
 function state:enterState()
-    log:debug("NPC turn")
+    log:debug("OnEnter: NpcTurnState")
 
-    self.game:drawCard(false)
+    local game = self.game
 
-    local card = self:chooseNpcCardToPlay()
-    trickNPCSlot:AddCardToSlot(card)
+    game:drawCard(false)
 
-    log:debug("NPC plays card: %s", lib.cardToString(card))
-    -- tes3.messageBox("NPC plays: %s", cardToString(card))
+    local card = chooseNpcCardToPlay(game)
+    game.trickNPCSlot:AddCardToSlot(card)
+
+    log:debug("NPC plays card: %s", card:toString())
+    -- tes3.messageBox("NPC plays: %s", card:toString())
 
     -- npc went last
-    if trickPCSlot and trickNPCSlot and trickPCSlot.card and trickNPCSlot.card then
+    if game.trickPCSlot and game.trickNPCSlot and game.trickPCSlot.card and game.trickNPCSlot.card then
         -- if the npc went last, they can call the game if they think they have more than 66 points
-        if self.game:GetNpcPoints() >= 66 then
+        if game:GetNpcPoints() >= 66 then
             log:debug("NPC calls the game")
             tes3.messageBox("NPC calls the game")
-            self.game.currentState = lib.GameState.GAME_END
+
+            self.game:PushState(lib.GameState.GAME_END)
+            return
         end
     end
+
+    -- wait one second before updating
+    timer.start({
+        duration = 1,
+        callback = function()
+            local nextState = game:evaluateTrick()
+            game:PushState(nextState)
+        end
+    })
 end
 
-function state.endState()
+function state:endState()
 
 end
 

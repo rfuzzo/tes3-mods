@@ -1,11 +1,12 @@
 local lib = require("Flin.lib")
 local log = lib.log
 
----@class GameDealState
----@field game FlinGame
-local state = {
+local AbstractState = require("Flin.states.abstractState")
 
-}
+---@class GameDealState: AbstractState
+---@field game FlinGame
+local state = {}
+setmetatable(state, { __index = AbstractState })
 
 ---@param game FlinGame
 ---@return GameDealState
@@ -16,45 +17,63 @@ function state:new(game)
     }
     self.__index = self
     setmetatable(newObj, self)
-    ---@cast newObj GameDealState
     return newObj
 end
 
 function state:enterState()
     log:trace("Dealing cards")
 
+    local game = self.game
+
     -- Code to deal cards to players
     -- first init the talon
-    self.game:SetNewTalon()
+    game:SetNewTalon()
 
     -- deal 3 cards to each player, remove them from the talon
     for i = 1, 3 do
-        self.game:dealCardTo(true)
-        self.game:dealCardTo(false)
+        game:dealCardTo(true)
+        game:dealCardTo(false)
     end
 
     -- the trump card is the next card in the talon
-    local trumpCard = self.game:talonPop()
+    local trumpCard = game:talonPop()
     if not trumpCard then
         log:error("No trump card")
-        self.game.currentState = lib.GameState.INVALID
+        game:PushState(lib.GameState.INVALID)
         return
     end
-    trumpCardSlot:AddCardToSlot(trumpCard)
+
+    game.trumpCardSlot:AddCardToSlot(trumpCard)
     -- save the trump suit
-    self.game.trumpSuit = trumpCard.suit
-    log:debug("Trump suit: %s", lib.suitToString(self.game.trumpSuit))
+    game.trumpSuit = trumpCard.suit
+    log:debug("Trump suit: %s", lib.suitToString(game.trumpSuit))
     -- tes3.messageBox("Trump suit: %s", suitToString(trumpSuit))
 
     -- deal the rest of the cards to the players
     -- 2 cards to the player, 2 cards to the npc
     for i = 1, 2 do
-        self.game:dealCardTo(true)
-        self.game:dealCardTo(false)
+        game:dealCardTo(true)
+        game:dealCardTo(false)
+    end
+
+    -- determine at random who goes next
+    local startPlayer = math.random(2)
+
+    -- game:DEBUG_printCards()
+
+    -- go to the next state, depending on who starts
+    if startPlayer == 1 then
+        log:debug("Player starts")
+
+        self.game:PushState(lib.GameState.PLAYER_TURN)
+    else
+        log:debug("NPC starts")
+
+        self.game:PushState(lib.GameState.NPC_TURN)
     end
 end
 
-function state.endState()
+function state:endState()
 
 end
 

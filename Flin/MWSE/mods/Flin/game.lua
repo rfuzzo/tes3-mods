@@ -1,8 +1,9 @@
 local lib                   = require("Flin.lib")
 local log                   = lib.log
 
-local CardSlot              = require("Flin.cardSlot")
 local Card                  = require("Flin.card")
+local CardSlot              = require("Flin.cardSlot")
+local bb                    = require("Flin.blackboard")
 
 local ESuit                 = lib.ESuit
 local EValue                = lib.EValue
@@ -14,9 +15,10 @@ local GAME_FORFEIT_DISTANCE = 300
 
 
 ---@class FlinGame
----@field currentState GameState
+---@field private currentState GameState
+---@field private state AbstractState?
 ---@field pot number
----@field handle mwseSafeObjectHandle?
+---@field npcHandle mwseSafeObjectHandle?
 ---@field talon Card[]
 ---@field trumpSuit ESuit?
 ---@field playerHand Card[]
@@ -25,46 +27,33 @@ local GAME_FORFEIT_DISTANCE = 300
 ---@field trumpCardSlot CardSlot?
 ---@field trickPCSlot CardSlot?
 ---@field trickNPCSlot CardSlot?
----@field wonCardsPc Card[]
----@field wonCardsNpc Card[]
+---@field private wonCardsPc Card[]
+---@field private wonCardsNpc Card[]
 local FlinGame = {}
 
-
--- temp
-local playerDrewCard     = false
-local firstTurn          = false
-local playerJustHitTrick = false
-local callbacklock       = false
-local setupWarned        = false
-local gameWarned         = false
-
----@param id string
----@return boolean
-function FlinGame:IsNpcTrick(id)
-    -- get the id of the trick activator
-    local trickNPCSlot = self.trickNPCSlot
-    if trickNPCSlot and trickNPCSlot.handle and trickNPCSlot.handle:valid() then
-        if trickNPCSlot.handle:getObject().id == id then
-            return true
-        end
-    end
-
-    return false
+-- constructor
+---@param pot number
+---@param npcHandle mwseSafeObjectHandle
+---@return FlinGame
+function FlinGame:new(pot, npcHandle)
+    ---@type FlinGame
+    local newObj = {
+        currentState = GameState.INVALID,
+        pot = pot,
+        npcHandle = npcHandle,
+        playerHand = {},
+        npcHand = {},
+        talon = {},
+        wonCardsNpc = {},
+        wonCardsPc = {}
+    }
+    self.__index = self
+    setmetatable(newObj, self)
+    ---@cast newObj FlinGame
+    return newObj
 end
 
----@param id string
----@return boolean
-function FlinGame:IsTrumpCard(id)
-    -- get the id of the trump card activator
-    local trumpCardSlot = self.trumpCardSlot
-    if trumpCardSlot and trumpCardSlot.handle and trumpCardSlot.handle:valid() then
-        if trumpCardSlot.handle:getObject().id == id then
-            return true
-        end
-    end
-
-    return false
-end
+--#region methods
 
 ---@return number
 function FlinGame:GetPlayerPoints()
@@ -84,7 +73,7 @@ function FlinGame:GetNpcPoints()
     return points
 end
 
-function FlinGame:ShuffleDeck()
+function FlinGame:ShuffleTalon()
     for i = #self.talon, 2, -1 do
         local j = math.random(i)
         self.talon[i], self.talon[j] = self.talon[j], self.talon[i]
@@ -94,32 +83,32 @@ end
 function FlinGame:SetNewTalon()
     local talon = {}
 
-    table.insert(talon, Card.new(ESuit.Hearts, EValue.Unter))
-    table.insert(talon, Card.new(ESuit.Hearts, EValue.Ober))
-    table.insert(talon, Card.new(ESuit.Hearts, EValue.King))
-    table.insert(talon, Card.new(ESuit.Hearts, EValue.X))
-    table.insert(talon, Card.new(ESuit.Hearts, EValue.Ace))
+    table.insert(talon, Card:new(ESuit.Hearts, EValue.Unter))
+    table.insert(talon, Card:new(ESuit.Hearts, EValue.Ober))
+    table.insert(talon, Card:new(ESuit.Hearts, EValue.King))
+    table.insert(talon, Card:new(ESuit.Hearts, EValue.X))
+    table.insert(talon, Card:new(ESuit.Hearts, EValue.Ace))
 
-    table.insert(talon, Card.new(ESuit.Bells, EValue.Unter))
-    table.insert(talon, Card.new(ESuit.Bells, EValue.Ober))
-    table.insert(talon, Card.new(ESuit.Bells, EValue.King))
-    table.insert(talon, Card.new(ESuit.Bells, EValue.X))
-    table.insert(talon, Card.new(ESuit.Bells, EValue.Ace))
+    table.insert(talon, Card:new(ESuit.Bells, EValue.Unter))
+    table.insert(talon, Card:new(ESuit.Bells, EValue.Ober))
+    table.insert(talon, Card:new(ESuit.Bells, EValue.King))
+    table.insert(talon, Card:new(ESuit.Bells, EValue.X))
+    table.insert(talon, Card:new(ESuit.Bells, EValue.Ace))
 
-    table.insert(talon, Card.new(ESuit.Acorns, EValue.Unter))
-    table.insert(talon, Card.new(ESuit.Acorns, EValue.Ober))
-    table.insert(talon, Card.new(ESuit.Acorns, EValue.King))
-    table.insert(talon, Card.new(ESuit.Acorns, EValue.X))
-    table.insert(talon, Card.new(ESuit.Acorns, EValue.Ace))
+    table.insert(talon, Card:new(ESuit.Acorns, EValue.Unter))
+    table.insert(talon, Card:new(ESuit.Acorns, EValue.Ober))
+    table.insert(talon, Card:new(ESuit.Acorns, EValue.King))
+    table.insert(talon, Card:new(ESuit.Acorns, EValue.X))
+    table.insert(talon, Card:new(ESuit.Acorns, EValue.Ace))
 
-    table.insert(talon, Card.new(ESuit.Leaves, EValue.Unter))
-    table.insert(talon, Card.new(ESuit.Leaves, EValue.Ober))
-    table.insert(talon, Card.new(ESuit.Leaves, EValue.King))
-    table.insert(talon, Card.new(ESuit.Leaves, EValue.X))
-    table.insert(talon, Card.new(ESuit.Leaves, EValue.Ace))
+    table.insert(talon, Card:new(ESuit.Leaves, EValue.Unter))
+    table.insert(talon, Card:new(ESuit.Leaves, EValue.Ober))
+    table.insert(talon, Card:new(ESuit.Leaves, EValue.King))
+    table.insert(talon, Card:new(ESuit.Leaves, EValue.X))
+    table.insert(talon, Card:new(ESuit.Leaves, EValue.Ace))
 
     self.talon = talon
-    self:ShuffleDeck()
+    self:ShuffleTalon()
 end
 
 ---@return Card?
@@ -142,7 +131,44 @@ end
 
 ---@return boolean
 function FlinGame:IsTalonEmpty()
-    return #self.talon == 0 and not self.trumpCardSlot.card
+    return #self.talon == 0
+end
+
+---@return boolean
+function FlinGame:IsPhase2()
+    return self:IsTalonEmpty() and not self.trumpCardSlot.card
+end
+
+---@return tes3reference?
+function FlinGame:GetNpcTrickRef()
+    -- get the id of the trick activator
+    local trickNPCSlot = self.trickNPCSlot
+    if trickNPCSlot and trickNPCSlot.handle and trickNPCSlot.handle:valid() then
+        return trickNPCSlot.handle:getObject()
+    end
+
+    return nil
+end
+
+---@return tes3reference?
+function FlinGame:GetTrumpCardRef()
+    -- get the id of the trump card activator
+    local trumpCardSlot = self.trumpCardSlot
+    if trumpCardSlot and trumpCardSlot.handle and trumpCardSlot.handle:valid() then
+        return trumpCardSlot.handle:getObject()
+    end
+
+    return nil
+end
+
+---@return tes3reference?
+function FlinGame:GetTalonRef()
+    -- get the id of the talon activator
+    local talonSlot = self.talonSlot
+    if talonSlot and talonSlot.handle and talonSlot.handle:valid() then
+        return talonSlot.handle:getObject()
+    end
+    return nil
 end
 
 ---@param isPlayer boolean
@@ -154,31 +180,33 @@ function FlinGame:dealCardTo(isPlayer)
     end
 end
 
+function FlinGame:DEBUG_printCards()
+    log:trace("============")
+    log:trace("player hand:")
+    for i, c in ipairs(self.playerHand) do
+        log:trace("\t%s", c:toString())
+    end
+    log:trace("npc hand:")
+    for i, c in ipairs(self.npcHand) do
+        log:trace("\t%s", c:toString())
+    end
+    log:trace("talon:")
+    for i, c in ipairs(self.talon) do
+        log:trace("\t%s", c:toString())
+    end
+    log:trace("trick pc:")
+    if self.trickPCSlot and self.trickPCSlot.card then
+        log:trace("\t%s", self.trickPCSlot.card:toString())
+    end
+    log:trace("trick npc:")
+    if self.trickNPCSlot and self.trickNPCSlot.card then
+        log:trace("\t%s", self.trickNPCSlot.card:toString())
+    end
+    log:trace("============")
+end
+
 ---@return boolean
 function FlinGame:drawCard(isPlayer)
-    -- log:trace("============")
-    -- log:trace("player hand:")
-    -- for i, c in ipairs(playerHand) do
-    --     log:trace("\t%s", cardToString(c))
-    -- end
-    -- log:trace("npc hand:")
-    -- for i, c in ipairs(npcHand) do
-    --     log:trace("\t%s", cardToString(c))
-    -- end
-    -- log:trace("talon:")
-    -- for i, c in ipairs(talon) do
-    --     log:trace("\t%s", cardToString(c))
-    -- end
-    -- log:trace("trick pc:")
-    -- if trickPCSlot and trickPCSlot.card then
-    --     log:trace("\t%s", cardToString(trickPCSlot.card))
-    -- end
-    -- log:trace("trick npc:")
-    -- if trickNPCSlot and trickNPCSlot.card then
-    --     log:trace("\t%s", cardToString(trickNPCSlot.card))
-    -- end
-    -- log:trace("============")
-
     -- only draw a card if the hand is less than 5 cards
     if isPlayer and #self.playerHand >= 5 then
         return false
@@ -203,12 +231,12 @@ function FlinGame:drawCard(isPlayer)
     end
 
     if isPlayer then
-        log:debug("player draws card: %s", lib.cardToString(card))
-        tes3.messageBox("You draw: %s", lib.cardToString(card))
+        log:debug("player draws card: %s", card:toString())
+        tes3.messageBox("You draw: %s", card:toString())
 
         table.insert(self.playerHand, card)
     else
-        log:debug("NPC draws card: %s", lib.cardToString(card))
+        log:debug("NPC draws card: %s", card:toString())
         table.insert(self.npcHand, card)
     end
 
@@ -229,8 +257,12 @@ function FlinGame:drawCard(isPlayer)
 end
 
 ---@return GameState
-local function evaluate()
+function FlinGame:evaluateTrick()
     log:trace("evaluate")
+
+    local trickPCSlot = self.trickPCSlot
+    local trickNPCSlot = self.trickNPCSlot
+    local trumpSuit = self.trumpSuit
 
     if not trickPCSlot then
         return GameState.INVALID
@@ -283,40 +315,40 @@ local function evaluate()
             end
         else
             -- the suits don't match so the current player loses as they went last
-            if currentState == GameState.PLAYER_TURN then
+            if self.currentState == GameState.PLAYER_TURN then
                 playerWins = false
-            elseif currentState == GameState.NPC_TURN then
+            elseif self.currentState == GameState.NPC_TURN then
                 playerWins = true
             end
         end
 
 
         -- add the value of the trick to the winner's points
-        local valueOfTrick = trickPCSlot.card.value + trickNPCSlot.card.value
         if playerWins then
-            log:debug("> Player wins the trick (%s > %s)", cardToString(trickPCSlot.card),
-                cardToString(trickNPCSlot.card))
-            tes3.messageBox("You won the trick (%s > %s)", cardToString(trickPCSlot.card),
-                cardToString(trickNPCSlot.card))
+            log:debug("> Player wins the trick (%s > %s)", trickPCSlot.card:toString(),
+                trickNPCSlot.card:toString())
+            tes3.messageBox("You won the trick (%s > %s)", trickPCSlot.card:toString(),
+                trickNPCSlot.card:toString())
 
             -- move the cards to the player's won cards
-            table.insert(wonCardsPc, RemoveCardFromSlot(trickPCSlot))
-            table.insert(wonCardsPc, RemoveCardFromSlot(trickNPCSlot))
+            table.insert(self.wonCardsPc, trickPCSlot:RemoveCardFromSlot())
+            table.insert(self.wonCardsPc, trickNPCSlot:RemoveCardFromSlot())
         else
-            log:debug("> NPC wins the trick (%s > %s)", cardToString(trickNPCSlot.card), cardToString(trickPCSlot.card))
-            tes3.messageBox("NPC won the trick (%s > %s)", cardToString(trickNPCSlot.card),
-                cardToString(trickPCSlot.card))
+            log:debug("> NPC wins the trick (%s > %s)", trickNPCSlot.card:toString(),
+                trickPCSlot.card:toString())
+            tes3.messageBox("NPC won the trick (%s > %s)", trickNPCSlot.card:toString(),
+                trickPCSlot.card:toString())
 
             -- move the cards to the NPC's won cards
-            table.insert(wonCardsNpc, RemoveCardFromSlot(trickPCSlot))
-            table.insert(wonCardsNpc, RemoveCardFromSlot(trickNPCSlot))
+            table.insert(self.wonCardsNpc, trickPCSlot:RemoveCardFromSlot())
+            table.insert(self.wonCardsNpc, trickNPCSlot:RemoveCardFromSlot())
         end
 
 
-        log:debug("\tPlayer points: %s, NPC points: %s", GetPlayerPoints(), GetNpcPoints())
+        log:debug("\tPlayer points: %s, NPC points: %s", self:GetPlayerPoints(), self:GetNpcPoints())
 
         -- check if the game has ended
-        if #playerHand == 0 and #npcHand == 0 then
+        if #self.playerHand == 0 and #self.npcHand == 0 then
             return GameState.GAME_END
         end
 
@@ -346,217 +378,155 @@ local function evaluate()
     return GameState.INVALID
 end
 
-local function determineNextState()
-    if currentState == GameState.DEAL then
-        -- determine at random who goes next
-        local startPlayer = math.random(2)
-        if startPlayer == 1 then
-            log:debug("Player starts")
-        else
-            log:debug("NPC starts")
-        end
+--#endregion
 
-        -- go to the next state, depending on who starts
-        if startPlayer == 1 then
-            currentState = GameState.PLAYER_TURN
-        else
-            currentState = GameState.NPC_TURN
-        end
-        firstTurn = true
-    elseif currentState == GameState.PLAYER_TURN then
-        currentState = this.evaluate()
-    elseif currentState == GameState.NPC_TURN then
-        currentState = this.evaluate()
+--#region state machine
+
+-- only certain transitions are allowed
+local transitions = {
+    [GameState.SETUP] = {
+        [GameState.DEAL] = true,
+        [GameState.INVALID] = true
+    },
+    [GameState.DEAL] = {
+        [GameState.PLAYER_TURN] = true,
+        [GameState.NPC_TURN] = true,
+        [GameState.INVALID] = true
+    },
+    [GameState.PLAYER_TURN] = {
+        [GameState.PLAYER_TURN] = true,
+        [GameState.NPC_TURN] = true,
+        [GameState.GAME_END] = true,
+        [GameState.INVALID] = true
+    },
+    [GameState.NPC_TURN] = {
+        [GameState.PLAYER_TURN] = true,
+        [GameState.NPC_TURN] = true,
+        [GameState.GAME_END] = true,
+        [GameState.INVALID] = true
+    },
+    [GameState.GAME_END] = {
+        [GameState.INVALID] = true
+    },
+    [GameState.INVALID] = {
+        [GameState.SETUP] = true
+    }
+}
+
+---@param nextState GameState
+function FlinGame:PushState(nextState)
+    log:trace("PushState: %s -> %s", lib.stateToString(self.currentState), lib.stateToString(nextState))
+
+    -- check if the transition is allowed
+    if not transitions[self.currentState][nextState] then
+        log:error("Invalid state transition: %s -> %s", lib.stateToString(self.currentState),
+            lib.stateToString(nextState))
+        return
     end
 
-    -- push the game to the next state
-    log:trace("Next state: %s", stateToString(currentState))
+    self:ExitState()
+    self:EnterState(nextState)
 end
 
-local function update()
-    log:trace("currentState %s", stateToString(currentState))
+---@private
+function FlinGame:ExitState()
+    log:trace("ExitState: %s", lib.stateToString(self.currentState))
+    if self.state then
+        self.state:endState()
+    end
+end
 
-    playerJustHitTrick = false
+---@private
+---@param state GameState
+function FlinGame:EnterState(state)
+    log:trace("EnterState: %s", lib.stateToString(state))
 
-    if currentState == GameState.DEAL then
-        this.dealCards()
-        this.determineNextState()
-        this.update()
-    elseif currentState == GameState.PLAYER_TURN then
-        tes3.messageBox("It's your turn")
-        -- the player is active so they get to chose when to push the statemachine
-        playerDrewCard = false
-
-        if firstTurn then
-            playerDrewCard = true
-            firstTurn = false
-        end
-    elseif currentState == GameState.NPC_TURN then
-        this.npcTurn()
-
-        -- wait one second before updating
-        callbacklock = true
-        timer.start({
-            duration = 1,
-            callback = function()
-                this.determineNextState()
-
-                -- wait one second before updating
-                timer.start({
-                    duration = 1,
-                    callback = function()
-                        this.update()
-
-                        callbacklock = false
-                    end
-                })
-            end
-        })
-    elseif currentState == GameState.GAME_END then
-        this.endGame()
-    elseif currentState == GameState.INVALID then
+    if state == GameState.SETUP then
+        local setupState = require("Flin.states.gameSetup")
+        self.state = setupState:new(self)
+    elseif state == GameState.DEAL then
+        local dealState = require("Flin.states.gameDeal")
+        self.state = dealState:new(self)
+    elseif state == GameState.PLAYER_TURN then
+        local playerTurnState = require("Flin.states.playerTurn")
+        self.state = playerTurnState:new(self)
+    elseif state == GameState.NPC_TURN then
+        local npcTurnState = require("Flin.states.npcTurn")
+        self.state = npcTurnState:new(self)
+    elseif state == GameState.GAME_END then
+        local gameEndState = require("Flin.states.gameEnd")
+        self.state = gameEndState:new(self)
+    elseif state == GameState.INVALID then
         log:error("Invalid state: Cleaning up")
-        this.cleanup()
+        self:cleanup()
+        return
     end
+
+    self.currentState = state
+    self.state:enterState()
 end
 
---- @param e activateEventData
-local function GameActivateCallback(e)
-    log:trace("GameActivateCallback %s", e.target and e.target.object.id or "nil")
+--#endregion
 
-    if not e.target then
-        return
-    end
+--#region event callbacks
 
-    if callbacklock then
-        return
-    end
-
-    -- during the player turn
-    if currentState ~= GameState.PLAYER_TURN then
-        return
-    end
-
-    -- the player can hit the trick if there is a trick and the target is the trick
-    if IsNpcTrick(e.target.object.id) then
-        -- hit the trick
-        log:debug("Player hits the trick")
-
-        this.playerHitTrick()
-        return
-    end
-
-    -- if there is no trick then the player can draw a card to start their turn
-    if e.target.object.id == this.FLIN_DECK_ID_FACEDOWN then
-        log:debug("Player draws a card")
-
-        this.playerDrawCard()
-
-        -- the deck is an item
-        e.claim = true
-        return false
-    end
-
-    -- if the talon is empty the player can still draw the trump card
-    if talonEmpty and IsTrumpCard(e.target.object.id) then
-        log:debug("Player draws the trump card")
-
-        this.playerDrawCard()
-        return
-    end
-end
-
+--- this runs during the whole game
 --- @param e simulateEventData
-local function GameWarningCheck(e)
-    if not talonSlot then
+local function SimulateCallback(e)
+    local game = bb.getInstance():getData("game") ---@type FlinGame
+
+    if not game then
+        return
+    end
+
+    if not game.talonSlot then
         return
     end
 
     -- TODO check cells too
-
+    local gameWarned = bb.getInstance():getData("gameWarned")
     if gameWarned then
         -- calculate the distance between the NPC and the player
-        local distance = talonSlot.position:distance(tes3.player.position)
+        local distance = game.talonSlot.position:distance(tes3.player.position)
         if distance > GAME_FORFEIT_DISTANCE then
             -- warn the player and forfeit the game
             tes3.messageBox("You lose the game")
             -- TODO give npc the pot
 
-            this.cleanup()
+            game:cleanup()
         end
     else
         -- calculate the distance between the NPC and the player
-        local distance = talonSlot.position:distance(tes3.player.position)
+        local distance = game.talonSlot.position:distance(tes3.player.position)
         if distance > GAME_WARNING_DISTANCE then
             -- warn the player
             tes3.messageBox("You are too far away to continue the game, you will forfeit if you move further away")
-            gameWarned = true
+            bb.getInstance():setData("gameWarned", true)
         end
     end
 end
 
---- @param e keyDownEventData
-local function GameKeyDownCallback(e)
-    if callbacklock then
-        return
-    end
-    -- during the player turn
-    if currentState ~= GameState.PLAYER_TURN then
-        return
-    end
+--#endregion
 
-    -- this is only needed when the npctrick is null
-    if trickNPCSlot and not trickNPCSlot.card then
-        if e.keyCode == tes3.scanCode["o"] then
-            debug.log(playerJustHitTrick)
-
-            if playerJustHitTrick then
-                return
-            end
-
-            log:debug("Player hits the trick")
-            playerJustHitTrick = true
-
-            this.playerHitTrick()
-        end
-    end
-end
-
-
---- @param deck tes3reference
-function FlinGame:startGame(deck)
+--- @param deckRef tes3reference
+function FlinGame:startGame(deckRef)
     log:info("Starting game")
-    tes3.messageBox("The game is on! The pot is %s gold", pot)
+    tes3.messageBox("The game is on! The pot is %s gold", self.pot)
 
-    event.unregister(tes3.event.activate, SetupActivateCallback)
-    event.unregister(tes3.event.simulate, SetupWarningCheck)
+    -- register event callbacks
+    event.register(tes3.event.simulate, SimulateCallback)
+    -- add game to blackboard for events
+    bb.getInstance():setData("game", self)
 
-    event.register(tes3.event.activate, GameActivateCallback)
-    event.register(tes3.event.simulate, GameWarningCheck)
-    event.register(tes3.event.keyDown, GameKeyDownCallback)
-
-    local zOffsetTalon = 2
     local zOffsetTrump = 1
 
     -- replace the deck with a facedown deck
-    local deckPos = deck.position:copy()
-    local deckOrientation = deck.orientation:copy()
-    deck:delete()
+    local deckPos = deckRef.position:copy()
+    local deckOrientation = deckRef.orientation:copy()
 
     -- store positions: deck, trump, trickPC, trickNPC
-    talonSlot = {
-        position = deckPos + tes3vector3.new(0, 0, zOffsetTalon),
-        orientation = deckOrientation,
-        card = nil,
-        handle = tes3.makeSafeObjectHandle(
-            tes3.createReference({
-                object = this.FLIN_DECK_ID_FACEDOWN,
-                position = deckPos + tes3vector3.new(0, 0, zOffsetTalon),
-                orientation = deckOrientation,
-                cell = tes3.player.cell
-            })
-        )
-    }
+    self.talonSlot = CardSlot:new(deckPos, deckOrientation)
+    self.talonSlot.handle = tes3.makeSafeObjectHandle(deckRef)
 
     -- trick slot is under the talon and rotated
     -- rotate by 90 degrees around the z axis
@@ -570,21 +540,12 @@ function FlinGame:startGame(deck)
     local trumpOrientation = rotation:toEulerXYZ()
     -- move it a bit along the orientation
     local trumpPosition = deckPos + rotation:transpose() * tes3vector3.new(0, 6, 0)
-    trumpCardSlot = {
-        position = trumpPosition + tes3vector3.new(0, 0, zOffsetTrump),
-        orientation = trumpOrientation,
-        card = nil,
-        handle = nil
-    }
+    self.trumpCardSlot = CardSlot:new(trumpPosition + tes3vector3.new(0, 0, zOffsetTrump), trumpOrientation)
 
     -- trick slots are off to the side
     local trickOrientation = deckOrientation
-    trickPCSlot = {
-        position = deckPos + tes3vector3.new(0, 10, zOffsetTrump),
-        orientation = trickOrientation,
-        card = nil,
-        handle = nil
-    }
+    self.trickPCSlot = CardSlot:new(deckPos + tes3vector3.new(0, 10, zOffsetTrump), trickOrientation)
+
     -- rotate by 45 degrees around the z axis
     -- angle_rad = math.rad(45)
     local rotation2 = tes3matrix33.new()
@@ -596,53 +557,43 @@ function FlinGame:startGame(deck)
         0, 0, 1
     )
 
-    trickNPCSlot = {
-        position = deckPos + tes3vector3.new(0, 10, zOffsetTrump),
-        orientation = rotation2:toEulerXYZ(),
-        card = nil,
-        handle = nil
-    }
+    self.trickNPCSlot = CardSlot:new(deckPos + tes3vector3.new(0, 10, zOffsetTrump), rotation2:toEulerXYZ())
+end
 
-    currentState = GameState.DEAL
-    this.update()
+---@param slot CardSlot?
+local function CleanupSlot(slot)
+    if slot then
+        slot:RemoveCardFromSlot()
+        slot = nil
+    end
 end
 
 function FlinGame:cleanup()
     log:trace("Cleaning up")
 
     self.currentState = GameState.INVALID
-
-    gameWarned = false
-
     self.pot = 0
-
     self.talon = {}
     self.trumpSuit = nil
-    self.talonEmpty = false
-
     self.playerHand = {}
     self.npcHand = {}
-
     self.wonCardsPc = {}
     self.wonCardsNpc = {}
 
     -- cleanup handles and references
-    self.handle = nil
+    self.npcHandle = nil
 
-    CardSlot.CleanupSlot(talonSlot)
-    CardSlot.CleanupSlot(trumpCardSlot)
-    CardSlot.CleanupSlot(trickPCSlot)
-    CardSlot.CleanupSlot(trickNPCSlot)
+    CleanupSlot(self.talonSlot)
+    CleanupSlot(self.trumpCardSlot)
+    CleanupSlot(self.trickPCSlot)
+    CleanupSlot(self.trickNPCSlot)
 
-    -- temps
-    playerDrewCard = false
-    firstTurn = false
-    playerJustHitTrick = false
-    callbacklock = false
-
-    event.unregister(tes3.event.activate, GameActivateCallback)
-    event.unregister(tes3.event.simulate, GameWarningCheck)
-    event.unregister(tes3.event.keyDown, GameKeyDownCallback)
+    -- remove event callbacks
+    event.unregister(tes3.event.simulate, SimulateCallback)
+    -- remove game from blackboard
+    bb.getInstance():removeData("game")
+    bb.getInstance():removeData("setupWarned")
+    bb.getInstance():clean()
 end
 
 return FlinGame
