@@ -129,8 +129,6 @@ function FlinGame:talonPop()
     return card
 end
 
--- TODO move the tricks up and down
-
 ---@param card Card
 function FlinGame:PcPlayCard(card)
     for i, c in ipairs(self.playerHand) do
@@ -139,6 +137,12 @@ function FlinGame:PcPlayCard(card)
             self.trickPCSlot:AddCardToSlot(result)
 
             log:debug("PC plays card: %s", result:toString())
+
+            -- adjust the position of the slot
+            -- if the trickNPCSlot is not empty then move the trickNCSlot up
+            if self.trickNPCSlot and self.trickNPCSlot.card then
+                self.trickPCSlot:MoveUp(0.5)
+            end
 
             return
         end
@@ -150,6 +154,12 @@ function FlinGame:NpcPlayCard(card)
     self.trickNPCSlot:AddCardToSlot(card)
 
     log:debug("NPC plays card: %s", card:toString())
+
+    -- adjust the position of the slot
+    -- if the trickPCSlot is not empty then move the trickNPCSlot up
+    if self.trickPCSlot and self.trickPCSlot.card then
+        self.trickNPCSlot:MoveUp(0.5)
+    end
 end
 
 ---@return boolean
@@ -540,17 +550,18 @@ function FlinGame:startGame(deckRef)
     -- add game to blackboard for events
     bb.getInstance():setData("game", self)
 
-    local zOffsetTrump = 1
+    local zOffsetTrump = 0.1
 
     -- replace the deck with a facedown deck
     local deckPos = deckRef.position:copy()
     local deckOrientation = deckRef.orientation:copy()
 
     -- store positions: deck, trump, trickPC, trickNPC
+    -- 1. talon slot is the deck
     self.talonSlot = CardSlot:new(deckPos, deckOrientation)
     self.talonSlot.handle = tes3.makeSafeObjectHandle(deckRef)
 
-    -- trick slot is under the talon and rotated
+    -- 2. trump slot is under the talon and rotated
     -- rotate by 90 degrees around the z axis
     local rotation = tes3matrix33.new()
     rotation:fromEulerXYZ(deckOrientation.x, deckOrientation.y, deckOrientation.z)
@@ -561,25 +572,36 @@ function FlinGame:startGame(deckRef)
     )
     local trumpOrientation = rotation:toEulerXYZ()
     -- move it a bit along the orientation
-    local trumpPosition = deckPos + rotation:transpose() * tes3vector3.new(0, 6, 0)
-    self.trumpCardSlot = CardSlot:new(trumpPosition + tes3vector3.new(0, 0, zOffsetTrump), trumpOrientation)
+    local trumpPosition = deckPos + tes3vector3.new(0, 0, zOffsetTrump) + rotation:transpose() * tes3vector3.new(0, 6, 0)
+    self.trumpCardSlot = CardSlot:new(trumpPosition, trumpOrientation)
 
-    -- trick slots are off to the side
+    -- 3. trick slots are off to the side
     local trickOrientation = deckOrientation
-    self.trickPCSlot = CardSlot:new(deckPos + tes3vector3.new(0, 10, zOffsetTrump), trickOrientation)
+    local trickPosition = deckPos + tes3vector3.new(0, 10, zOffsetTrump)
+    self.trickPCSlot = CardSlot:new(trickPosition, trickOrientation)
 
-    -- rotate by 45 degrees around the z axis
-    -- angle_rad = math.rad(45)
-    local rotation2 = tes3matrix33.new()
-    rotation2:fromEulerXYZ(trickOrientation.x, trickOrientation.y, trickOrientation.z)
-    -- rotate matrix 90 degrees
-    rotation2 = rotation2 * tes3matrix33.new(
-        0, 1, 0,
-        -1, 0, 0,
+    -- 4. rotate by 45 degrees around the z axis
+    local angle_rad = math.rad(45)
+    rotation = tes3matrix33.new(
+        math.cos(angle_rad), -math.sin(angle_rad), 0,
+        math.sin(angle_rad), math.cos(angle_rad), 0,
         0, 0, 1
     )
+    local trick2orientation = rotation:toEulerXYZ()
+    self.trickNPCSlot = CardSlot:new(trickPosition, trick2orientation)
 
-    self.trickNPCSlot = CardSlot:new(deckPos + tes3vector3.new(0, 10, zOffsetTrump), rotation2:toEulerXYZ())
+    -- local rotation2 = tes3matrix33.new()
+    -- rotation2:fromEulerXYZ(trickOrientation.x, trickOrientation.y, trickOrientation.z)
+    -- -- rotate matrix 90 degrees
+    -- rotation2 = rotation2 * tes3matrix33.new(
+    --     0, 1, 0,
+    --     -1, 0, 0,
+    --     0, 0, 1
+    -- )
+
+    -- 5. TODO add gold pot slot
+
+    -- 6. TODO add NPC handle
 end
 
 ---@param slot CardSlot?

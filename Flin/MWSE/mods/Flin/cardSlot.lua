@@ -54,4 +54,16 @@ function CardSlot:RemoveCardFromSlot()
     return card_
 end
 
+---@param z number
+function CardSlot:MoveUp(z)
+    local offset = tes3vector3.new(0, 0, z)
+    -- move the reference up
+    if self.handle then
+        local ref = self.handle:valid() and self.handle:getObject()
+        if ref then
+            ref.position = ref.position + offset
+        end
+    end
+end
+
 return CardSlot

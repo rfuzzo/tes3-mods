@@ -1,4 +1,5 @@
 local logger = require("logging.logger")
+local config = require("Flin.config")
 
 local this   = {}
 
@@ -8,13 +9,14 @@ this.FLIN_DECK_ID_FACEDOWN = "a_flin_deck_20_r"
 
 this.log                   = logger.new {
     name = "Flin",
-    logLevel = "TRACE", --TODO INFO
+    logLevel = config.logLevel,
     logToConsole = false,
     includeTimestamp = false
 }
 
+
 ---@enum ESuit
-this.ESuit                 = {
+this.ESuit = {
     Hearts = 1,
     Bells = 2,
     Acorns = 3,
