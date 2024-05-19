@@ -4,6 +4,14 @@ My TES3 Morrowind mods and modding utility tools.
 
 ## Mods
 
+### 🚧 Care for a round of FLin?
+>
+> nightly link: <https://rfuzzo.github.io/tes3-mods/Flin.zip>
+>
+> nexus link:
+
+A Morrowind card game mod. [Readme](/Flin/README.md)
+
 ### 🚧 Magic Synergies
 >
 > nightly link: <https://rfuzzo.github.io/tes3-mods/MagicSynergies.zip>
