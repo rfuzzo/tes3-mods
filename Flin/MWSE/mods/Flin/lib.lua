@@ -174,7 +174,7 @@ function this.getLookedAtReference()
 end
 
 -- DEBUG
-local function showDebugMarkerAt(pos)
+local function DEBUG_ShowMarkerAt(pos)
     tes3.createReference({
         object = "light_com_candle_06_64",
         position = pos,
@@ -182,6 +182,22 @@ local function showDebugMarkerAt(pos)
         cell = tes3.getPlayerCell(),
         scale = 0.2
     })
+end
+
+---@param ref tes3reference
+---@return tes3reference?
+function this.FindRefBelow(ref)
+    local result = tes3.rayTest({
+        position = ref.position + tes3vector3(0, 0, 10),
+        direction = tes3vector3.new(0, 0, -1),
+        maxDistance = 20,
+        root = tes3.game.worldObjectRoot
+    })
+    if result then
+        return result.reference
+    end
+
+    return nil
 end
 
 ---@param ref tes3reference
@@ -240,9 +256,9 @@ function this.findPlayerPosition(ref)
                 })
 
                 -- if no result then we found no obstacles
-                showDebugMarkerAt(testPos1)
+                DEBUG_ShowMarkerAt(testPos1)
                 if result == nil and result2 == nil then
-                    showDebugMarkerAt(testPos1 - tes3vector3.new(0, 0, testHeight - (testOffset / 2)))
+                    DEBUG_ShowMarkerAt(testPos1 - tes3vector3.new(0, 0, testHeight - (testOffset / 2)))
 
                     -- final pos is on the ground
                     local resultPos = testPos1 - tes3vector3.new(0, 0, testHeight)
@@ -260,6 +276,7 @@ function this.findPlayerPosition(ref)
 
     -- otherwise get a random position from the table
     local resultPos = results[math.random(#results)]
+    -- TODO DEBUG
     tes3.createReference({
         object = "furn_6th_ashstatue",
         position = resultPos,

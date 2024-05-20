@@ -48,6 +48,7 @@ local function ActivateCallback(e)
         game:PushState(lib.GameState.DEAL)
 
         -- do not continue to pick up the old deck
+        e.target:delete()
         e.claim = true
         return false
     end
@@ -57,11 +58,23 @@ end
 local function SimulateCallback(e)
     local game = bb.getInstance():getData("game") ---@type FlinGame
 
+    if not game.npcHandle then
+        return
+    end
     if not game.npcHandle:valid() then
         return
     end
 
-    -- TODO check cells too
+    -- if I leave the interior cell of the npc, I lose the game
+    local currentCell = tes3.player.cell
+    local referenceCell = game.npcHandle:getObject().cell
+    if currentCell ~= referenceCell and referenceCell.isInterior then
+        -- forfeit the game
+        tes3.messageBox("You lose the game")
+        game.endGameSetup()
+        return
+    end
+
     local setupWarned = bb.getInstance():getData("setupWarned")
     if setupWarned then
         -- calculate the distance between the NPC and the player
@@ -70,8 +83,7 @@ local function SimulateCallback(e)
         if distance > SETUP_FORFEIT_DISTANCE then
             -- warn the player and forfeit the game
             tes3.messageBox("You lose the game")
-            -- TODO give npc the pot
-            game:PushState(lib.GameState.INVALID)
+            game.endGameSetup()
         end
     else
         -- calculate the distance between the NPC and the player

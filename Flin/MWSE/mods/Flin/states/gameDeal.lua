@@ -25,7 +25,7 @@ function state:enterState()
 
     local game = self.game
 
-    -- TODO add the gold pot
+    -- add the gold pot
     if game.pot == 1 then
         game.goldSlot:AddRefToSlot(lib.GOLD_01_ID)
     elseif game.pot < 10 then

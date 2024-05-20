@@ -517,20 +517,30 @@ local function SimulateCallback(e)
     if not game then
         return
     end
-
     if not game.talonSlot then
         return
     end
 
-    -- TODO check cells too
+    -- if I leave the interior cell of the npc, I lose the game
+    if not game.npcHandle then
+        return
+    end
+    local currentCell = tes3.player.cell
+    local referenceCell = game.npcHandle:getObject().cell
+    if currentCell ~= referenceCell and referenceCell.isInterior then
+        -- forfeit the game
+        tes3.messageBox("You lose the game")
+        game.endGame()
+        return
+    end
+
     local gameWarned = bb.getInstance():getData("gameWarned")
     if gameWarned then
         -- calculate the distance between the NPC and the player
         local distance = game.talonSlot.position:distance(tes3.player.position)
         if distance > GAME_FORFEIT_DISTANCE then
-            -- warn the player and forfeit the game
+            -- forfeit the game
             tes3.messageBox("You lose the game")
-
             game.endGame()
         end
     else
@@ -574,8 +584,6 @@ function FlinGame:startGame(deckRef)
     bb.getInstance():setData("game", self)
 
     local zOffsetTrump = 0.1
-
-    -- replace the deck with a facedown deck
     local deckPos = deckRef.position:copy()
     local deckOrientation = deckRef.orientation:copy()
     local deckWorldTransform = deckRef.sceneNode.worldTransform:copy()
@@ -619,7 +627,26 @@ function FlinGame:startGame(deckRef)
     local goldSlotOrientation = deckOrientation
     self.goldSlot = CardSlot:new(goldSlotPos, goldSlotOrientation)
 
-    -- 6. TODO add NPC handle
+    -- 6. add NPC handle
+    -- find a spot for the npc
+    local refBelow = lib.FindRefBelow(deckRef)
+    if refBelow then
+        -- TODO check if it is a table
+        if string.find(refBelow.object.name, "table") then
+            local position = lib.findPlayerPosition(refBelow)
+
+            -- TODO move NPC to that location
+        end
+    end
+end
+
+function FlinGame.endGameSetup()
+    -- give npc the pot
+    local game = tes3.player.data.FlinGame
+    tes3.addItem({ reference = game.npcHandle:getObject(), item = "Gold_001", count = game.pot })
+
+    -- cleanup
+    tes3.player.data.FlinGame:cleanup()
 end
 
 function FlinGame.endGame()
@@ -628,8 +655,6 @@ function FlinGame.endGame()
 
     -- cleanup
     tes3.player.data.FlinGame:cleanup()
-
-    tes3.player.data.FlinGame = nil
 end
 
 ---@param slot CardSlot?
@@ -667,6 +692,8 @@ function FlinGame:cleanup()
     bb.getInstance():removeData("game")
     bb.getInstance():removeData("setupWarned")
     bb.getInstance():clean()
+
+    tes3.player.data.FlinGame = nil
 end
 
 return FlinGame

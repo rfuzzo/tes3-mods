@@ -46,7 +46,8 @@ function state:enterState()
         log:debug("NPC wins")
         tes3.messageBox("You lose!")
 
-        -- TODO give npc the pot
+        -- give NPC the pot
+        tes3.addItem({ reference = game.npcHandle:getObject(), item = "Gold_001", count = game.pot })
     else
         log:debug("It's a draw")
         tes3.messageBox("It's a draw!")
@@ -54,6 +55,9 @@ function state:enterState()
         -- give the player half the pot
         tes3.addItem({ reference = tes3.player, item = "Gold_001", count = math.floor(game.pot / 2) })
         tes3.playSound({ sound = "Item Gold Up" })
+
+        -- give NPC half the pot
+        tes3.addItem({ reference = game.npcHandle:getObject(), item = "Gold_001", count = math.floor(game.pot / 2) })
     end
 
     game.endGame()
