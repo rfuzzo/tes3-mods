@@ -47,7 +47,9 @@ local function ActivateCallback(e)
         game:startGame(deckRef)
         game:PushState(lib.GameState.DEAL)
 
-        -- continue to pick up the old deck
+        -- do not continue to pick up the old deck
+        e.claim = true
+        return false
     end
 end
 

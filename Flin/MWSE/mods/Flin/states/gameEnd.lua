@@ -21,12 +21,7 @@ function state:new(game)
     return newObj
 end
 
-function state.enterState()
-
-end
-
----@return GameState
-function state:endState()
+function state:enterState()
     -- Code for ending the game
     log:debug("Game ended")
 
@@ -61,10 +56,11 @@ function state:endState()
         tes3.playSound({ sound = "Item Gold Up" })
     end
 
-    -- cleanup
-    game:cleanup()
+    game.endGame()
+end
 
-    return lib.GameState.INVALID
+function state:endState()
+
 end
 
 return state

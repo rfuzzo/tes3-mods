@@ -25,6 +25,19 @@ function state:enterState()
 
     local game = self.game
 
+    -- TODO add the gold pot
+    if game.pot == 1 then
+        game.goldSlot:AddRefToSlot(lib.GOLD_01_ID)
+    elseif game.pot < 10 then
+        game.goldSlot:AddRefToSlot(lib.GOLD_05_ID)
+    elseif game.pot < 25 then
+        game.goldSlot:AddRefToSlot(lib.GOLD_10_ID)
+    elseif game.pot < 100 then
+        game.goldSlot:AddRefToSlot(lib.GOLD_25_ID)
+    else
+        game.goldSlot:AddRefToSlot(lib.GOLD_100_ID)
+    end
+
     -- Code to deal cards to players
     -- first init the talon
     game:SetNewTalon()
@@ -56,11 +69,10 @@ function state:enterState()
         game:dealCardTo(false)
     end
 
-    -- determine at random who goes next
-    local startPlayer = math.random(2)
-
     -- game:DEBUG_printCards()
 
+    -- determine at random who goes next
+    local startPlayer = math.random(2)
     -- go to the next state, depending on who starts
     if startPlayer == 1 then
         log:debug("Player starts")

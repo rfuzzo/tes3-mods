@@ -7,7 +7,14 @@ local this   = {}
 this.FLIN_DECK_ID          = "flin_deck_20"
 this.FLIN_DECK_ID_FACEDOWN = "a_flin_deck_20_r"
 
-this.log                   = logger.new {
+this.GOLD_01_ID            = "Gold_001"
+this.GOLD_05_ID            = "Gold_005"
+this.GOLD_10_ID            = "Gold_010"
+this.GOLD_25_ID            = "Gold_025"
+this.GOLD_100_ID           = "Gold_100"
+
+
+this.log = logger.new {
     name = "Flin",
     logLevel = config.logLevel,
     logToConsole = false,

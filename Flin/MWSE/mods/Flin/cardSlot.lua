@@ -39,6 +39,27 @@ function CardSlot:AddCardToSlot(card)
     )
 end
 
+---@param refId string
+function CardSlot:AddRefToSlot(refId)
+    self.handle = tes3.makeSafeObjectHandle(
+        tes3.createReference({
+            object = refId,
+            position = self.position,
+            orientation = self.orientation,
+            cell = tes3.player.cell
+        })
+    )
+end
+
+function CardSlot:RemoveRef()
+    if self.handle then
+        if self.handle:valid() then
+            self.handle:getObject():delete()
+        end
+        self.handle = nil
+    end
+end
+
 ---@return Card?
 function CardSlot:RemoveCardFromSlot()
     if self.handle then

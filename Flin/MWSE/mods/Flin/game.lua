@@ -27,6 +27,7 @@ local GAME_FORFEIT_DISTANCE = 300
 ---@field trumpCardSlot CardSlot?
 ---@field trickPCSlot CardSlot?
 ---@field trickNPCSlot CardSlot?
+---@field goldSlot CardSlot?
 ---@field private wonCardsPc Card[]
 ---@field private wonCardsNpc Card[]
 local FlinGame = {}
@@ -51,6 +52,12 @@ function FlinGame:new(pot, npcHandle)
     setmetatable(newObj, self)
     ---@cast newObj FlinGame
     return newObj
+end
+
+-- singleton instance
+--- @return FlinGame?
+function FlinGame.getInstance()
+    return tes3.player.data.FlinGame
 end
 
 --#region methods
@@ -412,7 +419,7 @@ end
 
 --#endregion
 
---#region state machine
+--#region statemachine
 
 -- only certain transitions are allowed
 local transitions = {
@@ -523,9 +530,8 @@ local function SimulateCallback(e)
         if distance > GAME_FORFEIT_DISTANCE then
             -- warn the player and forfeit the game
             tes3.messageBox("You lose the game")
-            -- TODO give npc the pot
 
-            game:cleanup()
+            game.endGame()
         end
     else
         -- calculate the distance between the NPC and the player
@@ -539,6 +545,23 @@ local function SimulateCallback(e)
 end
 
 --#endregion
+
+function FlinGame:load()
+    -- go into the state and reconnect the events
+    if self.currentState == GameState.SETUP then
+        -- setup state just has callbacks
+        log:info("Game is in setup state, registering callbacks again")
+        self.state:enterState()
+    elseif self.currentState == GameState.PLAYER_TURN then
+        -- playerturn state just has callbacks
+        log:info("Game is in playerturn state, registering callbacks again")
+        self.state:enterState()
+        return
+    else
+        log:error("Game is in %s state, on load should not happen", self.currentState)
+        self:cleanup()
+    end
+end
 
 --- @param deckRef tes3reference
 function FlinGame:startGame(deckRef)
@@ -555,6 +578,7 @@ function FlinGame:startGame(deckRef)
     -- replace the deck with a facedown deck
     local deckPos = deckRef.position:copy()
     local deckOrientation = deckRef.orientation:copy()
+    local deckWorldTransform = deckRef.sceneNode.worldTransform:copy()
 
     -- store positions: deck, trump, trickPC, trickNPC
     -- 1. talon slot is the deck
@@ -572,12 +596,12 @@ function FlinGame:startGame(deckRef)
     )
     local trumpOrientation = rotation:toEulerXYZ()
     -- move it a bit along the orientation
-    local trumpPosition = deckPos + tes3vector3.new(0, 0, zOffsetTrump) + rotation:transpose() * tes3vector3.new(0, 6, 0)
+    local trumpPosition = deckPos + (deckWorldTransform * tes3vector3.new(0, 6, zOffsetTrump))
     self.trumpCardSlot = CardSlot:new(trumpPosition, trumpOrientation)
 
     -- 3. trick slots are off to the side
     local trickOrientation = deckOrientation
-    local trickPosition = deckPos + tes3vector3.new(0, 10, zOffsetTrump)
+    local trickPosition = deckPos + (deckWorldTransform * tes3vector3.new(0, 10, zOffsetTrump))
     self.trickPCSlot = CardSlot:new(trickPosition, trickOrientation)
 
     -- 4. rotate by 45 degrees around the z axis
@@ -590,18 +614,22 @@ function FlinGame:startGame(deckRef)
     local trick2orientation = rotation:toEulerXYZ()
     self.trickNPCSlot = CardSlot:new(trickPosition, trick2orientation)
 
-    -- local rotation2 = tes3matrix33.new()
-    -- rotation2:fromEulerXYZ(trickOrientation.x, trickOrientation.y, trickOrientation.z)
-    -- -- rotate matrix 90 degrees
-    -- rotation2 = rotation2 * tes3matrix33.new(
-    --     0, 1, 0,
-    --     -1, 0, 0,
-    --     0, 0, 1
-    -- )
-
-    -- 5. TODO add gold pot slot
+    -- 5. add gold pot slot
+    local goldSlotPos = deckPos + (deckWorldTransform * tes3vector3.new(0, -10, zOffsetTrump))
+    local goldSlotOrientation = deckOrientation
+    self.goldSlot = CardSlot:new(goldSlotPos, goldSlotOrientation)
 
     -- 6. TODO add NPC handle
+end
+
+function FlinGame.endGame()
+    -- give back the deck
+    tes3.addItem({ reference = tes3.player, item = lib.FLIN_DECK_ID, count = 1 })
+
+    -- cleanup
+    tes3.player.data.FlinGame:cleanup()
+
+    tes3.player.data.FlinGame = nil
 end
 
 ---@param slot CardSlot?
@@ -631,6 +659,7 @@ function FlinGame:cleanup()
     CleanupSlot(self.trumpCardSlot)
     CleanupSlot(self.trickPCSlot)
     CleanupSlot(self.trickNPCSlot)
+    CleanupSlot(self.goldSlot)
 
     -- remove event callbacks
     event.unregister(tes3.event.simulate, SimulateCallback)

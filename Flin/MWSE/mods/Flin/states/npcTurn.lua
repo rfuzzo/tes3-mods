@@ -114,8 +114,17 @@ end
 
 --#endregion
 
+-- prevent saving while travelling
+--- @param e saveEventData
+local function saveCallback(e)
+    tes3.messageBox("You cannot save the game during the NPCs turn")
+    return false
+end
+
 function state:enterState()
     log:debug("OnEnter: NpcTurnState")
+
+    event.register(tes3.event.save, saveCallback)
 
     local game = self.game
 
@@ -150,7 +159,7 @@ function state:enterState()
 end
 
 function state:endState()
-
+    event.unregister(tes3.event.save, saveCallback)
 end
 
 return state

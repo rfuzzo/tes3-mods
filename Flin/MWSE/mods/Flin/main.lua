@@ -16,6 +16,11 @@ local function loadedCallback(e)
         topic = DECK_TOPIC
     })
     log:debug("addTopic %s: %s", DECK_TOPIC, result2)
+
+    local game = game.getInstance()
+    if game then
+        game:load()
+    end
 end
 event.register(tes3.event.loaded, loadedCallback)
 

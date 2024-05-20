@@ -98,8 +98,7 @@ end
 
 ---@param game FlinGame
 local function playerDrawCard(game)
-    local playerDrewCard = bb.getInstance():getData("playerDrewCard") ---@type boolean
-    if playerDrewCard then
+    if #game.playerHand == 5 or game:IsPhase2() then
         log:debug("Player already drew a card")
         tes3.messageBox("You already drew a card")
         return
@@ -113,10 +112,6 @@ local function playerDrawCard(game)
         return
     end
 
-    -- set the playerDrewCard flag to true
-    bb.getInstance():setData("playerDrewCard", true)
-
-
     -- get the key from the tes3.scanCode table with value 24
     ---@diagnostic disable-next-line: need-check-nil
     local key = tes3.scanCode[config.openkeybind.keyCode]
@@ -129,8 +124,7 @@ end
 local function KeyDownCallback(e)
     local game = bb.getInstance():getData("game") ---@type FlinGame
 
-    local playerDrewCard = bb.getInstance():getData("playerDrewCard") ---@type boolean
-    if playerDrewCard and not game:GetNpcTrickRef() then
+    if #game.playerHand == 5 or game:IsPhase2() and not game:GetNpcTrickRef() then
         openHandMenu(game)
     else
         tes3.messageBox("You must draw a card first")
@@ -141,8 +135,7 @@ end
 local function ActivateCallback(e)
     local game = bb.getInstance():getData("game") ---@type FlinGame
 
-    local playerDrewCard = bb.getInstance():getData("playerDrewCard") ---@type boolean
-    if playerDrewCard then
+    if #game.playerHand == 5 or game:IsPhase2() then
         -- activate the trick
         if game:GetNpcTrickRef() and e.target.id == game:GetNpcTrickRef().id then
             -- hit the trick
@@ -181,8 +174,6 @@ function state:enterState()
     local game = self.game
 
     if #game.playerHand == 5 or game:IsPhase2() then
-        bb.getInstance():setData("playerDrewCard", true)
-
         if game:GetNpcTrickRef() then
             tes3.messageBox("It's your turn, hit the trick!")
         else
@@ -191,8 +182,6 @@ function state:enterState()
             tes3.messageBox("It's your turn, press %s to play a card!", key)
         end
     else
-        bb.getInstance():setData("playerDrewCard", false)
-
         tes3.messageBox("It's your turn, draw a card from the talon!")
     end
 
@@ -212,8 +201,6 @@ function state:endState()
     event.unregister(tes3.event.keyDown, KeyDownCallback, { filter = config.openkeybind.keyCode })
     -- remove game from blackboard
     bb.getInstance():removeData("game")
-    -- remove playerDrewCard from bb
-    bb.getInstance():removeData("playerDrewCard")
 end
 
 return state
