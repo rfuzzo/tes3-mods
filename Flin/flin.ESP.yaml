@@ -367,7 +367,7 @@ objects:
   - type: MiscItem
     flags: ""
     id: flin_deck_20_r
-    name: Deck of flin cards 2
+    name: Deck of flin cards
     script: ""
     mesh: rf\flin_deck_20_r.nif
     icon: rf\flin_deck_20.dds
@@ -381,6 +381,60 @@ objects:
     name: Talon
     script: ""
     mesh: rf\flin_deck_20_r.nif
+  - type: Activator
+    flags: ""
+    id: a_flin_deck_9_r
+    name: Talon
+    script: ""
+    mesh: rf\flin_deck_9_r.nif
+  - type: Activator
+    flags: ""
+    id: a_flin_deck_8_r
+    name: Talon
+    script: ""
+    mesh: rf\flin_deck_8_r.nif
+  - type: Activator
+    flags: ""
+    id: a_flin_deck_7_r
+    name: Talon
+    script: ""
+    mesh: rf\flin_deck_7_r.nif
+  - type: Activator
+    flags: ""
+    id: a_flin_deck_6_r
+    name: Talon
+    script: ""
+    mesh: rf\flin_deck_6_r.nif
+  - type: Activator
+    flags: ""
+    id: a_flin_deck_5_r
+    name: Talon
+    script: ""
+    mesh: rf\flin_deck_5_r.nif
+  - type: Activator
+    flags: ""
+    id: a_flin_deck_4_r
+    name: Talon
+    script: ""
+    mesh: rf\flin_deck_4_r.nif
+  - type: Activator
+    flags: ""
+    id: a_flin_deck_3_r
+    name: Talon
+    script: ""
+    mesh: rf\flin_deck_3_r.nif
+  - type: Activator
+    flags: ""
+    id: a_flin_deck_2_r
+    name: Talon
+    script: ""
+    mesh: rf\flin_deck_2_r.nif
+  - type: Activator
+    flags: ""
+    id: a_flin_deck_1_r
+    name: Talon
+    script: ""
+    mesh: rf\flin_deck_1_r.nif
   - type: Dialogue
     flags: ""
     id: deck of Flin cards

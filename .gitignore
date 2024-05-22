@@ -44,3 +44,4 @@ rftest
 omw-util/.vscode/launch.json
 *.zip
 .vscode/settings.json
+*.blend1
