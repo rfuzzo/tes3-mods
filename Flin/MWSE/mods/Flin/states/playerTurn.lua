@@ -10,6 +10,8 @@ local bb = require("Flin.blackboard")
 local state = {}
 setmetatable(state, { __index = AbstractState })
 
+state.id_menu = tes3ui.registerID("flin:MenuHand")
+
 ---@param game FlinGame
 ---@return PlayerTurnState
 function state:new(game)
@@ -40,6 +42,105 @@ local function getMessageText(game)
         game:GetPlayerPoints(),
         game:GetNpcPoints(),
         trickMsg)
+end
+
+-- Cancel button callback.
+function state.onCancel(e)
+    local menu = tes3ui.findMenu(state.id_menu)
+
+    if (menu) then
+        tes3ui.leaveMenuMode()
+        menu:destroy()
+    end
+end
+
+local function createWindow(game)
+    -- Return if window is already open
+    if (tes3ui.findMenu(state.id_menu) ~= nil) then
+        return
+    end
+
+    -- Create window and frame
+    local menu = tes3ui.createMenu { id = state.id_menu, fixedFrame = true }
+
+    -- To avoid low contrast, text input windows should not use menu transparency settings
+    menu.alpha = 1.0
+
+    -- Create layout
+    local input_label = menu:createLabel { text = "Play a card" }
+    input_label.borderBottom = 5
+
+    local input_block = menu:createBlock {}
+    input_block.width = 300
+    input_block.autoHeight = true
+    input_block.childAlignX = 0.5 -- centre content alignment
+
+    local border = input_block:createThinBorder {}
+    border.width = 300
+    border.height = 30
+    border.childAlignX = 0.5
+    border.childAlignY = 0.5
+
+    border.flowDirection = tes3.flowDirection.leftToRight
+    for i, card in ipairs(game.playerHand) do
+        local buttonText = string.format("%s %s", lib.suitToString(card.suit), lib.valueToString(card.value))
+
+        local imagePath = string.format("Icons\\rf\\%s_%s.dds", lib.suitToString(card.suit),
+            lib.valueToString(card.value))
+        local button = border:createImageButton({ idle = imagePath, over = imagePath, pressed = imagePath })
+        button:register("mouseClick", function()
+            game:PcPlayCard(card)
+            local nextState = game:evaluateTrick()
+
+            tes3ui.leaveMenuMode()
+            menu:destroy()
+
+            -- TODO wait one second before updating
+            timer.start({
+                duration = 1,
+                callback = function()
+                    game:PushState(nextState)
+                end
+            })
+        end)
+    end
+
+
+
+    local button_block = menu:createBlock {}
+    button_block.widthProportional = 1.0 -- width is 100% parent width
+    button_block.autoHeight = true
+    button_block.childAlignX = 1.0       -- right content alignment
+
+    -- only show if player has >= 66 points
+    if game:GetPlayerPoints() < 66 then
+        return
+    end
+
+    button_block.childAlignX = 0.5
+    button_block.paddingAllSides = 8
+
+    local callButton = button_block:createButton({
+        text = "Call the game",
+        id = tes3ui.registerID("flin:callGame")
+    })
+    callButton:register("mouseClick", function()
+        log:debug("Player calls the game")
+
+        tes3ui.leaveMenuMode()
+        menu:destroy()
+
+        game:PushState(lib.GameState.GAME_END)
+    end)
+
+    local button_cancel = button_block:createButton { text = tes3.findGMST("sCancel").value }
+    button_cancel:register(tes3.uiEvent.mouseClick, state.onCancel)
+
+
+
+    -- Final setup
+    menu:updateLayout()
+    tes3ui.enterMenuMode(state.id_menu)
 end
 
 ---@param game FlinGame
@@ -125,7 +226,7 @@ local function KeyDownCallback(e)
     local game = bb.getInstance():getData("game") ---@type FlinGame
 
     if #game.playerHand == 5 or game:IsPhase2() and not game:GetNpcTrickRef() then
-        openHandMenu(game)
+        createWindow(game)
     else
         tes3.messageBox("You must draw a card first")
     end
@@ -139,7 +240,7 @@ local function ActivateCallback(e)
         -- activate the trick
         if game:GetNpcTrickRef() and e.target.id == game:GetNpcTrickRef().id then
             -- hit the trick
-            openHandMenu(game)
+            createWindow(game)
             return
         end
 
