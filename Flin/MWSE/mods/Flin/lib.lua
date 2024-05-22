@@ -4,14 +4,23 @@ local config = require("Flin.config")
 local this   = {}
 
 
-this.FLIN_DECK_ID          = "flin_deck_20"
-this.FLIN_DECK_ID_FACEDOWN = "a_flin_deck_20_r"
+this.FLIN_DECK_ID  = "flin_deck_20"
+this.FLIN_TALON_20 = "a_flin_deck_20_r"
+this.FLIN_TALON_9  = "a_flin_deck_9_r"
+this.FLIN_TALON_8  = "a_flin_deck_8_r"
+this.FLIN_TALON_7  = "a_flin_deck_7_r"
+this.FLIN_TALON_6  = "a_flin_deck_6_r"
+this.FLIN_TALON_5  = "a_flin_deck_5_r"
+this.FLIN_TALON_4  = "a_flin_deck_4_r"
+this.FLIN_TALON_3  = "a_flin_deck_3_r"
+this.FLIN_TALON_2  = "a_flin_deck_2_r"
+this.FLIN_TALON_1  = "a_flin_deck_1_r"
 
-this.GOLD_01_ID            = "Gold_001"
-this.GOLD_05_ID            = "Gold_005"
-this.GOLD_10_ID            = "Gold_010"
-this.GOLD_25_ID            = "Gold_025"
-this.GOLD_100_ID           = "Gold_100"
+this.GOLD_01_ID    = "Gold_001"
+this.GOLD_05_ID    = "Gold_005"
+this.GOLD_10_ID    = "Gold_010"
+this.GOLD_25_ID    = "Gold_025"
+this.GOLD_100_ID   = "Gold_100"
 
 
 this.log = logger.new {
@@ -121,6 +130,33 @@ function this.GetCardMeshName(suit, value)
     end
 
     return string.format("rf\\%s.%s.nif", suitName, valueName)
+end
+
+---@param count number
+---@return string?
+function this.GetTalonRefForCardCount(count)
+    if count == 20 then
+        return this.FLIN_TALON_20
+    elseif count == 9 then
+        return this.FLIN_TALON_9
+    elseif count == 8 then
+        return this.FLIN_TALON_8
+    elseif count == 7 then
+        return this.FLIN_TALON_7
+    elseif count == 6 then
+        return this.FLIN_TALON_6
+    elseif count == 5 then
+        return this.FLIN_TALON_5
+    elseif count == 4 then
+        return this.FLIN_TALON_4
+    elseif count == 3 then
+        return this.FLIN_TALON_3
+    elseif count == 2 then
+        return this.FLIN_TALON_2
+    elseif count == 1 then
+        return this.FLIN_TALON_1
+    end
+    return nil
 end
 
 ---@enum GameState

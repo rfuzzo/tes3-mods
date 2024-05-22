@@ -133,6 +133,26 @@ function FlinGame:talonPop()
 
     local card = self.talon[1]
     table.remove(self.talon, 1)
+
+    -- update talon with correct number of cards
+    local newRefName = lib.GetTalonRefForCardCount(#self.talon)
+    if newRefName then
+        local talonSlot = self.talonSlot
+        if talonSlot then
+            if talonSlot.handle and talonSlot.handle:valid() then
+                talonSlot.handle:getObject():delete()
+                talonSlot.handle = nil
+            end
+            local newRef = tes3.createReference({
+                object = newRefName,
+                position = talonSlot.position,
+                orientation = talonSlot.orientation,
+                cell = tes3.player.cell
+            })
+            talonSlot.handle = tes3.makeSafeObjectHandle(newRef)
+        end
+    end
+
     return card
 end
 

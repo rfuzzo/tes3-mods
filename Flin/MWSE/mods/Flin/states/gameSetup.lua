@@ -38,7 +38,7 @@ local function ActivateCallback(e)
         local zOffsetTalon = 2
 
         local deckRef = tes3.createReference({
-            object = lib.FLIN_DECK_ID_FACEDOWN,
+            object = lib.FLIN_TALON_20,
             position = e.target.position + tes3vector3.new(0, 0, zOffsetTalon),
             orientation = e.target.orientation,
             cell = tes3.player.cell
