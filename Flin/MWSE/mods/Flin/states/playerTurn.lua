@@ -28,6 +28,7 @@ end
 ---@param game FlinGame
 ---@return string
 local function getHeaderText(game)
+    ---@diagnostic disable-next-line: need-check-nil
     if config.enableHints then
         return string.format("Play a card (Trump is %s, you have %s points, NPC has %s points)",
             lib.suitToString(game.trumpSuit), game:GetPlayerPoints(), game:GetNpcPoints())
@@ -46,6 +47,7 @@ function state.onCancel(e)
     end
 end
 
+---@param game FlinGame
 local function createWindow(game)
     -- Return if window is already open
     if (tes3ui.findMenu(state.id_menu) ~= nil) then
@@ -93,7 +95,6 @@ local function createWindow(game)
             end)
             button:register(tes3.uiEvent.mouseClick, function()
                 game:PcPlayCard(card)
-                local nextState = game:evaluateTrick()
 
                 tes3ui.leaveMenuMode()
                 menu:destroy()
@@ -102,6 +103,8 @@ local function createWindow(game)
                 timer.start({
                     duration = 1,
                     callback = function()
+                        event.unregister(tes3.event.activate, state.activateCallback)
+                        local nextState = game:evaluateTrick()
                         game:PushState(nextState)
                     end
                 })
@@ -169,7 +172,7 @@ end
 local function KeyDownCallback(e)
     local game = bb.getInstance():getData("game") ---@type FlinGame
 
-    if #game.playerHand == 5 or game:IsPhase2() and not game:GetNpcTrickRef() then
+    if #game.playerHand == 5 or game:IsPhase2() then -- and not game:GetNpcTrickRef()
         createWindow(game)
     else
         tes3.messageBox("You must draw a card first")
@@ -177,7 +180,7 @@ local function KeyDownCallback(e)
 end
 
 --- @param e activateEventData
-local function ActivateCallback(e)
+function state.activateCallback(e)
     local game = bb.getInstance():getData("game") ---@type FlinGame
 
     if #game.playerHand == 5 or game:IsPhase2() then
@@ -231,7 +234,7 @@ function state:enterState()
     end
 
     -- register event callbacks
-    event.register(tes3.event.activate, ActivateCallback)
+    event.register(tes3.event.activate, self.activateCallback)
     ---@diagnostic disable-next-line: need-check-nil
     event.register(tes3.event.keyDown, KeyDownCallback, { filter = config.openkeybind.keyCode })
     -- add game to blackboard for events
@@ -241,7 +244,7 @@ end
 
 function state:endState()
     -- unregister event callbacks
-    event.unregister(tes3.event.activate, ActivateCallback)
+    event.unregister(tes3.event.activate, self.activateCallback)
     ---@diagnostic disable-next-line: need-check-nil
     event.unregister(tes3.event.keyDown, KeyDownCallback, { filter = config.openkeybind.keyCode })
     -- remove game from blackboard
