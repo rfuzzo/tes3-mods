@@ -26,22 +26,14 @@ function state:new(game)
 end
 
 ---@param game FlinGame
+---@return string
 local function getHeaderText(game)
-    return string.format("Choose a card to play (Trump is %s)", lib.suitToString(game.trumpSuit))
-end
-
----@param game FlinGame
-local function getMessageText(game)
-    local trickMsg = ""
-    if game.trickNPCSlot and game.trickNPCSlot.card then
-        trickMsg = string.format("Trick: %s", game.trickNPCSlot.card:toString())
+    if config.enableHints then
+        return string.format("Play a card (Trump is %s, you have %s points, NPC has %s points)",
+            lib.suitToString(game.trumpSuit), game:GetPlayerPoints(), game:GetNpcPoints())
     end
 
-    return string.format(
-        "Player's turn (you have %s points, NPC has %s points).\n%s",
-        game:GetPlayerPoints(),
-        game:GetNpcPoints(),
-        trickMsg)
+    return "Play a card"
 end
 
 -- Cancel button callback.
@@ -61,48 +53,60 @@ local function createWindow(game)
     end
 
     -- Create window and frame
-    local menu = tes3ui.createMenu { id = state.id_menu, fixedFrame = true }
+    local dragFrame = false
+    local menu = tes3ui.createMenu { id = state.id_menu, dragFrame = dragFrame, fixedFrame = true }
+    if dragFrame then
+        menu.text = "Play a card"
+        menu.minHeight = 200
+        menu.minWidth = 500
+    end
 
     -- To avoid low contrast, text input windows should not use menu transparency settings
     menu.alpha = 1.0
 
     -- Create layout
-    local input_label = menu:createLabel { text = "Play a card" }
+    local input_label = menu:createLabel { text = getHeaderText(game) }
     input_label.borderBottom = 5
 
-    local input_block = menu:createBlock {}
-    input_block.width = 300
-    input_block.autoHeight = true
-    input_block.childAlignX = 0.5 -- centre content alignment
+    -- local block = menu:createBlock {}
+    local block = menu:createThinBorder {}
+    block.autoHeight = true
+    block.autoWidth = true
+    block.childAlignX = 0.5 -- centre content alignment
 
-    local border = input_block:createThinBorder {}
-    border.width = 300
-    border.height = 30
-    border.childAlignX = 0.5
-    border.childAlignY = 0.5
-
-    border.flowDirection = tes3.flowDirection.leftToRight
+    block.flowDirection = tes3.flowDirection.leftToRight
     for i, card in ipairs(game.playerHand) do
-        local buttonText = string.format("%s %s", lib.suitToString(card.suit), lib.valueToString(card.value))
+        local imagePath = lib.GetCardIconName(card.suit, card.value)
+        if imagePath then
+            local button = block:createImageButton({ idle = imagePath, over = imagePath, pressed = imagePath })
 
-        local imagePath = string.format("Icons\\rf\\%s_%s.dds", lib.suitToString(card.suit),
-            lib.valueToString(card.value))
-        local button = border:createImageButton({ idle = imagePath, over = imagePath, pressed = imagePath })
-        button:register("mouseClick", function()
-            game:PcPlayCard(card)
-            local nextState = game:evaluateTrick()
+            button:register(tes3.uiEvent.mouseOver, function()
+                local buttonText = string.format("%s %s", lib.suitToString(card.suit), lib.valueToString(card.value))
+                local tooltip = tes3ui.createTooltipMenu()
+                tooltip.autoHeight = true
+                tooltip.autoWidth = true
+                tooltip.wrapText = true
+                local label = tooltip:createLabel { text = buttonText }
+                label.autoHeight = true
+                label.autoWidth = true
+                label.wrapText = true
+            end)
+            button:register(tes3.uiEvent.mouseClick, function()
+                game:PcPlayCard(card)
+                local nextState = game:evaluateTrick()
 
-            tes3ui.leaveMenuMode()
-            menu:destroy()
+                tes3ui.leaveMenuMode()
+                menu:destroy()
 
-            -- TODO wait one second before updating
-            timer.start({
-                duration = 1,
-                callback = function()
-                    game:PushState(nextState)
-                end
-            })
-        end)
+                -- TODO wait one second before updating
+                timer.start({
+                    duration = 1,
+                    callback = function()
+                        game:PushState(nextState)
+                    end
+                })
+            end)
+        end
     end
 
 
@@ -111,90 +115,31 @@ local function createWindow(game)
     button_block.widthProportional = 1.0 -- width is 100% parent width
     button_block.autoHeight = true
     button_block.childAlignX = 1.0       -- right content alignment
-
-    -- only show if player has >= 66 points
-    if game:GetPlayerPoints() < 66 then
-        return
-    end
-
     button_block.childAlignX = 0.5
     button_block.paddingAllSides = 8
 
-    local callButton = button_block:createButton({
-        text = "Call the game",
-        id = tes3ui.registerID("flin:callGame")
-    })
-    callButton:register("mouseClick", function()
-        log:debug("Player calls the game")
+    -- only show if player has >= 66 points
+    if game:GetPlayerPoints() >= 66 then
+        local callButton = button_block:createButton({
+            text = "Call the game",
+            id = tes3ui.registerID("flin:callGame")
+        })
+        callButton:register("mouseClick", function()
+            log:debug("Player calls the game")
 
-        tes3ui.leaveMenuMode()
-        menu:destroy()
+            tes3ui.leaveMenuMode()
+            menu:destroy()
 
-        game:PushState(lib.GameState.GAME_END)
-    end)
+            game:PushState(lib.GameState.GAME_END)
+        end)
+    end
 
     local button_cancel = button_block:createButton { text = tes3.findGMST("sCancel").value }
     button_cancel:register(tes3.uiEvent.mouseClick, state.onCancel)
 
-
-
     -- Final setup
     menu:updateLayout()
     tes3ui.enterMenuMode(state.id_menu)
-end
-
----@param game FlinGame
-local function openHandMenu(game)
-    local buttons = {}
-    for i, card in ipairs(game.playerHand) do
-        local buttonText = string.format("%s %s", lib.suitToString(card.suit), lib.valueToString(card.value))
-        table.insert(
-            buttons,
-            {
-                text = buttonText,
-                callback = function()
-                    game:PcPlayCard(card)
-                    local nextState = game:evaluateTrick()
-
-                    -- wait one second before updating
-                    timer.start({
-                        duration = 1,
-                        callback = function()
-                            game:PushState(nextState)
-                        end
-                    })
-                end
-            })
-    end
-
-    -- add custom block to call game
-    tes3ui.showMessageMenu({
-        header = getHeaderText(game),
-        message = getMessageText(game),
-        buttons = buttons,
-        cancels = true,
-        customBlock = function(parent)
-            -- only show if player has >= 66 points
-            if game:GetPlayerPoints() < 66 then
-                return
-            end
-
-            parent.childAlignX = 0.5
-            parent.paddingAllSides = 8
-
-            local callButton = parent:createButton({
-                text = "Call the game",
-                id = tes3ui.registerID("flin:callGame")
-            })
-            callButton:register("mouseClick", function()
-                log:debug("Player calls the game")
-                tes3ui.leaveMenuMode()
-                parent:destroy()
-
-                game:PushState(lib.GameState.GAME_END)
-            end)
-        end,
-    })
 end
 
 ---@param game FlinGame
@@ -213,9 +158,8 @@ local function playerDrawCard(game)
         return
     end
 
-    -- get the key from the tes3.scanCode table with value 24
     ---@diagnostic disable-next-line: need-check-nil
-    local key = tes3.scanCode[config.openkeybind.keyCode]
+    local key = tes3.getKeyName(config.openkeybind.keyCode)
     tes3.messageBox("You draw: %s, press %s to play a card!", card:toString(), key)
 end
 
@@ -279,7 +223,7 @@ function state:enterState()
             tes3.messageBox("It's your turn, hit the trick!")
         else
             ---@diagnostic disable-next-line: need-check-nil
-            local key = tes3.scanCode[config.openkeybind.keyCode]
+            local key = tes3.getKeyName(config.openkeybind.keyCode)
             tes3.messageBox("It's your turn, press %s to play a card!", key)
         end
     else

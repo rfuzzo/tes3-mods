@@ -133,9 +133,6 @@ function state:enterState()
     local card = chooseNpcCardToPlay(game)
     game:NpcPlayCard(card)
 
-    log:debug("NPC plays card: %s", card:toString())
-    -- tes3.messageBox("NPC plays: %s", card:toString())
-
     -- npc went last
     if game.trickPCSlot and game.trickNPCSlot and game.trickPCSlot.card and game.trickNPCSlot.card then
         -- if the npc went last, they can call the game if they think they have more than 66 points

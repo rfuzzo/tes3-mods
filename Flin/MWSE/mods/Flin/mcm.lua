@@ -48,6 +48,15 @@ local function registerModConfig()
         allowCombinations = true
     })
 
+    generalCategory:createOnOffButton({
+        label = "Enable Hints",
+        description = "Enable hints during the card game.",
+        variable = mwse.mcm.createTableVariable {
+            id = "enableHints",
+            table = config
+        }
+    })
+
 
     template:register()
 end

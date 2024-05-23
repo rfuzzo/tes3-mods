@@ -132,6 +132,23 @@ function this.GetCardMeshName(suit, value)
     return string.format("rf\\%s.%s.nif", suitName, valueName)
 end
 
+---@param suit ESuit
+---@param value EValue
+---@return string?
+function this.GetCardIconName(suit, value)
+    local suitName = this.suitToString(suit)
+    if suitName == "Unknown" then
+        return nil
+    end
+
+    local valueName = this.valueToString(value)
+    if valueName == "Unknown" then
+        return nil
+    end
+
+    return string.format("Icons\\rf\\%s.%s.dds", suitName, valueName)
+end
+
 ---@param count number
 ---@return string?
 function this.GetTalonRefForCardCount(count)

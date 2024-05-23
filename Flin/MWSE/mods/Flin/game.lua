@@ -153,6 +153,15 @@ function FlinGame:talonPop()
         end
     end
 
+    if #self.talon == 0 then
+        -- update slot
+        local talonSlot = self.talonSlot
+        if talonSlot and talonSlot.handle and talonSlot.handle:valid() then
+            talonSlot.handle:getObject():delete()
+            talonSlot.handle = nil
+        end
+    end
+
     return card
 end
 
@@ -531,7 +540,7 @@ end
 
 --- this runs during the whole game
 --- @param e simulateEventData
-local function SimulateCallback(e)
+local function simulateCallback(e)
     local game = bb.getInstance():getData("game") ---@type FlinGame
 
     if not game then
@@ -574,6 +583,48 @@ local function SimulateCallback(e)
     end
 end
 
+--- @param e uiObjectTooltipEventData
+local function uiObjectTooltipCallback(e)
+    local game = bb.getInstance():getData("game") ---@type FlinGame
+    if not game then
+        return
+    end
+
+    -- we want to change the tooltip of the gold slot
+    local name = nil
+    if game.goldSlot.handle and game.goldSlot.handle:valid() and e.reference == game.goldSlot.handle:getObject() then
+        name = string.format("Gold pot: %s", game.pot)
+    elseif game.trumpCardSlot.card and game.trumpCardSlot.handle and game.trumpCardSlot.handle:valid() and e.reference == game.trumpCardSlot.handle:getObject() then
+        -- change the name of the trump card to include "trump"
+        name = string.format("Trump: %s", game.trumpCardSlot.card:toString())
+    elseif game.talonSlot.handle and game.talonSlot.handle:valid() and e.reference == game.talonSlot.handle:getObject() then
+        -- change the name of the talon to include "talon" and the number of cards
+        name = string.format("Talon: %s", #game.talon)
+    end
+
+    if name then
+        local label = e.tooltip:findChild("HelpMenu_name")
+        if label then
+            label.text = name
+        end
+    end
+end
+
+--- @param e activateEventData
+local function activateCallback(e)
+    local game = bb.getInstance():getData("game") ---@type FlinGame
+    if not game then
+        return
+    end
+
+    if game.goldSlot.handle and game.goldSlot.handle:valid() and e.target == game.goldSlot.handle:getObject() then
+        -- block picking up
+        log:debug("Block activate on %s", e.target.object.id)
+        e.claim = true
+        return false
+    end
+end
+
 --#endregion
 
 function FlinGame:load()
@@ -599,16 +650,16 @@ function FlinGame:startGame(deckRef)
     tes3.messageBox("The game is on! The pot is %s gold", self.pot)
 
     -- register event callbacks
-    event.register(tes3.event.simulate, SimulateCallback)
+    event.register(tes3.event.simulate, simulateCallback)
+    event.register(tes3.event.activate, activateCallback)
+    event.register(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
     -- add game to blackboard for events
     bb.getInstance():setData("game", self)
 
-    local zOffsetTrump = 0.1
+    local zOffsetTrump = 0
     local deckPos = deckRef.position:copy()
     local deckOrientation = deckRef.orientation:copy()
     local deckWorldTransform = deckRef.sceneNode.worldTransform:copy()
-
-    debug.log(deckWorldTransform)
 
     -- store positions: deck, trump, trickPC, trickNPC
     -- 1. talon slot is the deck
@@ -627,13 +678,13 @@ function FlinGame:startGame(deckRef)
     )
     local trumpOrientation = rotation:toEulerXYZ()
     -- move it a bit along the orientation
-    local trumpPosition = deckPos + (deckWorldTransform * tes3vector3.new(0, 6, zOffsetTrump))
+    local trumpPosition = (deckWorldTransform * tes3vector3.new(0, -4, zOffsetTrump))
     self.trumpCardSlot = CardSlot:new(trumpPosition, trumpOrientation)
 
     -- 3. trick slots are off to the side
     log:trace("placing trick slot 1")
     local trickOrientation = deckOrientation
-    local trickPosition = deckPos + (deckWorldTransform * tes3vector3.new(10, 0, zOffsetTrump))
+    local trickPosition = (deckWorldTransform * tes3vector3.new(10, 0, zOffsetTrump))
     self.trickPCSlot = CardSlot:new(trickPosition, trickOrientation)
 
     -- 4. rotate by 45 degrees around the z axis
@@ -649,7 +700,7 @@ function FlinGame:startGame(deckRef)
 
     -- 5. add gold pot slot
     log:trace("placing gold slot")
-    local goldSlotPos = deckPos + (deckWorldTransform * tes3vector3.new(0, -10, zOffsetTrump))
+    local goldSlotPos = (deckWorldTransform * tes3vector3.new(0, 10, zOffsetTrump))
     local goldSlotOrientation = deckOrientation
     self.goldSlot = CardSlot:new(goldSlotPos, goldSlotOrientation)
 
@@ -712,7 +763,9 @@ function FlinGame:cleanup()
     CleanupSlot(self.goldSlot)
 
     -- remove event callbacks
-    event.unregister(tes3.event.simulate, SimulateCallback)
+    event.unregister(tes3.event.simulate, simulateCallback)
+    event.unregister(tes3.event.activate, activateCallback)
+    event.unregister(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
     -- remove game from blackboard
     bb.getInstance():removeData("game")
     bb.getInstance():removeData("setupWarned")

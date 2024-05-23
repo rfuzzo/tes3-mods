@@ -7,6 +7,7 @@ local defaultConfig = {
     logLevel = "INFO",
     -- keybinds
     openkeybind = { keyCode = tes3.scanCode["o"] },
+    enableHints = false,
 }
 
 return mwse.loadConfig("Flin", defaultConfig)

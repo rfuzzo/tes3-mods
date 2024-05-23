@@ -41,14 +41,14 @@ end
 
 ---@param refId string
 function CardSlot:AddRefToSlot(refId)
-    self.handle = tes3.makeSafeObjectHandle(
-        tes3.createReference({
-            object = refId,
-            position = self.position,
-            orientation = self.orientation,
-            cell = tes3.player.cell
-        })
-    )
+    local ref = tes3.createReference({
+        object = refId,
+        position = self.position,
+        orientation = self.orientation,
+        cell = tes3.player.cell
+    })
+
+    self.handle = tes3.makeSafeObjectHandle(ref)
 end
 
 function CardSlot:RemoveRef()
