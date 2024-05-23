@@ -105,11 +105,14 @@ function state:enterState()
 
     tes3.messageBox("Place the deck somewhere and and activate it to start the game")
 
+
+
+    -- add game to blackboard for events
+    bb.getInstance():setData("game", self.game)
+
     -- register event callbacks
     event.register(tes3.event.activate, ActivateCallback)
     event.register(tes3.event.simulate, SimulateCallback)
-    -- add game to blackboard for events
-    bb.getInstance():setData("game", self.game)
 end
 
 function state:endState()

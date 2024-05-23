@@ -224,7 +224,7 @@ end
 ---@return tes3reference?
 function this.FindRefBelow(ref)
     local result = tes3.rayTest({
-        position = ref.position + tes3vector3(0, 0, 10),
+        position = ref.position + tes3vector3.new(0, 0, 10),
         direction = tes3vector3.new(0, 0, -1),
         maxDistance = 20,
         root = tes3.game.worldObjectRoot

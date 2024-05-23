@@ -608,6 +608,8 @@ function FlinGame:startGame(deckRef)
     local deckOrientation = deckRef.orientation:copy()
     local deckWorldTransform = deckRef.sceneNode.worldTransform:copy()
 
+    debug.log(deckWorldTransform)
+
     -- store positions: deck, trump, trickPC, trickNPC
     -- 1. talon slot is the deck
     self.talonSlot = CardSlot:new(deckPos, deckOrientation)
@@ -615,6 +617,7 @@ function FlinGame:startGame(deckRef)
 
     -- 2. trump slot is under the talon and rotated
     -- rotate by 90 degrees around the z axis
+    log:trace("placing trump slot")
     local rotation = tes3matrix33.new()
     rotation:fromEulerXYZ(deckOrientation.x, deckOrientation.y, deckOrientation.z)
     rotation = rotation * tes3matrix33.new(
@@ -628,11 +631,13 @@ function FlinGame:startGame(deckRef)
     self.trumpCardSlot = CardSlot:new(trumpPosition, trumpOrientation)
 
     -- 3. trick slots are off to the side
+    log:trace("placing trick slot 1")
     local trickOrientation = deckOrientation
-    local trickPosition = deckPos + (deckWorldTransform * tes3vector3.new(0, 10, zOffsetTrump))
+    local trickPosition = deckPos + (deckWorldTransform * tes3vector3.new(10, 0, zOffsetTrump))
     self.trickPCSlot = CardSlot:new(trickPosition, trickOrientation)
 
     -- 4. rotate by 45 degrees around the z axis
+    log:trace("placing trick slot 2")
     local angle_rad = math.rad(45)
     rotation = tes3matrix33.new(
         math.cos(angle_rad), -math.sin(angle_rad), 0,
@@ -643,21 +648,21 @@ function FlinGame:startGame(deckRef)
     self.trickNPCSlot = CardSlot:new(trickPosition, trick2orientation)
 
     -- 5. add gold pot slot
+    log:trace("placing gold slot")
     local goldSlotPos = deckPos + (deckWorldTransform * tes3vector3.new(0, -10, zOffsetTrump))
     local goldSlotOrientation = deckOrientation
     self.goldSlot = CardSlot:new(goldSlotPos, goldSlotOrientation)
 
     -- 6. add NPC handle
     -- find a spot for the npc
-    local refBelow = lib.FindRefBelow(deckRef)
-    if refBelow then
-        -- TODO check if it is a table
-        if string.find(refBelow.object.name, "table") then
-            local position = lib.findPlayerPosition(refBelow)
+    -- local refBelow = lib.FindRefBelow(deckRef)
+    -- if refBelow then
+    --     if string.find(refBelow.object.id, "table") then
+    --         local position = lib.findPlayerPosition(refBelow)
 
-            -- TODO move NPC to that location
-        end
-    end
+    --         -- TODO move NPC to that location
+    --     end
+    -- end
 end
 
 function FlinGame.endGameSetup()
