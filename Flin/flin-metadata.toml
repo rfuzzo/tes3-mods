@@ -1,0 +1,16 @@
+[package]
+name = "Flin"
+description = "A card game for Morrowind"
+homepage = "https://www.nexusmods.com/morrowind/mods/52683"
+repository = "https://github.com/rfuzzo/tes3-mods"
+authors = ["rfuzzo"]
+version = "1.0"
+
+[tools.mwse]
+lua-mod = "Flin"
+
+[dependencies.mwse]
+buildnumber = 3865
+
+[dependencies]
+assets = ["Icons\\rf", "Meshes\\rf", "Textures\\rf"]
