@@ -28,8 +28,8 @@ local GAME_FORFEIT_DISTANCE = 300
 ---@field trickPCSlot CardSlot?
 ---@field trickNPCSlot CardSlot?
 ---@field goldSlot CardSlot?
----@field private wonCardsPc Card[]
----@field private wonCardsNpc Card[]
+---@field private wonCardsPc number
+---@field private wonCardsNpc number
 local FlinGame = {}
 
 -- constructor
@@ -45,8 +45,8 @@ function FlinGame:new(pot, npcHandle)
         playerHand = {},
         npcHand = {},
         talon = {},
-        wonCardsNpc = {},
-        wonCardsPc = {}
+        wonCardsNpc = 0,
+        wonCardsPc = 0
     }
     self.__index = self
     setmetatable(newObj, self)
@@ -62,22 +62,22 @@ end
 
 --#region methods
 
+function FlinGame:AddPoints(points, isPlayer)
+    if isPlayer then
+        self.wonCardsPc = self.wonCardsPc + points
+    else
+        self.wonCardsNpc = self.wonCardsNpc + points
+    end
+end
+
 ---@return number
 function FlinGame:GetPlayerPoints()
-    local points = 0
-    for _, card in ipairs(self.wonCardsPc) do
-        points = points + card.value
-    end
-    return points
+    return self.wonCardsPc
 end
 
 ---@return number
 function FlinGame:GetNpcPoints()
-    local points = 0
-    for _, card in ipairs(self.wonCardsNpc) do
-        points = points + card.value
-    end
-    return points
+    return self.wonCardsNpc
 end
 
 function FlinGame:ShuffleTalon()
@@ -182,6 +182,167 @@ function FlinGame:PcPlayCard(card)
 
             return
         end
+    end
+end
+
+---@param isPlayer boolean
+---@return Card?
+function FlinGame:CanDoMarriage(isPlayer)
+    if isPlayer then
+        -- need to go first
+        if self.trickNPCSlot.card then
+            return nil
+        end
+
+        -- check if the player holds the king and ober of the same suit
+        for _, c in ipairs(self.playerHand) do
+            if c.value == EValue.King then
+                for _, c2 in ipairs(self.playerHand) do
+                    if c2.value == EValue.Ober and c2.suit == c.suit then
+                        return c
+                    end
+                end
+            end
+        end
+    else
+        -- need to go first
+        if self.trickPCSlot.card then
+            return nil
+        end
+
+        -- check if the NPC holds the king and ober of the same suit
+        for _, c in ipairs(self.npcHand) do
+            if c.value == EValue.King then
+                for _, c2 in ipairs(self.npcHand) do
+                    if c2.value == EValue.Ober and c2.suit == c.suit then
+                        return c
+                    end
+                end
+            end
+        end
+    end
+
+    return nil
+end
+
+---@param isPlayer boolean
+---@return boolean
+function FlinGame:CanExchangeTrumpCard(isPlayer)
+    if not self.trumpCardSlot then
+        return false
+    end
+    if not self.trumpCardSlot.card then
+        return false
+    end
+
+    if isPlayer then
+        -- need to go first
+        if self.trickNPCSlot.card then
+            return false
+        end
+
+        -- check if the player has the trump unter
+        for _, c in ipairs(self.playerHand) do
+            if c.suit == self.trumpSuit and c.value == EValue.Unter then
+                return true
+            end
+        end
+    else
+        -- need to go first
+        if self.trickPCSlot.card then
+            return false
+        end
+
+        -- check if the NPC has the trump unter
+        for _, c in ipairs(self.npcHand) do
+            if c.suit == self.trumpSuit and c.value == EValue.Unter then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+---@param isPlayer boolean
+function FlinGame:ExchangeTrumpCard(isPlayer)
+    if isPlayer then
+        -- check if the player has the trump unter
+        for i, c in ipairs(self.playerHand) do
+            if c.suit == self.trumpSuit and c.value == EValue.Unter then
+                -- remove the unter from the player's hand
+                local unter = table.remove(self.playerHand, i)
+
+                -- add the trump card to the player's hand
+                table.insert(self.playerHand, self.trumpCardSlot:RemoveCardFromSlot())
+
+                -- add the unter to the trump card slot
+                self.trumpCardSlot:AddCardToSlot(unter)
+
+                log:debug("Player exchanges trump card")
+
+                return
+            end
+        end
+    else
+        -- check if the NPC has the trump unter
+        for i, c in ipairs(self.npcHand) do
+            if c.suit == self.trumpSuit and c.value == EValue.Unter then
+                -- remove the unter from the NPC's hand
+                local unter = table.remove(self.npcHand, i)
+
+                -- add the trump card to the NPC's hand
+                table.insert(self.npcHand, self.trumpCardSlot:RemoveCardFromSlot())
+
+                -- add the unter to the trump card slot
+                self.trumpCardSlot:AddCardToSlot(unter)
+
+                log:debug("NPC exchanges trump card")
+
+                return
+            end
+        end
+    end
+end
+
+---@param card Card
+---@return boolean
+function FlinGame:CanPlayCard(card)
+    if self:IsPhase2() and self.trickNPCSlot and self.trickNPCSlot.card then
+        -- if we're in phase 2 and there is a trick to beat we are forced into "Farb und Stichzwang"
+        local farbe = self.trickNPCSlot.card.suit
+        local valueToBeat = self.trickNPCSlot.card.value
+
+        -- first check if this card can beat the current trick
+        if card.suit == farbe and card.value > valueToBeat then
+            return true
+        end
+
+        -- if that fails then check if the player has any other card of the same suit that can win - then they must play it
+        for _, c in ipairs(self.playerHand) do
+            if c ~= card and c.suit == farbe and c.value > valueToBeat then
+                return false
+            end
+        end
+
+        -- if that also fails then check if the player has any card of the same suit - then they must play it
+        for _, c in ipairs(self.playerHand) do
+            if c ~= card and c.suit == farbe then
+                return false
+            end
+        end
+
+        -- if that fails then check if the player has any trump card that can win - then they must play it
+        for _, c in ipairs(self.playerHand) do
+            if c ~= card and c.suit == self.trumpSuit then
+                return false
+            end
+        end
+
+        -- if that also fails then I can play any card
+        return true
+    else
+        return true
     end
 end
 
@@ -399,8 +560,8 @@ function FlinGame:evaluateTrick()
                 trickNPCSlot.card:toString())
 
             -- move the cards to the player's won cards
-            table.insert(self.wonCardsPc, trickPCSlot:RemoveCardFromSlot())
-            table.insert(self.wonCardsPc, trickNPCSlot:RemoveCardFromSlot())
+            self.wonCardsPc = self.wonCardsPc + trickPCSlot:RemoveCardFromSlot().value
+            self.wonCardsPc = self.wonCardsPc + trickNPCSlot:RemoveCardFromSlot().value
         else
             log:debug("> NPC wins the trick (%s > %s)", trickNPCSlot.card:toString(),
                 trickPCSlot.card:toString())
@@ -408,8 +569,8 @@ function FlinGame:evaluateTrick()
                 trickPCSlot.card:toString())
 
             -- move the cards to the NPC's won cards
-            table.insert(self.wonCardsNpc, trickPCSlot:RemoveCardFromSlot())
-            table.insert(self.wonCardsNpc, trickNPCSlot:RemoveCardFromSlot())
+            self.wonCardsNpc = self.wonCardsNpc + trickPCSlot:RemoveCardFromSlot().value
+            self.wonCardsNpc = self.wonCardsNpc + trickNPCSlot:RemoveCardFromSlot().value
         end
 
 
@@ -706,14 +867,14 @@ function FlinGame:startGame(deckRef)
 
     -- 6. add NPC handle
     -- find a spot for the npc
-    -- local refBelow = lib.FindRefBelow(deckRef)
-    -- if refBelow then
-    --     if string.find(refBelow.object.id, "table") then
-    --         local position = lib.findPlayerPosition(refBelow)
+    local refBelow = lib.FindRefBelow(deckRef)
+    if refBelow then
+        if string.find(refBelow.object.id, "table") then
+            local position = lib.findPlayerPosition(refBelow)
 
-    --         -- TODO move NPC to that location
-    --     end
-    -- end
+            -- TODO move NPC to that location
+        end
+    end
 end
 
 function FlinGame.endGameSetup()
@@ -750,8 +911,8 @@ function FlinGame:cleanup()
     self.trumpSuit = nil
     self.playerHand = {}
     self.npcHand = {}
-    self.wonCardsPc = {}
-    self.wonCardsNpc = {}
+    self.wonCardsPc = 0
+    self.wonCardsNpc = 0
 
     -- cleanup handles and references
     self.npcHandle = nil

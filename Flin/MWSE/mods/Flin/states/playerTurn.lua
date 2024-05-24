@@ -78,12 +78,24 @@ local function createWindow(game)
 
     block.flowDirection = tes3.flowDirection.leftToRight
     for i, card in ipairs(game.playerHand) do
-        local imagePath = lib.GetCardIconName(card.suit, card.value)
+        -- check if I am allowed to play this card
+        local grayscale = false
+        if not game:CanPlayCard(card) then
+            log:debug("Player cannot play card %s", card:toString())
+            grayscale = true
+        end
+
+        local imagePath = lib.GetCardIconName(card.suit, card.value, grayscale)
         if imagePath then
             local button = block:createImageButton({ idle = imagePath, over = imagePath, pressed = imagePath })
+            if grayscale then
+                button.disabled = true
+            end
 
+            -- hover tooltip
             button:register(tes3.uiEvent.mouseOver, function()
-                local buttonText = string.format("%s %s", lib.suitToString(card.suit), lib.valueToString(card.value))
+                local buttonText = string.format("%s of %s (%u)", lib.valueToString(card.value),
+                    lib.suitToString(card.suit), card.value)
                 local tooltip = tes3ui.createTooltipMenu()
                 tooltip.autoHeight = true
                 tooltip.autoWidth = true
@@ -93,17 +105,19 @@ local function createWindow(game)
                 label.autoWidth = true
                 label.wrapText = true
             end)
+
+            -- click event
             button:register(tes3.uiEvent.mouseClick, function()
                 game:PcPlayCard(card)
 
+                event.unregister(tes3.event.activate, state.activateCallback)
                 tes3ui.leaveMenuMode()
                 menu:destroy()
 
-                -- TODO wait one second before updating
+                -- wait one second before updating
                 timer.start({
                     duration = 1,
                     callback = function()
-                        event.unregister(tes3.event.activate, state.activateCallback)
                         local nextState = game:evaluateTrick()
                         game:PushState(nextState)
                     end
@@ -112,8 +126,6 @@ local function createWindow(game)
         end
     end
 
-
-
     local button_block = menu:createBlock {}
     button_block.widthProportional = 1.0 -- width is 100% parent width
     button_block.autoHeight = true
@@ -121,7 +133,7 @@ local function createWindow(game)
     button_block.childAlignX = 0.5
     button_block.paddingAllSides = 8
 
-    -- only show if player has >= 66 points
+    -- call the game, only show if player has >= 66 points
     if game:GetPlayerPoints() >= 66 then
         local callButton = button_block:createButton({
             text = "Call the game",
@@ -136,6 +148,48 @@ local function createWindow(game)
             game:PushState(lib.GameState.GAME_END)
         end)
     end
+
+    -- check if the player has marriages
+    local marriageKing = game:CanDoMarriage(true)
+    if marriageKing then
+        local isRoyalMarriage = marriageKing.suit == game.trumpSuit
+        local text = "Marriage"
+        if isRoyalMarriage then
+            text = "Royal Marriage"
+        end
+
+        local marriageButton = button_block:createButton({
+            text = text,
+            id = tes3ui.registerID("flin:playMarriages")
+        })
+        marriageButton:register("mouseClick", function()
+            log:debug("Player calls a marriage")
+
+            -- add points
+            local points = 20
+            if isRoyalMarriage then
+                points = 40
+            end
+            game:AddPoints(points, true)
+
+            game:PcPlayCard(marriageKing)
+
+            event.unregister(tes3.event.activate, state.activateCallback)
+            tes3ui.leaveMenuMode()
+            menu:destroy()
+
+            -- wait one second before updating
+            timer.start({
+                duration = 1,
+                callback = function()
+                    local nextState = game:evaluateTrick()
+                    game:PushState(nextState)
+                end
+            })
+        end)
+    end
+
+
 
     local button_cancel = button_block:createButton { text = tes3.findGMST("sCancel").value }
     button_cancel:register(tes3.uiEvent.mouseClick, state.onCancel)
@@ -183,10 +237,25 @@ end
 function state.activateCallback(e)
     local game = bb.getInstance():getData("game") ---@type FlinGame
 
+    -- exchange the trump card
+    if game:GetTrumpCardRef() and e.target.id == game:GetTrumpCardRef().id and game:CanExchangeTrumpCard(true) then
+        -- message box to confirm exchange
+        tes3.messageBox({
+            message = "Do you want to exchange the trump card?",
+            buttons = { "Yes", "No" },
+            showInDialog = false,
+            callback = function(e2)
+                if e2.button == 0 then
+                    game:ExchangeTrumpCard(true)
+                end
+            end,
+        })
+    end
+
     if #game.playerHand == 5 or game:IsPhase2() then
         -- activate the trick
         if game:GetNpcTrickRef() and e.target.id == game:GetNpcTrickRef().id then
-            -- hit the trick
+            -- head the trick
             createWindow(game)
             return
         end
@@ -201,6 +270,7 @@ function state.activateCallback(e)
         if game:GetTalonRef() and e.target.id == game:GetTalonRef().id then
             playerDrawCard(game)
             return
+            -- activate the trump card
         elseif game:IsTalonEmpty() and game:GetTrumpCardRef() and e.target.id == game:GetTrumpCardRef().id then
             -- if the talon is empty and there is a trump card then the player can draw the trump card
             playerDrawCard(game)
@@ -223,7 +293,7 @@ function state:enterState()
 
     if #game.playerHand == 5 or game:IsPhase2() then
         if game:GetNpcTrickRef() then
-            tes3.messageBox("It's your turn, hit the trick!")
+            tes3.messageBox("It's your turn, head the trick!")
         else
             ---@diagnostic disable-next-line: need-check-nil
             local key = tes3.getKeyName(config.openkeybind.keyCode)

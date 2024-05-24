@@ -25,6 +25,7 @@ this.GOLD_100_ID   = "Gold_100"
 
 this.log = logger.new {
     name = "Flin",
+    ---@diagnostic disable-next-line: need-check-nil
     logLevel = config.logLevel,
     logToConsole = false,
     includeTimestamp = false
@@ -134,8 +135,9 @@ end
 
 ---@param suit ESuit
 ---@param value EValue
+---@param grayscale boolean
 ---@return string?
-function this.GetCardIconName(suit, value)
+function this.GetCardIconName(suit, value, grayscale)
     local suitName = this.suitToString(suit)
     if suitName == "Unknown" then
         return nil
@@ -146,7 +148,11 @@ function this.GetCardIconName(suit, value)
         return nil
     end
 
-    return string.format("Icons\\rf\\%s.%s.dds", suitName, valueName)
+    if grayscale then
+        return string.format("Icons\\rf\\%s.%s.g.dds", suitName, valueName)
+    else
+        return string.format("Icons\\rf\\%s.%s.dds", suitName, valueName)
+    end
 end
 
 ---@param count number
@@ -309,9 +315,10 @@ function this.findPlayerPosition(ref)
                 })
 
                 -- if no result then we found no obstacles
-                DEBUG_ShowMarkerAt(testPos1)
+                -- DEBUG_ShowMarkerAt(testPos1)
+
                 if result == nil and result2 == nil then
-                    DEBUG_ShowMarkerAt(testPos1 - tes3vector3.new(0, 0, testHeight - (testOffset / 2)))
+                    -- DEBUG_ShowMarkerAt(testPos1 - tes3vector3.new(0, 0, testHeight - (testOffset / 2)))
 
                     -- final pos is on the ground
                     local resultPos = testPos1 - tes3vector3.new(0, 0, testHeight)
