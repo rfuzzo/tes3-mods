@@ -1,10 +1,10 @@
 local lib                   = require("Flin.lib")
-local log                   = lib.log
-
+local pathing               = require("Flin.pathing")
 local Card                  = require("Flin.card")
 local CardSlot              = require("Flin.cardSlot")
 local bb                    = require("Flin.blackboard")
 
+local log                   = lib.log
 local ESuit                 = lib.ESuit
 local EValue                = lib.EValue
 local GameState             = lib.GameState
@@ -13,12 +13,18 @@ local GameState             = lib.GameState
 local GAME_WARNING_DISTANCE = 200
 local GAME_FORFEIT_DISTANCE = 300
 
+---@class FlinNpcData
+---@field npcOriginalPosition tes3vector3?
+---@field npcOriginalFacing number?
+---@field currentPackageIndex number?
+---@field npcOriginalCell string?
 
 ---@class FlinGame
 ---@field private currentState GameState
 ---@field private state AbstractState?
 ---@field pot number
 ---@field npcHandle mwseSafeObjectHandle?
+---@field npcData FlinNpcData?
 ---@field talon Card[]
 ---@field trumpSuit ESuit?
 ---@field playerHand Card[]
@@ -30,7 +36,7 @@ local GAME_FORFEIT_DISTANCE = 300
 ---@field goldSlot CardSlot?
 ---@field private wonCardsPc number
 ---@field private wonCardsNpc number
-local FlinGame = {}
+local FlinGame              = {}
 
 -- constructor
 ---@param pot number
@@ -42,6 +48,12 @@ function FlinGame:new(pot, npcHandle)
         currentState = GameState.INVALID,
         pot = pot,
         npcHandle = npcHandle,
+        npcData = {
+            npcOriginalPosition = npcHandle:getObject().position:copy(),
+            npcOriginalFacing = npcHandle:getObject().facing,
+            npcOriginalCell = npcHandle:getObject().cell.id,
+            npcOriginalAiPackage = nil
+        },
         playerHand = {},
         npcHand = {},
         talon = {},
@@ -320,21 +332,30 @@ function FlinGame:CanPlayCard(card)
 
         -- if that fails then check if the player has any other card of the same suit that can win - then they must play it
         for _, c in ipairs(self.playerHand) do
-            if c ~= card and c.suit == farbe and c.value > valueToBeat then
+            if c.suit == farbe and c.value > valueToBeat then --c ~= card and
+                if c == card then
+                    return true
+                end
                 return false
             end
         end
 
         -- if that also fails then check if the player has any card of the same suit - then they must play it
         for _, c in ipairs(self.playerHand) do
-            if c ~= card and c.suit == farbe then
+            if c.suit == farbe then
+                if c == card then
+                    return true
+                end
                 return false
             end
         end
 
         -- if that fails then check if the player has any trump card that can win - then they must play it
         for _, c in ipairs(self.playerHand) do
-            if c ~= card and c.suit == self.trumpSuit then
+            if c.suit == self.trumpSuit then
+                if c == card then
+                    return true
+                end
                 return false
             end
         end
@@ -366,7 +387,8 @@ end
 
 ---@return boolean
 function FlinGame:IsPhase2()
-    return self:IsTalonEmpty() and not self.trumpCardSlot.card
+    local hasTrumpCard = self.trumpCardSlot and self.trumpCardSlot.card
+    return self:IsTalonEmpty() and not hasTrumpCard
 end
 
 ---@return tes3reference?
@@ -719,8 +741,9 @@ local function simulateCallback(e)
     local referenceCell = game.npcHandle:getObject().cell
     if currentCell ~= referenceCell and referenceCell.isInterior then
         -- forfeit the game
+        log:warn("You lose the game")
         tes3.messageBox("You lose the game")
-        game.endGame()
+        game.endGame(false)
         return
     end
 
@@ -730,8 +753,9 @@ local function simulateCallback(e)
         local distance = game.talonSlot.position:distance(tes3.player.position)
         if distance > GAME_FORFEIT_DISTANCE then
             -- forfeit the game
+            log:warn("You lose the game")
             tes3.messageBox("You lose the game")
-            game.endGame()
+            game.endGame(false)
         end
     else
         -- calculate the distance between the NPC and the player
@@ -807,8 +831,8 @@ end
 
 --- @param deckRef tes3reference
 function FlinGame:startGame(deckRef)
-    log:info("Starting game")
-    tes3.messageBox("The game is on! The pot is %s gold", self.pot)
+    log:info("The game is on! The pot is %s gold", self.pot)
+    --tes3.messageBox("The game is on! The pot is %s gold", self.pot)
 
     -- register event callbacks
     event.register(tes3.event.simulate, simulateCallback)
@@ -869,29 +893,83 @@ function FlinGame:startGame(deckRef)
     -- find a spot for the npc
     local refBelow = lib.FindRefBelow(deckRef)
     if refBelow then
-        if string.find(refBelow.object.id, "table") then
+        local refName = string.lower(refBelow.object.id)
+        if string.find(refName, "table") or
+            string.find(refName, "crate") or
+            string.find(refName, "bar") or
+            string.find(refName, "barrel") then
+            log:debug("Found a spot for the NPC at %s", refBelow.object.id)
+
             local position = lib.findPlayerPosition(refBelow)
 
-            -- TODO move NPC to that location
+            log:debug("Start pathing")
+            self.npcData.currentPackageIndex = self.npcHandle:getObject().mobile.aiPlanner.currentPackageIndex
+
+            -- move NPC to that location
+            pathing.registerCallback("onPathingFinished", function(timer, reference)
+                log:debug("NPC has arrived at the table")
+                -- make the npc face the deckRef
+                -- get the vector between the npc and the deck
+                local direction = deckPos - reference.position
+                direction.z = 0
+                direction = direction:normalized()
+                local facing = math.atan2(direction.x, direction.y)
+                reference.facing = facing
+            end)
+
+            pathing.startPathing({
+                handle = self.npcHandle,
+                destination = position,
+                onFinish = "onPathingFinished",
+            })
         end
+    else
+        log:warn("Could not find a spot for the NPC")
     end
 end
 
-function FlinGame.endGameSetup()
-    -- give npc the pot
+---@param isSetup boolean
+function FlinGame.endGame(isSetup)
+    -- call exit of the current state
     local game = tes3.player.data.FlinGame
-    tes3.addItem({ reference = game.npcHandle:getObject(), item = "Gold_001", count = game.pot })
+    game:ExitState()
 
-    -- cleanup
-    tes3.player.data.FlinGame:cleanup()
-end
+    -- remove event callbacks
+    event.unregister(tes3.event.simulate, simulateCallback)
+    event.unregister(tes3.event.activate, activateCallback)
+    event.unregister(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
 
-function FlinGame.endGame()
-    -- give back the deck
-    tes3.addItem({ reference = tes3.player, item = lib.FLIN_DECK_ID, count = 1 })
+    if isSetup then
+        tes3.addItem({ reference = game.npcHandle:getObject(), item = "Gold_001", count = game.pot })
+    else
+        -- give back the deck
+        tes3.addItem({ reference = tes3.player, item = lib.FLIN_DECK_ID, count = 1 })
+    end
 
-    -- cleanup
-    tes3.player.data.FlinGame:cleanup()
+    -- move the NPC back
+    if game.npcData then
+        pathing.registerCallback("onReturnFinished", function(timer, reference)
+            log:debug("NPC has arrived back at their position")
+
+            tes3.positionCell({
+                reference = game.npcHandle:getObject(),
+                position = game.npcData.npcOriginalPosition,
+                cell =
+                    game.npcData.npcOriginalCell
+            })
+            reference.facing = game.npcData.npcOriginalFacing
+            -- reference.mobile.aiPlanner.currentPackageIndex = game.npcData.currentPackageIndex
+
+            -- cleanup
+            tes3.player.data.FlinGame:cleanup()
+        end)
+
+        pathing.startPathing({
+            handle = game.npcHandle,
+            destination = game.npcData.npcOriginalPosition,
+            onFinish = "onReturnFinished",
+        })
+    end
 end
 
 ---@param slot CardSlot?
@@ -916,6 +994,7 @@ function FlinGame:cleanup()
 
     -- cleanup handles and references
     self.npcHandle = nil
+    self.npcData = nil
 
     CleanupSlot(self.talonSlot)
     CleanupSlot(self.trumpCardSlot)

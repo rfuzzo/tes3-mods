@@ -87,11 +87,15 @@ local function chooseNpcCardPhase1(game)
         if marriageKing then
             log:debug("NPC calls marriage")
 
+
             -- add points
             local isRoyalMarriage = marriageKing.suit == game.trumpSuit
             local points = 20
             if isRoyalMarriage then
                 points = 40
+                tes3.messageBox("NPC calls a royal marriage")
+            else
+                tes3.messageBox("NPC calls a marriage")
             end
             game:AddPoints(points, false)
 
@@ -228,8 +232,6 @@ function state:enterState()
 
     local game = self.game
 
-    game:drawCard(false)
-
     -- exchange trump card if needed
     if game:GetTrumpCardRef() and game:CanExchangeTrumpCard(false) then
         game:ExchangeTrumpCard(false)
@@ -238,29 +240,38 @@ function state:enterState()
     local card = chooseNpcCardToPlay(game)
     game:NpcPlayCard(card)
 
-    -- npc went last
-    if game.trickPCSlot and game.trickNPCSlot and game.trickPCSlot.card and game.trickNPCSlot.card then
-        -- if the npc went last, they can call the game if they think they have more than 66 points
-        if game:GetNpcPoints() >= 66 then
-            log:debug("NPC calls the game")
-            tes3.messageBox("NPC calls the game")
-
-            self.game:PushState(lib.GameState.GAME_END)
-            return
-        end
-    end
-
-    -- wait one second before updating
+    -- wait before updating
     timer.start({
         duration = 1,
         callback = function()
             local nextState = game:evaluateTrick()
-            game:PushState(nextState)
+
+            if game:GetNpcPoints() >= 66 then
+                log:debug("NPC calls the game")
+                tes3.messageBox("NPC calls the game")
+
+                game:PushState(lib.GameState.GAME_END)
+            else
+                if nextState == lib.GameState.NPC_TURN then
+                    timer.start({
+                        duration = 1,
+                        callback = function()
+                            game:PushState(nextState)
+                        end
+                    })
+                else
+                    game:PushState(nextState)
+                end
+            end
         end
     })
 end
 
 function state:endState()
+    log:debug("OnExit: NpcTurnState")
+
+    self.game:drawCard(false)
+
     event.unregister(tes3.event.save, saveCallback)
 end
 

@@ -236,9 +236,12 @@ end
 --- @param e activateEventData
 function state.activateCallback(e)
     local game = bb.getInstance():getData("game") ---@type FlinGame
+    if not game then
+        return
+    end
 
     -- exchange the trump card
-    if game:GetTrumpCardRef() and e.target.id == game:GetTrumpCardRef().id and game:CanExchangeTrumpCard(true) then
+    if not game:IsTalonEmpty() and game:GetTrumpCardRef() and e.target.id == game:GetTrumpCardRef().id and game:CanExchangeTrumpCard(true) then
         -- message box to confirm exchange
         tes3.messageBox({
             message = "Do you want to exchange the trump card?",

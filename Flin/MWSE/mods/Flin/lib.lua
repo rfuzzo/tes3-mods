@@ -233,7 +233,7 @@ function this.getLookedAtReference()
 end
 
 -- DEBUG
-local function DEBUG_ShowMarkerAt(pos)
+function this.DEBUG_ShowMarkerAt(pos)
     tes3.createReference({
         object = "light_com_candle_06_64",
         position = pos,
@@ -250,10 +250,22 @@ function this.FindRefBelow(ref)
         position = ref.position + tes3vector3.new(0, 0, 10),
         direction = tes3vector3.new(0, 0, -1),
         maxDistance = 20,
+        ignore = { ref },
+        root = tes3.game.worldPickRoot
+    })
+
+    local result2 = tes3.rayTest({
+        position = ref.position + tes3vector3.new(0, 0, 10),
+        direction = tes3vector3.new(0, 0, -1),
+        maxDistance = 20,
         root = tes3.game.worldObjectRoot
     })
+
     if result then
         return result.reference
+    end
+    if result2 then
+        return result2.reference
     end
 
     return nil
@@ -291,7 +303,7 @@ function this.findPlayerPosition(ref)
     local testOffset = 10
     local height = bb.max.z - bb.min.z
     local testHeight = height + testOffset
-    local results = {} ---@type tes3vector3[]
+    local results = {}
     for _, x in ipairs(xsteps) do
         for _, y in ipairs(ysteps) do
             -- only test the edges of the bounding box
@@ -323,27 +335,39 @@ function this.findPlayerPosition(ref)
                     -- final pos is on the ground
                     local resultPos = testPos1 - tes3vector3.new(0, 0, testHeight)
                     -- add to results
-                    table.insert(results, resultPos)
+                    table.insert(results, { pos = resultPos, rating = nil })
                 end
             end
         end
     end
 
     -- if table is empty then we found no valid positions
-    if #results == 0 then
+    if table.size(results) == 0 then
         return nil
     end
 
-    -- otherwise get a random position from the table
-    local resultPos = results[math.random(#results)]
-    -- TODO DEBUG
-    tes3.createReference({
-        object = "furn_6th_ashstatue",
-        position = resultPos,
-        orientation = tes3vector3.new(0, 0, 0),
-        cell = tes3.getPlayerCell()
-    })
-    return resultPos
+    -- now we rate the positions by distance to the ref and distance to the player, then pick the one that minimizes the sum of both distances
+    local playerPos = tes3.player.position
+    for i, v in ipairs(results) do
+        local distToRef = ref.position:distance(v.pos)
+        local distToPlayer = playerPos:distance(v.pos)
+
+        local rating = distToRef + distToPlayer
+        -- if the distance to the player is less than 50 then we add a penalty
+        if distToPlayer < 100 then
+            rating = rating + ((100 - distToPlayer) * (100 - distToPlayer))
+        end
+
+        results[i].rating = rating
+    end
+
+    -- sort the table by rating
+    table.sort(results, function(a, b)
+        return a.rating < b.rating
+    end)
+
+    -- return the best position
+    return results[1].pos
 end
 
 --#endregion

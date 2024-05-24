@@ -60,7 +60,7 @@ function state:enterState()
         tes3.addItem({ reference = game.npcHandle:getObject(), item = "Gold_001", count = math.floor(game.pot / 2) })
     end
 
-    game.endGame()
+    game.endGame(false)
 end
 
 function state:endState()
