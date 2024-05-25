@@ -316,6 +316,12 @@ function state:enterState()
 end
 
 function state:endState()
+    -- NPC may draw a card if both players have played a card
+    if self.game.trickNPCSlot and not self.game.trickNPCSlot.card and
+        self.game.trickPCSlot and not self.game.trickPCSlot.card then
+        self.game:drawCard(false)
+    end
+
     -- unregister event callbacks
     event.unregister(tes3.event.activate, self.activateCallback)
     ---@diagnostic disable-next-line: need-check-nil

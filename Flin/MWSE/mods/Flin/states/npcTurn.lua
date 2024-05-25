@@ -270,7 +270,11 @@ end
 function state:endState()
     log:debug("OnExit: NpcTurnState")
 
-    self.game:drawCard(false)
+    -- only draw a card if both players have played a card
+    if self.game.trickNPCSlot and not self.game.trickNPCSlot.card and
+        self.game.trickPCSlot and not self.game.trickPCSlot.card then
+        self.game:drawCard(false)
+    end
 
     event.unregister(tes3.event.save, saveCallback)
 end

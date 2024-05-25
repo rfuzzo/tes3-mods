@@ -8,6 +8,7 @@ local defaultConfig = {
     -- keybinds
     openkeybind = { keyCode = tes3.scanCode["o"] },
     enableHints = false,
+    enableMessages = true,
 }
 
 return mwse.loadConfig("Flin", defaultConfig)

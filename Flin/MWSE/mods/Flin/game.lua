@@ -3,6 +3,7 @@ local pathing               = require("Flin.pathing")
 local Card                  = require("Flin.card")
 local CardSlot              = require("Flin.cardSlot")
 local bb                    = require("Flin.blackboard")
+local config                = require("Flin.config")
 
 local log                   = lib.log
 local ESuit                 = lib.ESuit
@@ -483,11 +484,11 @@ function FlinGame:drawCard(isPlayer)
     end
 
     if isPlayer then
-        log:debug("player draws card: %s", card:toString())
+        log:debug("player draws card: %s (total %s)", card:toString(), #self.playerHand + 1)
 
         table.insert(self.playerHand, card)
     else
-        log:debug("NPC draws card: %s", card:toString())
+        log:debug("NPC draws card: %s (total %s)", card:toString(), #self.npcHand + 1)
         table.insert(self.npcHand, card)
     end
 
@@ -578,8 +579,12 @@ function FlinGame:evaluateTrick()
         if playerWins then
             log:debug("> Player wins the trick (%s > %s)", trickPCSlot.card:toString(),
                 trickNPCSlot.card:toString())
-            tes3.messageBox("You won the trick (%s > %s)", trickPCSlot.card:toString(),
-                trickNPCSlot.card:toString())
+
+            ---@diagnostic disable-next-line: need-check-nil
+            if config.enableMessages then
+                tes3.messageBox("You won the trick (%s > %s)", trickPCSlot.card:toString(),
+                    trickNPCSlot.card:toString())
+            end
 
             -- move the cards to the player's won cards
             self.wonCardsPc = self.wonCardsPc + trickPCSlot:RemoveCardFromSlot().value
@@ -587,8 +592,11 @@ function FlinGame:evaluateTrick()
         else
             log:debug("> NPC wins the trick (%s > %s)", trickNPCSlot.card:toString(),
                 trickPCSlot.card:toString())
-            tes3.messageBox("NPC won the trick (%s > %s)", trickNPCSlot.card:toString(),
-                trickPCSlot.card:toString())
+            ---@diagnostic disable-next-line: need-check-nil
+            if config.enableMessages then
+                tes3.messageBox("NPC won the trick (%s > %s)", trickNPCSlot.card:toString(),
+                    trickPCSlot.card:toString())
+            end
 
             -- move the cards to the NPC's won cards
             self.wonCardsNpc = self.wonCardsNpc + trickPCSlot:RemoveCardFromSlot().value

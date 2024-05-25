@@ -57,6 +57,15 @@ local function registerModConfig()
         }
     })
 
+    generalCategory:createOnOffButton({
+        label = "Enable Messages",
+        description = "Enable more message boxes during the card game.",
+        variable = mwse.mcm.createTableVariable {
+            id = "enableMessages",
+            table = config
+        }
+    })
+
 
     template:register()
 end
