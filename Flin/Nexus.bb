@@ -1,4 +1,8 @@
-# Flin
+[color=#ff7700][size=5]# Flin - MWSE[/size][/color]
+
+[img]https://i.imgur.com/Sz1ML7L.png[/img]
+
+[size=3]Github: [url=https://github.com/rfuzzo/tes3-mods]https://github.com/rfuzzo/tes3-mods[/url]
 
 A mod that adds a real-time card game called "Flin".
 
@@ -7,12 +11,11 @@ A mod that adds a real-time card game called "Flin".
 💡 To view you hand and play a card you need to press a key (default `O` key)
 💡 To head a trick, activate the card played by the NPC (or press the hand key again)
 
-<https://youtu.be/f6BG9nZVFS8>
+[youtube]f6BG9nZVFS8[/youtube][/size]
 
-## Rules
+[color=#ff7700][size=4]Rules[/color][/size]
 
-The rules are the same as [Schnapsen (or sometimes called 66)](https://en.wikipedia.org/wiki/Schnapsen)
-
+The rules are the same as [url=https://en.wikipedia.org/wiki/Schnapsen]Schnapsen (or sometimes called 66)[/url]
 - Each player starts with a hand of 5
 - Then players try to take tricks (trump or a higher value wins)
 - If you win the trick, you get to go again and win the card values
@@ -47,16 +50,22 @@ If the talon is used up, players must follow suit (Farbzwang) and win the trick 
 
 💡 The mod displays an additional button in that case to press
 
-## Installation
+[color=#ff7700][size=4]Installation[/color][/size]
 
-- Make sure you have the latest MWSE
+[size=3]
+- Make sure you have the latest MWSE update
 - Install the zip file with a mod manager
+[/size]
 
-## Screenshots
+[color=#ff7700][size=4]Screenshots[/color][/size]
 
-## Special thanks to
+[img]https://staticdelivery.nexusmods.com/mods/100/images/54676/54676-1715879107-147626033.png[/img]
 
-- Model people for forcing me to use Blender and nifskope (not sure if I should thank them for that)
+[img]https://staticdelivery.nexusmods.com/mods/100/images/54676/54676-1715879097-1408147979.png[/img]
+
+[color=#ff7700][size=4]Special thanks to[/color][/size]
+
+[size=3]- Model people for forcing me to use Blender and nifskope (not sure if I should thank them for that)
 - the rest of the MCM community for immense help on diverse features over the long time I worked on this mod
 - The MWSE team for MWSE
-- The CSSE team for CSSE
+- The CSSE team for CSSE[/size]
