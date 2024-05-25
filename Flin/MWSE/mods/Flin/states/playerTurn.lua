@@ -1,4 +1,4 @@
-local config = require("Flin.config")
+local config = require("Flin.config") ---@type FlinConfig
 local lib = require("Flin.lib")
 local log = lib.log
 
@@ -28,7 +28,6 @@ end
 ---@param game FlinGame
 ---@return string
 local function getHeaderText(game)
-    ---@diagnostic disable-next-line: need-check-nil
     if config.enableHints then
         return string.format("Play a card (Trump is %s, you have %s points, NPC has %s points)",
             lib.suitToString(game.trumpSuit), game:GetPlayerPoints(), game:GetNpcPoints())
@@ -230,7 +229,6 @@ local function playerDrawCard(game)
         return
     end
 
-    ---@diagnostic disable-next-line: need-check-nil
     local key = tes3.getKeyName(config.openkeybind.keyCode)
     tes3.messageBox("You draw: %s, press %s to play a card!", card:toString(), key)
 end
@@ -313,7 +311,6 @@ function state:enterState()
         if game:GetNpcTrickRef() then
             tes3.messageBox("It's your turn, head the trick!")
         else
-            ---@diagnostic disable-next-line: need-check-nil
             local key = tes3.getKeyName(config.openkeybind.keyCode)
             tes3.messageBox("It's your turn, press %s to play a card!", key)
         end
@@ -323,7 +320,6 @@ function state:enterState()
 
     -- register event callbacks
     event.register(tes3.event.activate, self.activateCallback)
-    ---@diagnostic disable-next-line: need-check-nil
     event.register(tes3.event.keyDown, KeyDownCallback, { filter = config.openkeybind.keyCode })
     -- add game to blackboard for events
     bb.getInstance():setData("game", self.game)
@@ -339,7 +335,6 @@ function state:endState()
 
     -- unregister event callbacks
     event.unregister(tes3.event.activate, self.activateCallback)
-    ---@diagnostic disable-next-line: need-check-nil
     event.unregister(tes3.event.keyDown, KeyDownCallback, { filter = config.openkeybind.keyCode })
     -- remove game from blackboard
     bb.getInstance():removeData("game")

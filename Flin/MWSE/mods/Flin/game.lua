@@ -3,7 +3,7 @@ local pathing               = require("Flin.pathing")
 local Card                  = require("Flin.card")
 local CardSlot              = require("Flin.cardSlot")
 local bb                    = require("Flin.blackboard")
-local config                = require("Flin.config")
+local config                = require("Flin.config") ---@type FlinConfig
 
 local log                   = lib.log
 local ESuit                 = lib.ESuit
@@ -579,8 +579,6 @@ function FlinGame:evaluateTrick()
         if playerWins then
             log:debug("> Player wins the trick (%s > %s)", trickPCSlot.card:toString(),
                 trickNPCSlot.card:toString())
-
-            ---@diagnostic disable-next-line: need-check-nil
             if config.enableMessages then
                 tes3.messageBox("You won the trick (%s > %s)", trickPCSlot.card:toString(),
                     trickNPCSlot.card:toString())
@@ -592,7 +590,6 @@ function FlinGame:evaluateTrick()
         else
             log:debug("> NPC wins the trick (%s > %s)", trickNPCSlot.card:toString(),
                 trickPCSlot.card:toString())
-            ---@diagnostic disable-next-line: need-check-nil
             if config.enableMessages then
                 tes3.messageBox("NPC won the trick (%s > %s)", trickNPCSlot.card:toString(),
                     trickPCSlot.card:toString())

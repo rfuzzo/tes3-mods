@@ -2,10 +2,7 @@ local logger = require("logging.logger")
 
 --- Setup MCM.
 local function registerModConfig()
-    local config = require("Flin.config")
-    if not config then
-        return
-    end
+    local config = require("Flin.config") ---@type FlinConfig
 
     local log = logger.getLogger(config.mod)
     local template = mwse.mcm.createTemplate(config.mod)
@@ -62,6 +59,15 @@ local function registerModConfig()
         description = "Enable more message boxes during the card game.",
         variable = mwse.mcm.createTableVariable {
             id = "enableMessages",
+            table = config
+        }
+    })
+
+    generalCategory:createOnOffButton({
+        label = "Trick Sounds",
+        description = "Play sounds after winning or losing a trick.",
+        variable = mwse.mcm.createTableVariable {
+            id = "enableTrickSounds",
             table = config
         }
     })

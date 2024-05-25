@@ -27,7 +27,7 @@ function this.startPathing(data)
     timer.start({
         iterations = 40, -- 5 seconds
         duration = 0.1,
-        callback = "leeches:pathing:update", ---@diagnostic disable-line
+        callback = "flin:pathing:update", ---@diagnostic disable-line
         persist = true,
         data = data,
     })
@@ -107,6 +107,6 @@ local function update(e)
     log:debug("pathing: finished (%s)", ref.id)
     e.timer:cancel()
 end
-timer.register("leeches:pathing:update", update)
+timer.register("flin:pathing:update", update)
 
 return this

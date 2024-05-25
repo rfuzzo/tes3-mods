@@ -1,5 +1,5 @@
 local logger = require("logging.logger")
-local config = require("Flin.config")
+local config = require("Flin.config") ---@type FlinConfig
 
 local this   = {}
 
@@ -25,7 +25,6 @@ this.GOLD_100_ID   = "Gold_100"
 
 this.log = logger.new {
     name = "Flin",
-    ---@diagnostic disable-next-line: need-check-nil
     logLevel = config.logLevel,
     logToConsole = false,
     includeTimestamp = false
