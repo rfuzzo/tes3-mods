@@ -119,7 +119,18 @@ local function createWindow(game)
                     duration = 1,
                     callback = function()
                         local nextState = game:evaluateTrick()
-                        game:PushState(nextState)
+
+                        -- we wait a bit before the NPC can play to simulate thinking
+                        if nextState == lib.GameState.NPC_TURN then
+                            timer.start({
+                                duration = 1,
+                                callback = function()
+                                    game:PushState(nextState)
+                                end
+                            })
+                        else
+                            game:PushState(nextState)
+                        end
                     end
                 })
             end)
@@ -182,6 +193,7 @@ local function createWindow(game)
             timer.start({
                 duration = 1,
                 callback = function()
+                    -- this is always the NPC
                     local nextState = game:evaluateTrick()
                     game:PushState(nextState)
                 end
