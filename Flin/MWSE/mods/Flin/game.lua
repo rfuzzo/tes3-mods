@@ -4,6 +4,7 @@ local Card                  = require("Flin.card")
 local CardSlot              = require("Flin.cardSlot")
 local bb                    = require("Flin.blackboard")
 local config                = require("Flin.config") ---@type FlinConfig
+local AiStrategy            = require("Flin.ai.strategy")
 
 local log                   = lib.log
 local ESuit                 = lib.ESuit
@@ -19,6 +20,7 @@ local GAME_FORFEIT_DISTANCE = 300
 ---@field npcOriginalFacing number?
 ---@field currentPackageIndex number?
 ---@field npcOriginalCell string?
+---@field npcStrategy AiStrategy
 
 ---@class FlinGame
 ---@field private currentState GameState
@@ -53,7 +55,9 @@ function FlinGame:new(pot, npcHandle)
             npcOriginalPosition = npcHandle:getObject().position:copy(),
             npcOriginalFacing = npcHandle:getObject().facing,
             npcOriginalCell = npcHandle:getObject().cell.id,
-            npcOriginalAiPackage = nil
+            npcOriginalAiPackage = nil,
+            currentPackageIndex = nil,
+            npcStrategy = AiStrategy:new(npcHandle)
         },
         playerHand = {},
         npcHand = {},

@@ -6,22 +6,6 @@ local this = {}
 --- @param reference tes3reference The reference the dialogue is running on.
 --- @param dialogue tes3dialogue The parent dialogue for our info.
 --- @param info tes3dialogueInfo The specific INFO object that is being executed.
-function this.buyDeck(reference, dialogue, info)
-    local goldCount = tes3.getPlayerGold()
-    local deckPrice = 120
-    if goldCount < deckPrice then
-        tes3.messageBox("You don't have enough gold")
-        return
-    end
-
-    tes3.messageBox("You bought a Flin deck for 120 gold.")
-    tes3.addItem({ reference = tes3.player, item = lib.FLIN_DECK_ID, count = 1 })
-    tes3.playSound({ sound = "Item Up" })
-end
-
---- @param reference tes3reference The reference the dialogue is running on.
---- @param dialogue tes3dialogue The parent dialogue for our info.
---- @param info tes3dialogueInfo The specific INFO object that is being executed.
 function this.enter(reference, dialogue, info)
     local npc_menu = tes3ui.getMenuOnTop()
     if npc_menu and npc_menu.name == "MenuDialog" then
