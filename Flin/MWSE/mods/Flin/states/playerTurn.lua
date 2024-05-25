@@ -121,7 +121,10 @@ local function createWindow(game)
                         local nextState = game:evaluateTrick()
 
                         -- we wait a bit before the NPC can play to simulate thinking
-                        if nextState == lib.GameState.NPC_TURN then
+                        if nextState == lib.GameState.NPC_TURN and
+                            game.trickNPCSlot and not game.trickNPCSlot.card and
+                            game.trickPCSlot and not game.trickPCSlot.card
+                        then
                             timer.start({
                                 duration = 1,
                                 callback = function()
