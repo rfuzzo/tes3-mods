@@ -20,7 +20,7 @@ local GAME_FORFEIT_DISTANCE = 300
 ---@field npcOriginalFacing number?
 ---@field currentPackageIndex number?
 ---@field npcOriginalCell string?
----@field npcStrategy AiStrategy
+---@field npcStrategy FlinNpcAi
 
 ---@class FlinGame
 ---@field private currentState GameState
@@ -180,26 +180,6 @@ function FlinGame:talonPop()
     end
 
     return card
-end
-
----@param card Card
-function FlinGame:PcPlayCard(card)
-    for i, c in ipairs(self.playerHand) do
-        if c == card then
-            local result = table.remove(self.playerHand, i)
-            self.trickPCSlot:AddCardToSlot(result)
-
-            log:debug("PC plays card: %s", result:toString())
-
-            -- adjust the position of the slot
-            -- if the trickNPCSlot is not empty then move the trickNCSlot up
-            if self.trickNPCSlot and self.trickNPCSlot.card then
-                self.trickPCSlot:MoveUp(0.5)
-            end
-
-            return
-        end
-    end
 end
 
 ---@param isPlayer boolean
@@ -373,15 +353,42 @@ function FlinGame:CanPlayCard(card)
 end
 
 ---@param card Card
+function FlinGame:PcPlayCard(card)
+    for i, c in ipairs(self.playerHand) do
+        if c == card then
+            local result = table.remove(self.playerHand, i)
+            self.trickPCSlot:AddCardToSlot(result)
+
+            log:debug("PC plays card: %s", result:toString())
+
+            -- adjust the position of the slot
+            -- if the trickNPCSlot is not empty then move the trickNCSlot up
+            if self.trickNPCSlot and self.trickNPCSlot.card then
+                self.trickPCSlot:MoveUp(0.5)
+            end
+
+            return
+        end
+    end
+end
+
+---@param card Card
 function FlinGame:NpcPlayCard(card)
-    self.trickNPCSlot:AddCardToSlot(card)
+    for i, c in ipairs(self.npcHand) do
+        if c == card then
+            local result = table.remove(self.npcHand, i)
+            self.trickNPCSlot:AddCardToSlot(result)
 
-    log:debug("NPC plays card: %s", card:toString())
+            log:debug("NPC plays card: %s", result:toString())
 
-    -- adjust the position of the slot
-    -- if the trickPCSlot is not empty then move the trickNPCSlot up
-    if self.trickPCSlot and self.trickPCSlot.card then
-        self.trickNPCSlot:MoveUp(0.5)
+            -- adjust the position of the slot
+            -- if the trickPCSlot is not empty then move the trickNPCSlot up
+            if self.trickPCSlot and self.trickPCSlot.card then
+                self.trickNPCSlot:MoveUp(0.5)
+            end
+
+            return
+        end
     end
 end
 

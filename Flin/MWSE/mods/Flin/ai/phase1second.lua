@@ -1,13 +1,15 @@
 local lib = require("Flin.lib")
+local strategy = require("Flin.ai.strategy")
 
 local EValue = lib.EValue
 local log = lib.log
+local EStrategyPhase = strategy.EStrategyPhase
 
 local this = {}
 
 ---@param game FlinGame
 ---@return CardPreference[]
-function this.MinMax(game)
+local function MinMax(game)
     local npcHand = game.npcHand
     local trumpSuit = game.trumpSuit
     local trickPCSlot = game.trickPCSlot
@@ -29,13 +31,11 @@ function this.MinMax(game)
             if card.suit ~= trumpSuit and card.value <= valueToBeat then
                 preference = 2
             end
-            log:debug("No card found to dump")
 
             -- we couldn't find a low non-trump card to dump so we try to win the trick with the same suit
             if card.suit == trickPCSlot.card.suit and card.value > valueToBeat then
                 preference = 1
             end
-            log:debug("No card found to win the trick with the same suit")
 
             -- we couldn't find anything
             preference = 0
@@ -70,6 +70,20 @@ function this.MinMax(game)
     end
 
     return preferences
+end
+
+---@return AiStrategyPhase
+function this.MinMaxStrategy()
+    ---@type AiStrategyPhase
+    local s = {
+        phase = EStrategyPhase.PHASE1SECOND,
+        name = "MinMax",
+        fun = MinMax,
+        evaluate = function(handle)
+            return 1
+        end
+    }
+    return s
 end
 
 -- TODO more strateges

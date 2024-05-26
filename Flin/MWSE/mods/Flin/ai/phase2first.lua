@@ -1,13 +1,15 @@
 local lib = require("Flin.lib")
+local strategy = require("Flin.ai.strategy")
 
 local EValue = lib.EValue
 local log = lib.log
+local EStrategyPhase = strategy.EStrategyPhase
 
 local this = {}
 
 ---@param game FlinGame
 ---@return CardPreference[]
-function this.MinMax(game)
+local function MinMax(game)
     local npcHand = game.npcHand
     local trumpSuit = game.trumpSuit
     local trickPCSlot = game.trickPCSlot
@@ -29,6 +31,20 @@ function this.MinMax(game)
     end
 
     return preferences
+end
+
+---@return AiStrategyPhase
+function this.MinMaxStrategy()
+    ---@type AiStrategyPhase
+    local s = {
+        phase = EStrategyPhase.PHASE2FIRST,
+        name = "MinMax",
+        fun = MinMax,
+        evaluate = function(handle)
+            return 1
+        end
+    }
+    return s
 end
 
 return this

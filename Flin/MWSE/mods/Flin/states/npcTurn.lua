@@ -44,15 +44,15 @@ function state:enterState()
     -- if we go first
     local marriageKing = game:CanDoMarriage(false)
     if marriageKing then
-        log:debug("NPC calls marriage")
-
         -- add points
         local isRoyalMarriage = marriageKing.suit == game.trumpSuit
         local points = 20
         if isRoyalMarriage then
             points = 40
+            log:debug("NPC calls a royal marriage")
             tes3.messageBox("NPC calls a royal marriage")
         else
+            log:debug("NPC calls a marriage")
             tes3.messageBox("NPC calls a marriage")
         end
         game:AddPoints(points, false)
@@ -60,7 +60,7 @@ function state:enterState()
         -- return card
         for i, card in ipairs(game.npcHand) do
             if card == marriageKing then
-                return table.remove(game.npcHand, i)
+                game:NpcPlayCard(card)
             end
         end
 

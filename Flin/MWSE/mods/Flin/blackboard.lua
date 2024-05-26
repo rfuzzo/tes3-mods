@@ -2,7 +2,7 @@
 ---@field private data table<string, any>
 local Blackboard = {}
 
---- get singleton instance
+--- constructor
 function Blackboard:new()
     local newObj = {
         data = {}

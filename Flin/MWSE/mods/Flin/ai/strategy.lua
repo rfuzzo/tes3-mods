@@ -1,9 +1,5 @@
 local lib = require("Flin.lib")
-
-local phase1First = require("Flin.ai.phase1first")
-local phase1Second = require("Flin.ai.phase1second")
-local phase2First = require("Flin.ai.phase2first")
-local phase2Second = require("Flin.ai.phase2second")
+local interop = require("Flin.interop")
 
 -- a strategy for the NPC to play a card in the Flin game
 -- a strategy consists of four parts:
@@ -23,24 +19,36 @@ local phase2Second = require("Flin.ai.phase2second")
 ---@field card Card
 ---@field preference number
 
----@class AiStrategy
----@field phase1First fun(game: FlinGame): CardPreference[]
----@field phase1Second fun(game: FlinGame): CardPreference[]
----@field phase2First fun(game: FlinGame): CardPreference[]
----@field phase2Second fun(game: FlinGame): CardPreference[]
+---@class AiStrategyPhase
+---@field phase EStrategyPhase
+---@field name string
+---@field fun fun(game: FlinGame): CardPreference[]
+---@field evaluate fun(handle: mwseSafeObjectHandle): number
+
+---@class FlinNpcAi
+---@field phase1First AiStrategyPhase
+---@field phase1Second AiStrategyPhase
+---@field phase2First AiStrategyPhase
+---@field phase2Second AiStrategyPhase
 local strategy = {}
+
+---@enum EStrategyPhase
+strategy.EStrategyPhase = {
+    PHASE1FIRST = 1,
+    PHASE1SECOND = 2,
+    PHASE2FIRST = 3,
+    PHASE2SECOND = 4,
+}
 
 -- constructor
 --- @param handle mwseSafeObjectHandle
 function strategy:new(handle)
-    ---@type AiStrategy
-
-    -- TODO depend on npc attributes
+    ---@type FlinNpcAi
     local newObj = {
-        phase1First = phase1First.MinMax,
-        phase1Second = phase1Second.MinMax,
-        phase2First = phase2First.MinMax,
-        phase2Second = phase2Second.MinMax
+        phase1First = interop.chooseStrategy(strategy.EStrategyPhase.PHASE1FIRST, handle),
+        phase1Second = interop.chooseStrategy(strategy.EStrategyPhase.PHASE1SECOND, handle),
+        phase2First = interop.chooseStrategy(strategy.EStrategyPhase.PHASE2FIRST, handle),
+        phase2Second = interop.chooseStrategy(strategy.EStrategyPhase.PHASE2SECOND, handle)
     }
 
     setmetatable(newObj, self)
@@ -58,15 +66,15 @@ function strategy:choose(game)
     local preferences = nil
     if game:IsPhase2() then
         if npcGoesSecond then
-            preferences = self.phase2Second(game)
+            preferences = self.phase2Second.fun(game)
         else
-            preferences = self.phase2First(game)
+            preferences = self.phase2First.fun(game)
         end
     else
         if npcGoesSecond then
-            preferences = self.phase1Second(game)
+            preferences = self.phase1Second.fun(game)
         else
-            preferences = self.phase1First(game)
+            preferences = self.phase1First.fun(game)
         end
     end
 
@@ -102,8 +110,14 @@ function strategy:evaluate(preferences, game)
         -- we have Inteligence, Willpower(, Luck, Personality)
         -- n can be between 1 and 5 (1 is best, always choose the best card)
         local n = 3
-        local randomIndex = math.random(1, n)
+        local randomIndex = math.random(n)
         card = preferences[randomIndex].card
+
+        -- log the preferences
+        for i, pref in ipairs(preferences) do
+            lib.log:debug("Card %s: preference %s", pref.card:toString(), pref.preference)
+        end
+        lib.log:debug("Chose card index %s", randomIndex)
     end
 
     return card
