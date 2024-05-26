@@ -30,7 +30,7 @@ local function saveCallback(e)
 end
 
 function state:enterState()
-    log:debug("OnEnter: NpcTurnState")
+    log:trace("OnEnter: NpcTurnState")
 
     event.register(tes3.event.save, saveCallback)
 
@@ -61,10 +61,9 @@ function state:enterState()
         for i, card in ipairs(game.npcHand) do
             if card == marriageKing then
                 game:NpcPlayCard(card)
+                break
             end
         end
-
-        log:error("Marriage card not found")
     else
         local card = game.npcData.npcStrategy:choose(game)
         game:NpcPlayCard(card)
@@ -98,7 +97,7 @@ function state:enterState()
 end
 
 function state:endState()
-    log:debug("OnExit: NpcTurnState")
+    log:trace("OnExit: NpcTurnState")
 
     -- only draw a card if both players have played a card
     if self.game.trickNPCSlot and not self.game.trickNPCSlot.card and

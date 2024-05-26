@@ -19,7 +19,9 @@ function this:new()
 
     -- add default strategies
     -- phase 1 first
-    newObj:registerStrategy(require("Flin.ai.phase1first").MinMaxStrategy())
+    newObj:registerStrategy(require("Flin.ai.phase1first").balanced())
+    newObj:registerStrategy(require("Flin.ai.phase1first").defensive())
+    newObj:registerStrategy(require("Flin.ai.phase1first").aggressive())
 
     -- phase 1 second
     newObj:registerStrategy(require("Flin.ai.phase1second").MinMaxStrategy())

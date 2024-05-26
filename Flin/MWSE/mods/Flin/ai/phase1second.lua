@@ -7,6 +7,13 @@ local EStrategyPhase = strategy.EStrategyPhase
 
 local this = {}
 
+---@param playerCard Card
+---@param card Card
+---@return number
+local function pointsToGain(playerCard, card)
+    return playerCard.value + card.value
+end
+
 ---@param game FlinGame
 ---@return CardPreference[]
 local function MinMax(game)
@@ -16,57 +23,62 @@ local function MinMax(game)
 
     assert(trickPCSlot, "trickPCSlot is nil")
 
-    local valueToBeat = trickPCSlot.card.value
     local lowValueThreshold = EValue.X
+    local valueToBeat = trickPCSlot.card.value
 
     local preferences = {}
 
-    --TODO try to maximize the value of the won trick
+    for i, card in ipairs(npcHand) do
+        local preference = 0
+        --TODO try to maximize the value of the won trick
+        -- local pointsToGain = pointsToGain(trickPCSlot.card, card)
 
-    if valueToBeat < lowValueThreshold then
-        for i, card in ipairs(npcHand) do
-            local preference = 0
-
+        if valueToBeat < lowValueThreshold then
             -- if the current trick is of low value then just dump a low non trump card
-            if card.suit ~= trumpSuit and card.value <= valueToBeat then
-                preference = 2
-            end
-
+            if card.suit ~= trumpSuit and card.value < lowValueThreshold then
+                -- the lower the better
+                -- 13 - 2,3,4
+                preference = EValue.Ace + 50 - card.value
+            elseif
             -- we couldn't find a low non-trump card to dump so we try to win the trick with the same suit
-            if card.suit == trickPCSlot.card.suit and card.value > valueToBeat then
-                preference = 1
+                card.suit == trickPCSlot.card.suit and card.value > valueToBeat then
+                -- the lower the better
+                -- 13 - 2,3,4,10,11
+                preference = EValue.Ace + 50 - card.value
+            else
+                -- we only have high value cards so we try to minimize loss
+                if card.suit ~= trumpSuit then
+                    preference = EValue.Ace + EValue.Ace - card.value
+                else
+                    preference = EValue.Ace - card.value
+                end
             end
-
-            -- we couldn't find anything
-            preference = 0
-
-            table.insert(preferences, { card = card, preference = preference })
-        end
-    else
-        for i, card in ipairs(npcHand) do
-            local preference = 0
-
+        else
             -- if the current trick is of high value then try to win it with a non-trump card of the same suit
-            -- TODO the higher the better
+            -- the higher the better
             -- 10 + 2,3,4,10,11
             if card.suit ~= trumpSuit and card.suit == trickPCSlot.card.suit and card.value > valueToBeat then
-                preference = lowValueThreshold + card.value
-            end
-            log:debug("No card found to win the trick with the same suit")
-
-            -- now try to win it with a high trump card
-            -- TODO the higher the better
+                preference = 100 + card.value
+            elseif
+            -- now try to win it with a trump card
+            -- the higher the better
             -- 2,3,4,10,11
-            if card.suit == trumpSuit then
-                preference = card.value
+                card.suit == trumpSuit then
+                preference = 50 + card.value
+            else
+                -- try to minimize loss
+                -- the lower the better
+                -- 11 - 2,3,4,10,11
+                -- trunp cards are more valuable
+                if card.suit ~= trumpSuit then
+                    preference = EValue.Ace + EValue.Ace - card.value
+                else
+                    preference = EValue.Ace - card.value
+                end
             end
-            log:debug("No card found to win the trick with a trump card")
-
-            -- we couldn't find a card to win the trick
-            preference = 0
-
-            table.insert(preferences, { card = card, preference = preference })
         end
+
+        table.insert(preferences, { card = card, preference = preference })
     end
 
     return preferences

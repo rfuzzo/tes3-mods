@@ -76,7 +76,7 @@ local function update(e)
     -- Wait for pathing to finish.
     if not package.isDone then
         local iterationsLeft = e.timer.iterations
-        log:debug("pathing: timeLeft (%s)", iterationsLeft)
+        log:trace("pathing: timeLeft (%s)", iterationsLeft)
         if iterationsLeft < 2 then
             -- skip to end
             package.isDone = true

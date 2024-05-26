@@ -63,45 +63,52 @@ function strategy:choose(game)
     local trickPCSlot = game.trickPCSlot
     local npcGoesSecond = trickPCSlot and trickPCSlot.card
 
-    local preferences = nil
+    local strat = nil
     if game:IsPhase2() then
         if npcGoesSecond then
-            preferences = self.phase2Second.fun(game)
+            strat = self.phase2Second
         else
-            preferences = self.phase2First.fun(game)
+            strat = self.phase2First
         end
     else
         if npcGoesSecond then
-            preferences = self.phase1Second.fun(game)
+            strat = self.phase1Second
         else
-            preferences = self.phase1First.fun(game)
+            strat = self.phase1First
         end
     end
 
-    local card = self:evaluate(preferences, game)
+    local card = self:evaluate(strat, game)
     return card
 end
 
 --- evaluate the preferences and choose the best card
----@param preferences CardPreference[]
+---@param strat AiStrategyPhase
 ---@param game FlinGame
 ---@return Card
-function strategy:evaluate(preferences, game)
-    local card = nil
-    local maxPreference = -1
-
-    -- find the card with the highest preference
-    -- in phase 2 when the NPC goes 2nd we need to be strict
-    -- TODO cheating
+function strategy:evaluate(strat, game)
+    local preferences = strat.fun(game)
     local trickPCSlot = game.trickPCSlot
     local npcGoesSecond = trickPCSlot and trickPCSlot.card
+
+    -- logging
+    lib.log:debug("AI strategy: %s", strat.name)
+    lib.log:debug("\tphase 2: %s", game:IsPhase2())
+    lib.log:debug("\tnpc goes %s", npcGoesSecond and "second" or "first")
+    lib.log:debug("\ttrump is %s", lib.suitToString(game.trumpSuit))
+    lib.log:debug("\ttrick card: %s", trickPCSlot and trickPCSlot.card:toString() or "none")
+
     if game:IsPhase2() and npcGoesSecond then
+        -- in phase 2 when the NPC goes 2nd we need to be strict
+        local maxPreference = -1
+        local card = nil
         for _, pref in ipairs(preferences) do
             if pref.preference > maxPreference then
                 card = pref.card
                 maxPreference = pref.preference
             end
         end
+        return card
     else
         -- sort the preferences by preference
         table.sort(preferences, function(a, b) return a.preference > b.preference end)
@@ -109,18 +116,18 @@ function strategy:evaluate(preferences, game)
         -- TODO depend on npc attributes
         -- we have Inteligence, Willpower(, Luck, Personality)
         -- n can be between 1 and 5 (1 is best, always choose the best card)
-        local n = 3
+        local n = math.min(3, #preferences)
         local randomIndex = math.random(n)
-        card = preferences[randomIndex].card
+        local card = preferences[randomIndex].card
 
         -- log the preferences
         for i, pref in ipairs(preferences) do
-            lib.log:debug("Card %s: preference %s", pref.card:toString(), pref.preference)
+            lib.log:trace("Card %s: preference %s", pref.card:toString(), pref.preference)
         end
-        lib.log:debug("Chose card index %s", randomIndex)
-    end
+        lib.log:trace("Chose card index %s", randomIndex)
 
-    return card
+        return card
+    end
 end
 
 return strategy

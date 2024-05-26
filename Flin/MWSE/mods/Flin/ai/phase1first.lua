@@ -8,11 +8,11 @@ local EStrategyPhase = strategy.EStrategyPhase
 local this = {}
 
 ---@return AiStrategyPhase
-function this.MinMaxStrategy()
+function this.balanced()
     ---@type AiStrategyPhase
     local s = {
         phase = EStrategyPhase.PHASE1FIRST,
-        name = "MinMax",
+        name = "balanced",
         fun = function(game)
             local npcHand = game.npcHand
             local trumpSuit = game.trumpSuit
@@ -50,8 +50,73 @@ end
 -- TODO more strategies
 
 -- defensive: try to dump low non-trump cards always
+---@return AiStrategyPhase
+function this.defensive()
+    ---@type AiStrategyPhase
+    local s = {
+        phase = EStrategyPhase.PHASE1FIRST,
+        name = "defensive",
+        fun = function(game)
+            local npcHand = game.npcHand
+            local trumpSuit = game.trumpSuit
+            local preferences = {} ---@type CardPreference[]
+            for i, card in ipairs(npcHand) do
+                local preference = 0
+
+                if card.suit ~= trumpSuit then
+                    -- the lower the better
+                    -- 11 - 2,3,4,10,11
+                    preference = 20 + EValue.Ace - card.value
+                else
+                    -- minimize loss
+                    preference = EValue.Ace - card.value
+                end
+
+                table.insert(preferences, { card = card, preference = preference })
+            end
+
+            return preferences
+        end,
+        evaluate = function(handle)
+            return 1
+        end
+    }
+    return s
+end
 
 -- aggressive: try to always play high trump cards
+---@return AiStrategyPhase
+function this.aggressive()
+    ---@type AiStrategyPhase
+    local s = {
+        phase = EStrategyPhase.PHASE1FIRST,
+        name = "aggressive",
+        fun = function(game)
+            local npcHand = game.npcHand
+            local trumpSuit = game.trumpSuit
+            local preferences = {} ---@type CardPreference[]
+            for i, card in ipairs(npcHand) do
+                local preference = 0
+
+                if card.suit ~= trumpSuit then
+                    -- the higher the better
+                    preference = card.value
+                else
+                    -- the higher the better
+                    preference = 50 + card.value
+                end
+
+                table.insert(preferences, { card = card, preference = preference })
+            end
+
+            return preferences
+        end,
+        evaluate = function(handle)
+            return 1
+        end
+    }
+    return s
+end
 
 -- smart: know how many trump cards there are
 

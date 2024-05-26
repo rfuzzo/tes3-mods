@@ -38,22 +38,19 @@ a player may not play a trump if they can follow suit.
         -- first we need to find a card that has the same suit and can beat
         if card.suit == trickPCSlot.card.suit and card.value > valueToBeat then
             preference = 100
-        end
+        elseif
 
         -- if that fails we need to find any card with the same suit
         -- and we want to dump the lowest card
-        if card.suit == trickPCSlot.card.suit then
+            card.suit == trickPCSlot.card.suit then
             preference = 70 + EValue.Ace - card.value
-        end
+        elseif
 
         -- if that also fails then we need to play a trump card
         -- TODO and we want to play the lowest trump card
-        if card.suit == trumpSuit then
+            card.suit == trumpSuit then
             preference = 30 + EValue.Ace - card.value
         end
-
-        -- we couldn't find anything
-        preference = 0
 
         table.insert(preferences, { card = card, preference = preference })
     end
