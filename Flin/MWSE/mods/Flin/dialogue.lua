@@ -46,7 +46,7 @@ function this.enter(reference, dialogue, info)
                         tes3.playSound({ sound = "Item Gold Up" })
 
                         local g = game:new(gold * 2, tes3.makeSafeObjectHandle(reference))
-                        tes3.player.data.FlinGame = g
+                        tes3.player.tempData.FlinGame = g
                         g:PushState(lib.GameState.SETUP)
                     end
                 })

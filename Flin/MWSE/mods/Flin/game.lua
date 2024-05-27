@@ -72,7 +72,7 @@ end
 -- singleton instance
 --- @return FlinGame?
 function FlinGame.getInstance()
-    return tes3.player.data.FlinGame
+    return tes3.player.tempData.FlinGame
 end
 
 --#region methods
@@ -735,6 +735,13 @@ end
 
 --#region event callbacks
 
+-- prevent saving while in game
+--- @param e saveEventData
+local function saveCallback(e)
+    tes3.messageBox("You cannot save the game during the NPCs turn")
+    return false
+end
+
 --- this runs during the whole game
 --- @param e simulateEventData
 local function simulateCallback(e)
@@ -826,31 +833,13 @@ end
 
 --#endregion
 
-function FlinGame:load()
-    log:trace("FlinGame OnLoad")
-
-    -- go into the state and reconnect the events
-    if self.currentState == GameState.SETUP then
-        -- setup state just has callbacks
-        log:info("Game is in setup state, registering callbacks again")
-        self.state:enterState()
-    elseif self.currentState == GameState.PLAYER_TURN then
-        -- playerturn state just has callbacks
-        log:info("Game is in playerturn state, registering callbacks again")
-        self.state:enterState()
-        return
-    else
-        log:error("Game is in %s state, on load should not happen", self.currentState)
-        self:cleanup()
-    end
-end
-
 --- @param deckRef tes3reference
 function FlinGame:startGame(deckRef)
     log:info("The game is on! The pot is %s gold", self.pot)
     --tes3.messageBox("The game is on! The pot is %s gold", self.pot)
 
     -- register event callbacks
+    event.register(tes3.event.save, saveCallback)
     event.register(tes3.event.simulate, simulateCallback)
     event.register(tes3.event.activate, activateCallback)
     event.register(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
@@ -933,8 +922,6 @@ function FlinGame:startGame(deckRef)
                 direction = direction:normalized()
                 local facing = math.atan2(direction.x, direction.y)
                 reference.facing = facing
-
-                tes3.setAIWander({ reference = reference, idles = { 0, 0, 0, 0, 0, 0, 0, 0 } })
             end)
 
             pathing.startPathing({
@@ -953,10 +940,11 @@ function FlinGame.endGame(isSetup)
     log:info("Game is over: %s", isSetup and "setup" or "forfeit")
 
     -- call exit of the current state
-    local game = tes3.player.data.FlinGame
+    local game = tes3.player.tempData.FlinGame
     game:ExitState()
 
     -- remove event callbacks
+    event.unregister(tes3.event.save, saveCallback)
     event.unregister(tes3.event.simulate, simulateCallback)
     event.unregister(tes3.event.activate, activateCallback)
     event.unregister(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
@@ -990,7 +978,7 @@ function FlinGame.endGame(isSetup)
     end
 
     -- cleanup
-    tes3.player.data.FlinGame:cleanup()
+    tes3.player.tempData.FlinGame:cleanup()
 end
 
 ---@param slot CardSlot?
@@ -1024,6 +1012,7 @@ function FlinGame:cleanup()
     CleanupSlot(self.goldSlot)
 
     -- remove event callbacks
+    event.unregister(tes3.event.save, saveCallback)
     event.unregister(tes3.event.simulate, simulateCallback)
     event.unregister(tes3.event.activate, activateCallback)
     event.unregister(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
@@ -1032,7 +1021,7 @@ function FlinGame:cleanup()
     bb.getInstance():removeData("setupWarned")
     bb.getInstance():clean()
 
-    tes3.player.data.FlinGame = nil
+    tes3.player.tempData.FlinGame = nil
 end
 
 return FlinGame

@@ -22,17 +22,8 @@ function state:new(game)
     return newObj
 end
 
--- prevent saving while travelling
---- @param e saveEventData
-local function saveCallback(e)
-    tes3.messageBox("You cannot save the game during the NPCs turn")
-    return false
-end
-
 function state:enterState()
     log:trace("OnEnter: NpcTurnState")
-
-    event.register(tes3.event.save, saveCallback)
 
     local game = self.game
 
@@ -104,8 +95,6 @@ function state:endState()
         self.game.trickPCSlot and not self.game.trickPCSlot.card then
         self.game:drawCard(false)
     end
-
-    event.unregister(tes3.event.save, saveCallback)
 end
 
 return state
