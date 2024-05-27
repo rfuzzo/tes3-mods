@@ -9,7 +9,7 @@ local this = {}
 
 ---@param game FlinGame
 ---@return CardPreference[]
-local function MinMax(game)
+local function minmax(game)
     local npcHand = game.npcHand
     local trumpSuit = game.trumpSuit
     local trickPCSlot = game.trickPCSlot
@@ -37,7 +37,8 @@ a player may not play a trump if they can follow suit.
 
         -- first we need to find a card that has the same suit and can beat
         if card.suit == trickPCSlot.card.suit and card.value > valueToBeat then
-            preference = 100
+            -- the higher the better
+            preference = 100 + card.value
         elseif
 
         -- if that fails we need to find any card with the same suit
@@ -47,7 +48,7 @@ a player may not play a trump if they can follow suit.
         elseif
 
         -- if that also fails then we need to play a trump card
-        -- TODO and we want to play the lowest trump card
+        -- and we want to play the lowest trump card
             card.suit == trumpSuit then
             preference = 30 + EValue.Ace - card.value
         end
@@ -59,12 +60,12 @@ a player may not play a trump if they can follow suit.
 end
 
 ---@return AiStrategyPhase
-function this.MinMaxStrategy()
+function this.minmax()
     ---@type AiStrategyPhase
     local s = {
         phase = EStrategyPhase.PHASE2SECOND,
-        name = "MinMax",
-        fun = MinMax,
+        name = "minmax",
+        fun = minmax,
         evaluate = function(handle)
             return 1
         end

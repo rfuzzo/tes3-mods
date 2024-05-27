@@ -1,6 +1,8 @@
 local lib = require("Flin.lib")
 local interop = require("Flin.interop")
 
+local log = lib.log
+
 -- a strategy for the NPC to play a card in the Flin game
 -- a strategy consists of four parts:
 -- 1. during phase 1, if the NPC goes first
@@ -40,9 +42,28 @@ strategy.EStrategyPhase = {
     PHASE2SECOND = 4,
 }
 
+--- set the strategies for the NPC
+---@param game FlinGame
+function strategy:SetStrategies(game)
+    self.phase1First = interop.chooseStrategy(strategy.EStrategyPhase.PHASE1FIRST, game.npcHandle)
+    self.phase1Second = interop.chooseStrategy(strategy.EStrategyPhase.PHASE1SECOND, game.npcHandle)
+    self.phase2First = interop.chooseStrategy(strategy.EStrategyPhase.PHASE2FIRST, game.npcHandle)
+    self.phase2Second = interop.chooseStrategy(strategy.EStrategyPhase.PHASE2SECOND, game.npcHandle)
+end
+
 -- constructor
 --- @param handle mwseSafeObjectHandle
 function strategy:new(handle)
+    log:debug("Setting NPC strategies")
+    log:debug("\twillpower: %s", handle:getObject().mobile.willpower.current)
+    log:debug("\tintelligence: %s", handle:getObject().mobile.intelligence.current)
+    log:debug("\tendurance: %s", handle:getObject().mobile.endurance.current)
+    log:debug("\tstrength: %s", handle:getObject().mobile.strength.current)
+    log:debug("\tluck: %s", handle:getObject().mobile.luck.current)
+    -- log:debug("\tagility: %s", handle:getObject().mobile.agility.current)
+    -- log:debug("\tspeed: %s", handle:getObject().mobile.speed.current)
+    -- log:debug("\tpersonality: %s", handle:getObject().mobile.personality.current)
+
     ---@type FlinNpcAi
     local newObj = {
         phase1First = interop.chooseStrategy(strategy.EStrategyPhase.PHASE1FIRST, handle),
@@ -56,12 +77,31 @@ function strategy:new(handle)
     return newObj
 end
 
+local function pShuffle(willpower)
+    if willpower > 75 then
+        return 0
+    elseif willpower > 50 then
+        return 75 - willpower
+    elseif willpower > 25 then
+        return 90 - willpower
+    else
+        return math.min(100, 100 - willpower)
+    end
+end
+
 --- choose a card to play
 ---@param game FlinGame
 ---@return Card
 function strategy:choose(game)
     local trickPCSlot = game.trickPCSlot
     local npcGoesSecond = trickPCSlot and trickPCSlot.card
+
+    -- if willpower is low, reshufle the strategies
+    local willpower = game.npcHandle:getObject().mobile.willpower.current
+    if math.random(100) < pShuffle(willpower) then
+        log:info("NPC reshuffling strategies")
+        self:SetStrategies(game)
+    end
 
     local strat = nil
     if game:IsPhase2() then
@@ -82,6 +122,21 @@ function strategy:choose(game)
     return card
 end
 
+local function cardFuzz(intelligence)
+    if intelligence >= 75 then
+        return 1
+    elseif intelligence >= 50 then
+        return 2
+    elseif intelligence >= 30 then
+        return 3
+    elseif intelligence >= 15 then
+        return 4
+    else
+        return 5
+    end
+end
+
+
 --- evaluate the preferences and choose the best card
 ---@param strat AiStrategyPhase
 ---@param game FlinGame
@@ -92,11 +147,11 @@ function strategy:evaluate(strat, game)
     local npcGoesSecond = trickPCSlot and trickPCSlot.card
 
     -- logging
-    lib.log:debug("AI strategy: %s", strat.name)
-    lib.log:debug("\tphase 2: %s", game:IsPhase2())
-    lib.log:debug("\tnpc goes %s", npcGoesSecond and "second" or "first")
-    lib.log:debug("\ttrump is %s", lib.suitToString(game.trumpSuit))
-    lib.log:debug("\ttrick card: %s", trickPCSlot and trickPCSlot.card:toString() or "none")
+    log:debug("AI strategy: %s", strat.name)
+    log:debug("\tphase 2: %s", game:IsPhase2())
+    log:debug("\tnpc goes %s", npcGoesSecond and "second" or "first")
+    log:debug("\ttrump is %s", lib.suitToString(game.trumpSuit))
+    lib.log:debug("\ttrick card: %s", trickPCSlot and trickPCSlot.card and trickPCSlot.card:toString() or "none")
 
     if game:IsPhase2() and npcGoesSecond then
         -- in phase 2 when the NPC goes 2nd we need to be strict
@@ -113,18 +168,17 @@ function strategy:evaluate(strat, game)
         -- sort the preferences by preference
         table.sort(preferences, function(a, b) return a.preference > b.preference end)
         -- choose a card at random from the highest N cards
-        -- TODO depend on npc attributes
-        -- we have Inteligence, Willpower(, Luck, Personality)
         -- n can be between 1 and 5 (1 is best, always choose the best card)
-        local n = math.min(3, #preferences)
+        local intelligence = game.npcHandle:getObject().mobile.intelligence.current
+        local n = math.min(cardFuzz(intelligence), #preferences)
         local randomIndex = math.random(n)
         local card = preferences[randomIndex].card
 
         -- log the preferences
         for i, pref in ipairs(preferences) do
-            lib.log:trace("Card %s: preference %s", pref.card:toString(), pref.preference)
+            log:trace("Card %s: preference %s", pref.card:toString(), pref.preference)
         end
-        lib.log:trace("Chose card index %s", randomIndex)
+        log:trace("Chose card index %s", randomIndex)
 
         return card
     end

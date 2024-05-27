@@ -41,13 +41,17 @@ function this.balanced()
             return preferences
         end,
         evaluate = function(handle)
-            return 1
+            local actor = handle:getObject().mobile
+            if not actor then
+                return 1
+            end
+            local sum = lib.GetAttributesSum(actor)
+            local attribute = actor.willpower.current
+            return attribute / sum
         end
     }
     return s
 end
-
--- TODO more strategies
 
 -- defensive: try to dump low non-trump cards always
 ---@return AiStrategyPhase
@@ -78,7 +82,13 @@ function this.defensive()
             return preferences
         end,
         evaluate = function(handle)
-            return 1
+            local actor = handle:getObject().mobile
+            if not actor then
+                return 1
+            end
+            local sum = lib.GetAttributesSum(actor)
+            local attribute = actor.endurance.current
+            return attribute / sum
         end
     }
     return s
@@ -112,12 +122,16 @@ function this.aggressive()
             return preferences
         end,
         evaluate = function(handle)
-            return 1
+            local actor = handle:getObject().mobile
+            if not actor then
+                return 1
+            end
+            local sum = lib.GetAttributesSum(actor)
+            local attribute = actor.strength.current
+            return attribute / sum
         end
     }
     return s
 end
-
--- smart: know how many trump cards there are
 
 return this

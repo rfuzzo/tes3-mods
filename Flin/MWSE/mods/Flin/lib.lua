@@ -212,6 +212,18 @@ end
 
 --#region tes3
 
+---@param actor tes3mobileActor
+function this.GetAttributesSum(actor)
+    return actor.agility.current +
+        actor.endurance.current +
+        actor.intelligence.current +
+        actor.luck.current +
+        actor.personality.current +
+        actor.speed.current +
+        actor.strength.current +
+        actor.willpower.current
+end
+
 function this.getLookedAtReference()
     -- Get the player's eye position and direction.
     local eyePos = tes3.getPlayerEyePosition()

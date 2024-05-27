@@ -12,13 +12,12 @@ local EValue                = lib.EValue
 local GameState             = lib.GameState
 
 -- constants
-local GAME_WARNING_DISTANCE = 200
-local GAME_FORFEIT_DISTANCE = 300
+local GAME_WARNING_DISTANCE = 300
+local GAME_FORFEIT_DISTANCE = 400
 
 ---@class FlinNpcData
 ---@field npcOriginalPosition tes3vector3?
 ---@field npcOriginalFacing number?
----@field currentPackageIndex number?
 ---@field npcOriginalCell string?
 ---@field npcStrategy FlinNpcAi
 
@@ -52,11 +51,10 @@ function FlinGame:new(pot, npcHandle)
         pot = pot,
         npcHandle = npcHandle,
         npcData = {
-            npcOriginalPosition = npcHandle:getObject().position:copy(),
-            npcOriginalFacing = npcHandle:getObject().facing,
-            npcOriginalCell = npcHandle:getObject().cell.id,
+            npcOriginalPosition = nil,
+            npcOriginalFacing = nil,
+            npcOriginalCell = nil,
             npcOriginalAiPackage = nil,
-            currentPackageIndex = nil,
             npcStrategy = AiStrategy:new(npcHandle)
         },
         playerHand = {},
@@ -829,6 +827,8 @@ end
 --#endregion
 
 function FlinGame:load()
+    log:trace("FlinGame OnLoad")
+
     -- go into the state and reconnect the events
     if self.currentState == GameState.SETUP then
         -- setup state just has callbacks
@@ -919,7 +919,9 @@ function FlinGame:startGame(deckRef)
             local position = lib.findPlayerPosition(refBelow)
 
             log:debug("Start pathing")
-            self.npcData.currentPackageIndex = self.npcHandle:getObject().mobile.aiPlanner.currentPackageIndex
+            self.npcData.npcOriginalPosition = self.npcHandle:getObject().position:copy()
+            self.npcData.npcOriginalFacing = self.npcHandle:getObject().facing
+            self.npcData.npcOriginalCell = self.npcHandle:getObject().cell.id
 
             -- move NPC to that location
             pathing.registerCallback("onPathingFinished", function(timer, reference)
@@ -931,6 +933,8 @@ function FlinGame:startGame(deckRef)
                 direction = direction:normalized()
                 local facing = math.atan2(direction.x, direction.y)
                 reference.facing = facing
+
+                tes3.setAIWander({ reference = reference, idles = { 0, 0, 0, 0, 0, 0, 0, 0 } })
             end)
 
             pathing.startPathing({
@@ -946,6 +950,8 @@ end
 
 ---@param isSetup boolean
 function FlinGame.endGame(isSetup)
+    log:info("Game is over: %s", isSetup and "setup" or "forfeit")
+
     -- call exit of the current state
     local game = tes3.player.data.FlinGame
     game:ExitState()
@@ -963,7 +969,7 @@ function FlinGame.endGame(isSetup)
     end
 
     -- move the NPC back
-    if game.npcData then
+    if game.npcData and game.npcData.npcOriginalPosition then
         pathing.registerCallback("onReturnFinished", function(timer, reference)
             log:debug("NPC has arrived back at their position")
 
@@ -974,10 +980,6 @@ function FlinGame.endGame(isSetup)
                     game.npcData.npcOriginalCell
             })
             reference.facing = game.npcData.npcOriginalFacing
-            -- reference.mobile.aiPlanner.currentPackageIndex = game.npcData.currentPackageIndex
-
-            -- cleanup
-            tes3.player.data.FlinGame:cleanup()
         end)
 
         pathing.startPathing({
@@ -986,6 +988,9 @@ function FlinGame.endGame(isSetup)
             onFinish = "onReturnFinished",
         })
     end
+
+    -- cleanup
+    tes3.player.data.FlinGame:cleanup()
 end
 
 ---@param slot CardSlot?

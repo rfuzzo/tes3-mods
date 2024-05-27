@@ -24,13 +24,16 @@ function this:new()
     newObj:registerStrategy(require("Flin.ai.phase1first").aggressive())
 
     -- phase 1 second
-    newObj:registerStrategy(require("Flin.ai.phase1second").MinMaxStrategy())
+    newObj:registerStrategy(require("Flin.ai.phase1second").balanced())
+    newObj:registerStrategy(require("Flin.ai.phase1second").aggressive())
 
     -- phase 2 first
-    newObj:registerStrategy(require("Flin.ai.phase2first").MinMaxStrategy())
+    newObj:registerStrategy(require("Flin.ai.phase2first").random())
+    newObj:registerStrategy(require("Flin.ai.phase2first").aggressive())
+    newObj:registerStrategy(require("Flin.ai.phase2first").defensive())
 
     -- phase 2 second
-    newObj:registerStrategy(require("Flin.ai.phase2second").MinMaxStrategy())
+    newObj:registerStrategy(require("Flin.ai.phase2second").minmax())
 
     return newObj
 end
@@ -85,7 +88,7 @@ function this.chooseStrategy(phase, handle)
     for i, strategy in ipairs(strategies) do
         results[strategy] = results[strategy] / sum
 
-        log:debug("Strategy %s: probability: %s", strategy.name, results[strategy])
+        log:trace("Strategy %s: probability: %s", strategy.name, results[strategy])
     end
 
     -- choose a strategy based on cumulative probabilities
@@ -94,7 +97,7 @@ function this.chooseStrategy(phase, handle)
     for i, strategy in ipairs(strategies) do
         cumulative = cumulative + results[strategy]
         if r <= cumulative then
-            log:debug("Chose strategy %s for phase %s", strategy.name, phase)
+            log:debug("+ Chose strategy %s for phase %s", strategy.name, phase)
             return strategy
         end
     end

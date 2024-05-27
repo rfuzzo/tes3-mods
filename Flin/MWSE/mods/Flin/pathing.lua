@@ -25,7 +25,7 @@ end
 ---@param data PathingData
 function this.startPathing(data)
     timer.start({
-        iterations = 40, -- 5 seconds
+        iterations = 40, -- 40 seconds
         duration = 0.1,
         callback = "flin:pathing:update", ---@diagnostic disable-line
         persist = true,
@@ -67,8 +67,11 @@ local function update(e)
     end
 
     -- Start pathing.
-    local package = ref.mobile.aiPlanner:getActivePackage() or {}
-    if package.type ~= tes3.aiPackage.travel then
+    local package = ref.mobile.aiPlanner:getActivePackage()
+    if package and package.type ~= tes3.aiPackage.travel then
+        -- TODO save package
+
+
         tes3.setAITravel({ reference = ref, destination = data.destination })
         return
     end
@@ -90,7 +93,7 @@ local function update(e)
         tes3.positionCell({ reference = ref, position = data.destination })
     end
 
-    -- Reset the AI.
+    -- todo Reset the AI.
     log:debug("Resetting AI for %s", ref.id)
     tes3.setAIWander({ reference = ref, idles = { 0, 0, 0, 0, 0, 0, 0, 0 } })
 
