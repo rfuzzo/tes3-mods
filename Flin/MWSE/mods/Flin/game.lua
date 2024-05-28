@@ -16,6 +16,7 @@ local GAME_WARNING_DISTANCE = 300
 local GAME_FORFEIT_DISTANCE = 400
 
 ---@class FlinNpcData
+---@field npcHandle mwseSafeObjectHandle?
 ---@field npcOriginalPosition tes3vector3?
 ---@field npcOriginalFacing number?
 ---@field npcOriginalCell string?
@@ -25,7 +26,6 @@ local GAME_FORFEIT_DISTANCE = 400
 ---@field private currentState GameState
 ---@field private state AbstractState?
 ---@field pot number
----@field npcHandle mwseSafeObjectHandle?
 ---@field npcData FlinNpcData?
 ---@field talon Card[]
 ---@field trumpSuit ESuit?
@@ -49,12 +49,8 @@ function FlinGame:new(pot, npcHandle)
     local newObj = {
         currentState = GameState.INVALID,
         pot = pot,
-        npcHandle = npcHandle,
         npcData = {
-            npcOriginalPosition = nil,
-            npcOriginalFacing = nil,
-            npcOriginalCell = nil,
-            npcOriginalAiPackage = nil,
+            npcHandle = npcHandle,
             npcStrategy = AiStrategy:new(npcHandle)
         },
         playerHand = {},
@@ -738,7 +734,7 @@ end
 -- prevent saving while in game
 --- @param e saveEventData
 local function saveCallback(e)
-    tes3.messageBox("You cannot save the game during the NPCs turn")
+    tes3.messageBox("You cannot save during a game.")
     return false
 end
 
@@ -755,11 +751,11 @@ local function simulateCallback(e)
     end
 
     -- if I leave the interior cell of the npc, I lose the game
-    if not game.npcHandle then
+    if not game.npcData.npcHandle then
         return
     end
     local currentCell = tes3.player.cell
-    local referenceCell = game.npcHandle:getObject().cell
+    local referenceCell = game.npcData.npcHandle:getObject().cell
     if currentCell ~= referenceCell and referenceCell.isInterior then
         -- forfeit the game
         log:warn("You lose the game")
@@ -896,6 +892,7 @@ function FlinGame:startGame(deckRef)
 
     -- 6. add NPC handle
     -- find a spot for the npc
+    local position = self.npcData.npcHandle:getObject().position:copy()
     local refBelow = lib.FindRefBelow(deckRef)
     if refBelow then
         local refName = string.lower(refBelow.object.id)
@@ -904,35 +901,53 @@ function FlinGame:startGame(deckRef)
             string.find(refName, "bar") or
             string.find(refName, "barrel") then
             log:debug("Found a spot for the NPC at %s", refBelow.object.id)
-
-            local position = lib.findPlayerPosition(refBelow)
-
-            log:debug("Start pathing")
-            self.npcData.npcOriginalPosition = self.npcHandle:getObject().position:copy()
-            self.npcData.npcOriginalFacing = self.npcHandle:getObject().facing
-            self.npcData.npcOriginalCell = self.npcHandle:getObject().cell.id
-
-            -- move NPC to that location
-            pathing.registerCallback("onPathingFinished", function(timer, reference)
-                log:debug("NPC has arrived at the table")
-                -- make the npc face the deckRef
-                -- get the vector between the npc and the deck
-                local direction = deckPos - reference.position
-                direction.z = 0
-                direction = direction:normalized()
-                local facing = math.atan2(direction.x, direction.y)
-                reference.facing = facing
-            end)
-
-            pathing.startPathing({
-                handle = self.npcHandle,
-                destination = position,
-                onFinish = "onPathingFinished",
-            })
+            position = lib.findPlayerPosition(refBelow)
+        else
+            log:warn("Not a table")
         end
     else
         log:warn("Could not find a spot for the NPC")
     end
+
+    -- move NPC to that location
+    log:debug("Start pathing")
+    self.npcData.npcOriginalPosition = self.npcData.npcHandle:getObject().position:copy()
+    self.npcData.npcOriginalFacing = self.npcData.npcHandle:getObject().facing
+    self.npcData.npcOriginalCell = self.npcData.npcHandle:getObject().cell.id
+
+    pathing.registerCallback("onPathingFinished", function(timer, npcData)
+        log:debug("NPC has arrived at the table")
+        local reference = npcData.npcHandle:getObject()
+        -- make the npc face the deckRef
+        -- get the vector between the npc and the deck
+        local direction = deckPos - reference.position
+        direction.z = 0
+        direction = direction:normalized()
+        local facing = math.atan2(direction.x, direction.y)
+        reference.facing = facing
+
+        -- Set the AI to stand in place
+        tes3.setAIWander({ reference = reference, idles = { 0, 0, 0, 0, 0, 0, 0, 0 } })
+    end)
+
+    pathing.startPathing({
+        data = self.npcData,
+        destination = position,
+        onFinish = "onPathingFinished",
+        resetAi = false
+    })
+end
+
+local function onReturnFinished(timer, npcData)
+    log:debug("NPC has arrived back at their position")
+
+    tes3.positionCell({
+        reference = npcData.npcHandle:getObject(),
+        position = npcData.npcOriginalPosition,
+        cell =
+            npcData.npcOriginalCell
+    })
+    npcData.npcHandle:getObject().facing = npcData.npcOriginalFacing
 end
 
 ---@param isSetup boolean
@@ -950,7 +965,7 @@ function FlinGame.endGame(isSetup)
     event.unregister(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
 
     if isSetup then
-        tes3.addItem({ reference = game.npcHandle:getObject(), item = "Gold_001", count = game.pot })
+        tes3.addItem({ reference = game.npcData.npcHandle:getObject(), item = "Gold_001", count = game.pot })
     else
         -- give back the deck
         tes3.addItem({ reference = tes3.player, item = lib.FLIN_DECK_ID, count = 1 })
@@ -958,22 +973,13 @@ function FlinGame.endGame(isSetup)
 
     -- move the NPC back
     if game.npcData and game.npcData.npcOriginalPosition then
-        pathing.registerCallback("onReturnFinished", function(timer, reference)
-            log:debug("NPC has arrived back at their position")
-
-            tes3.positionCell({
-                reference = game.npcHandle:getObject(),
-                position = game.npcData.npcOriginalPosition,
-                cell =
-                    game.npcData.npcOriginalCell
-            })
-            reference.facing = game.npcData.npcOriginalFacing
-        end)
+        pathing.registerCallback("onReturnFinished", onReturnFinished)
 
         pathing.startPathing({
-            handle = game.npcHandle,
+            data = game.npcData,
             destination = game.npcData.npcOriginalPosition,
             onFinish = "onReturnFinished",
+            resetAi = true
         })
     end
 
@@ -1002,7 +1008,6 @@ function FlinGame:cleanup()
     self.wonCardsNpc = 0
 
     -- cleanup handles and references
-    self.npcHandle = nil
     self.npcData = nil
 
     CleanupSlot(self.talonSlot)

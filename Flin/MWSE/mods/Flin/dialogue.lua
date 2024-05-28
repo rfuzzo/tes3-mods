@@ -13,11 +13,12 @@ function this.enter(reference, dialogue, info)
         local activeGame = game.getInstance()
         if activeGame then
             -- check that the npc id matches
-            if activeGame.npcHandle:valid() then
-                if activeGame.npcHandle:getObject() == reference then
+            if activeGame.npcData.npcHandle:valid() then
+                if activeGame.npcData.npcHandle:getObject() == reference then
                     tes3.messageBox("We are already playing a game")
                 else
-                    tes3.messageBox("You are already playing a game with %s", activeGame.npcHandle:getObject().id)
+                    tes3.messageBox("You are already playing a game with %s", activeGame.npcData.npcHandle:getObject()
+                    .id)
                 end
             end
 

@@ -45,10 +45,10 @@ strategy.EStrategyPhase = {
 --- set the strategies for the NPC
 ---@param game FlinGame
 function strategy:SetStrategies(game)
-    self.phase1First = interop.chooseStrategy(strategy.EStrategyPhase.PHASE1FIRST, game.npcHandle)
-    self.phase1Second = interop.chooseStrategy(strategy.EStrategyPhase.PHASE1SECOND, game.npcHandle)
-    self.phase2First = interop.chooseStrategy(strategy.EStrategyPhase.PHASE2FIRST, game.npcHandle)
-    self.phase2Second = interop.chooseStrategy(strategy.EStrategyPhase.PHASE2SECOND, game.npcHandle)
+    self.phase1First = interop.chooseStrategy(strategy.EStrategyPhase.PHASE1FIRST, game.npcData.npcHandle)
+    self.phase1Second = interop.chooseStrategy(strategy.EStrategyPhase.PHASE1SECOND, game.npcData.npcHandle)
+    self.phase2First = interop.chooseStrategy(strategy.EStrategyPhase.PHASE2FIRST, game.npcData.npcHandle)
+    self.phase2Second = interop.chooseStrategy(strategy.EStrategyPhase.PHASE2SECOND, game.npcData.npcHandle)
 end
 
 -- constructor
@@ -97,7 +97,7 @@ function strategy:choose(game)
     local npcGoesSecond = trickPCSlot and trickPCSlot.card
 
     -- if willpower is low, reshufle the strategies
-    local willpower = game.npcHandle:getObject().mobile.willpower.current
+    local willpower = game.npcData.npcHandle:getObject().mobile.willpower.current
     if math.random(100) < pShuffle(willpower) then
         log:info("NPC reshuffling strategies")
         self:SetStrategies(game)
@@ -169,7 +169,7 @@ function strategy:evaluate(strat, game)
         table.sort(preferences, function(a, b) return a.preference > b.preference end)
         -- choose a card at random from the highest N cards
         -- n can be between 1 and 5 (1 is best, always choose the best card)
-        local intelligence = game.npcHandle:getObject().mobile.intelligence.current
+        local intelligence = game.npcData.npcHandle:getObject().mobile.intelligence.current
         local n = math.min(cardFuzz(intelligence), #preferences)
         local randomIndex = math.random(n)
         local card = preferences[randomIndex].card

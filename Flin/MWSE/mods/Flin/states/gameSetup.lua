@@ -60,16 +60,19 @@ end
 local function SimulateCallback(e)
     local game = bb.getInstance():getData("game") ---@type FlinGame
 
-    if not game.npcHandle then
+    if not game.npcData then
         return
     end
-    if not game.npcHandle:valid() then
+    if not game.npcData.npcHandle then
+        return
+    end
+    if not game.npcData.npcHandle:valid() then
         return
     end
 
     -- if I leave the interior cell of the npc, I lose the game
     local currentCell = tes3.player.cell
-    local referenceCell = game.npcHandle:getObject().cell
+    local referenceCell = game.npcData.npcHandle:getObject().cell
     if currentCell ~= referenceCell and referenceCell.isInterior then
         -- unregister event callbacks
         event.unregister(tes3.event.activate, ActivateCallback)
@@ -84,7 +87,7 @@ local function SimulateCallback(e)
     local setupWarned = bb.getInstance():getData("setupWarned")
     if setupWarned then
         -- calculate the distance between the NPC and the player
-        local npcLocation = game.npcHandle:getObject().position
+        local npcLocation = game.npcData.npcHandle:getObject().position
         local distance = npcLocation:distance(tes3.player.position)
         if distance > SETUP_FORFEIT_DISTANCE then
             -- unregister event callbacks
@@ -97,7 +100,7 @@ local function SimulateCallback(e)
         end
     else
         -- calculate the distance between the NPC and the player
-        local npcLocation = game.npcHandle:getObject().position
+        local npcLocation = game.npcData.npcHandle:getObject().position
         local distance = npcLocation:distance(tes3.player.position)
         if distance > SETUP_WARNING_DISTANCE then
             -- warn the player
@@ -111,7 +114,7 @@ end
 
 function state:enterState()
     log:info("Setup game with gold: %s", self.game.pot)
-    log:info("Setup game with NPC: %s", self.game.npcHandle)
+    log:info("Setup game with NPC: %s", self.game.npcData.npcHandle)
 
     tes3.messageBox("Place the deck somewhere and and activate it to start the game")
 
