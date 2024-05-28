@@ -102,11 +102,6 @@ end
 local function restoreAiPackage(ref, package)
     log:debug("Restoring AI for %s to %s", ref.id, package.type)
 
-    -- log idles
-    if package.type == tes3.aiPackage.wander then
-        log:debug("idles: %s", table.concat(package.idles, ", "))
-    end
-
     if package.type == tes3.aiPackage.activate then
         tes3.setAIActivate({ reference = ref, target = package.target })
     elseif package.type == tes3.aiPackage.escort then

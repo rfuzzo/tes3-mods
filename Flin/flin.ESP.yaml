@@ -5,7 +5,7 @@ objects:
   file_type: Esp
   author: ''
   description: ''
-  num_objects: 64
+  num_objects: 66
   masters:
   - - Morrowind.esm
     - 79837557
@@ -586,6 +586,39 @@ objects:
   script_text: ''
 - type: Dialogue
   flags: ''
+  id: rules of Flin
+  dialogue_type: Topic
+- type: DialogueInfo
+  flags: ''
+  id: '1187218852257076162'
+  prev_id: ''
+  next_id: ''
+  data:
+    dialogue_type: Topic
+    disposition: 0
+    speaker_rank: -1
+    speaker_sex: Any
+    player_rank: -1
+  speaker_id: ''
+  speaker_race: ''
+  speaker_class: ''
+  speaker_faction: ''
+  speaker_cell: ''
+  player_faction: ''
+  sound_path: ''
+  text: "Players try to collect 66 or more card points by taking tricks. Higher cards or trump wins the trick, and the cards are worth as follows: Unter 2, Ober 3, King 4, Tens 10 and Aces 11. \r\n\r\nThere are some special rules as well: \r\n1. If there are no more cards in the talon, you must play a card with the same suit and you must try to win the trick.\r\n2. You can exchange the trump card for a trump Unter in your hand.\r\n3. If you hold a King and Ober of the same suit you may win points by calling it."
+  filters:
+  - slot: Slot0
+    filter_type: NotLocal
+    function: VariableCompare
+    comparison: Equal
+    id: NoLore
+    value:
+      type: Integer
+      data: 0
+  script_text: ''
+- type: Dialogue
+  flags: ''
   id: game of Flin
   dialogue_type: Topic
 - type: DialogueInfo
@@ -717,7 +750,7 @@ objects:
   speaker_cell: ''
   player_faction: ''
   sound_path: ''
-  text: Okay, how much you want to wager? If you win, you get double your money back.
+  text: Care for a round of Flin? If you win your wager, you get double your money back. If you want I can explain the rules of Flin as well.
   filters:
   - slot: Slot0
     filter_type: NotLocal
