@@ -4,20 +4,19 @@ My TES3 Morrowind mods and modding utility tools.
 
 ## Mods
 
-### 🚧 Care for a round of FLin?
->
-> nightly link: <https://rfuzzo.github.io/tes3-mods/Flin.zip>
->
-> nexus link:
-
-A Morrowind card game mod. [Readme](/Flin/README.md)
-
 ### 🚧 Magic Synergies
 >
 > nightly link: <https://rfuzzo.github.io/tes3-mods/MagicSynergies.zip>
 >
 > nexus link:
 
+### ✅ Care for a round of FLin?
+>
+> nightly link: <https://rfuzzo.github.io/tes3-mods/Flin.zip>
+>
+> nexus link: <https://www.nexusmods.com/morrowind/mods/54755>
+
+A Morrowind card game mod. [Readme](/Flin/README.md)
 Magic effects with environment and school synergies. [Readme](/MagicSynergies/README.md)
 
 ### ✅ Immersive Travel
