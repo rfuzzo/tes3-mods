@@ -58,10 +58,9 @@ local function createWindow(game)
     local menu = tes3ui.createMenu { id = state.id_menu, dragFrame = dragFrame, fixedFrame = true }
     if dragFrame then
         menu.text = "Play a card"
-        menu.minHeight = 200
-        menu.minWidth = 500
     end
-
+    menu.minHeight = 200
+    menu.minWidth = 500
     -- To avoid low contrast, text input windows should not use menu transparency settings
     menu.alpha = 1.0
 

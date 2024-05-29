@@ -619,17 +619,22 @@ function FlinGame:evaluateTrick()
         -- enchant success
         if playerWins then
             -- play a sound
-            tes3.playSound({
-                sound = "enchant success",
-                reference = tes3.player
-            })
+            if config.enableTrickSounds then
+                tes3.playSound({
+                    sound = "enchant success",
+                    reference = tes3.player
+                })
+            end
+
             return GameState.PLAYER_TURN
         else
             -- play a sound
-            tes3.playSound({
-                sound = "enchant fail",
-                reference = tes3.player
-            })
+            if config.enableTrickSounds then
+                tes3.playSound({
+                    sound = "enchant fail",
+                    reference = tes3.player
+                })
+            end
             return GameState.NPC_TURN
         end
     end
