@@ -26,17 +26,22 @@ function state:enterState()
     local game = self.game
 
     -- add the gold pot
-    if game.pot == 1 then
-        game.goldSlot:AddRefToSlot(lib.GOLD_01_ID)
-    elseif game.pot < 10 then
-        game.goldSlot:AddRefToSlot(lib.GOLD_05_ID)
-    elseif game.pot < 25 then
-        game.goldSlot:AddRefToSlot(lib.GOLD_10_ID)
-    elseif game.pot < 100 then
-        game.goldSlot:AddRefToSlot(lib.GOLD_25_ID)
+    if game.potItem then
+        game.goldSlot:AddRefToSlot(game.potItem)
     else
-        game.goldSlot:AddRefToSlot(lib.GOLD_100_ID)
+        if game.pot == 1 then
+            game.goldSlot:AddRefToSlot(lib.GOLD_01_ID)
+        elseif game.pot < 10 then
+            game.goldSlot:AddRefToSlot(lib.GOLD_05_ID)
+        elseif game.pot < 25 then
+            game.goldSlot:AddRefToSlot(lib.GOLD_10_ID)
+        elseif game.pot < 100 then
+            game.goldSlot:AddRefToSlot(lib.GOLD_25_ID)
+        else
+            game.goldSlot:AddRefToSlot(lib.GOLD_100_ID)
+        end
     end
+
 
     -- Code to deal cards to players
     -- first init the talon

@@ -27,6 +27,7 @@ local GAME_FORFEIT_DISTANCE = 400
 ---@field private currentState GameState
 ---@field private state AbstractState?
 ---@field pot number
+---@field potItem string?
 ---@field npcData FlinNpcData?
 ---@field talon Card[]
 ---@field trumpSuit ESuit?
@@ -44,12 +45,14 @@ local FlinGame              = {}
 -- constructor
 ---@param pot number
 ---@param npcHandle mwseSafeObjectHandle
+---@param potItem string?
 ---@return FlinGame
-function FlinGame:new(pot, npcHandle)
+function FlinGame:new(pot, npcHandle, potItem)
     ---@type FlinGame
     local newObj = {
         currentState = GameState.INVALID,
         pot = pot,
+        potItem = potItem,
         npcData = {
             npcHandle = npcHandle,
             npcStrategy = AiStrategy:new(npcHandle),
@@ -802,7 +805,7 @@ local function uiObjectTooltipCallback(e)
     -- we want to change the tooltip of the gold slot
     local name = nil
     if game.goldSlot.handle and game.goldSlot.handle:valid() and e.reference == game.goldSlot.handle:getObject() then
-        name = string.format("Gold pot: %s", game.pot)
+        name = string.format("Pot: %s", game.pot)
     elseif game.trumpCardSlot.card and game.trumpCardSlot.handle and game.trumpCardSlot.handle:valid() and e.reference == game.trumpCardSlot.handle:getObject() then
         -- change the name of the trump card to include "trump"
         name = string.format("Trump: %s", game.trumpCardSlot.card:toString())
@@ -1010,6 +1013,7 @@ function FlinGame:cleanup()
 
     self.currentState = GameState.INVALID
     self.pot = 0
+    self.potItem = nil
     self.talon = {}
     self.trumpSuit = nil
     self.playerHand = {}
