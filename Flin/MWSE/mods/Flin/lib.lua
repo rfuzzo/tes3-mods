@@ -210,6 +210,59 @@ function this.stateToString(state)
     return "Unknown"
 end
 
+---@enum ESound
+this.ESound = {
+    GAME_START = 1,
+    GAME_END = 2,
+    TURN_START_HAPPY = 3,
+    TURN_START_NEUTRAL = 4,
+    TURN_START_SAD = 5,
+    MIDDLE_HAPPY = 6,
+    MIDDLE_NEUTRAL = 7,
+    MIDDLE_SAD = 8,
+}
+
+---@param sound ESound
+---@return string
+function this.soundToString(sound)
+    if sound == this.ESound.GAME_START then
+        return "GAME_START"
+    elseif sound == this.ESound.GAME_END then
+        return "GAME_END"
+    elseif sound == this.ESound.TURN_START_HAPPY then
+        return "TURN_START_HAPPY"
+    elseif sound == this.ESound.TURN_START_NEUTRAL then
+        return "TURN_START_NEUTRAL"
+    elseif sound == this.ESound.TURN_START_SAD then
+        return "TURN_START_SAD"
+    elseif sound == this.ESound.MIDDLE_HAPPY then
+        return "MIDDLE_HAPPY"
+    elseif sound == this.ESound.MIDDLE_NEUTRAL then
+        return "MIDDLE_NEUTRAL"
+    elseif sound == this.ESound.MIDDLE_SAD then
+        return "MIDDLE_SAD"
+    end
+    return "Unknown"
+end
+
+---@param esound ESound
+---@return string?
+function this.getSoundPath(esound)
+    return string.format("vo\\rf\\%s.mp3", this.soundToString(esound))
+end
+
+---@param ref tes3reference
+---@param esound ESound
+function this.quip(ref, esound)
+    local getSoundPath = this.getSoundPath(esound)
+    if getSoundPath then
+        tes3.playSound {
+            reference = ref,
+            soundPath = getSoundPath
+        }
+    end
+end
+
 --#region tes3
 
 ---@param actor tes3mobileActor

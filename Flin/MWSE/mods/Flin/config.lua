@@ -8,6 +8,7 @@
 ---@field enableHints boolean
 ---@field enableMessages boolean
 ---@field enableTrickSounds boolean
+---@field difficulty string
 local defaultConfig = {
     mod = "Flin",
     id = "FLI",
@@ -20,6 +21,7 @@ local defaultConfig = {
     enableHints = false,
     enableMessages = true,
     enableTrickSounds = false,
+    difficulty = "NORMAL",
 }
 
 ---@return FlinConfig

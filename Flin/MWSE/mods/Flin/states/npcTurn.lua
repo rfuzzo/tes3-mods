@@ -27,22 +27,30 @@ function state:enterState()
 
     local game = self.game
 
+    local quipProbability = 0.3
+    local esound = lib.ESound.TURN_START_NEUTRAL
+
     -- exchange trump card if needed
     if game:GetTrumpCardRef() and game:CanExchangeTrumpCard(false) then
         game:ExchangeTrumpCard(false)
+        quipProbability = 0.5
+        esound = lib.ESound.TURN_START_HAPPY
     end
 
     -- if we go first
     local marriageKing = game:CanDoMarriage(false)
     if marriageKing then
+        esound = lib.ESound.TURN_START_HAPPY
         -- add points
         local isRoyalMarriage = marriageKing.suit == game.trumpSuit
         local points = 20
         if isRoyalMarriage then
+            quipProbability = 1
             points = 40
             log:debug("NPC calls a royal marriage")
             tes3.messageBox("NPC calls a royal marriage")
         else
+            quipProbability = 0.75
             log:debug("NPC calls a marriage")
             tes3.messageBox("NPC calls a marriage")
         end
@@ -58,6 +66,24 @@ function state:enterState()
     else
         local card = game.npcData.npcStrategy:choose(game)
         game:NpcPlayCard(card)
+    end
+
+    if game:IsPhase2() and not game.npcData.hasQuippedPhase2 then
+        esound = lib.ESound.MIDDLE_NEUTRAL
+        -- depends on points
+        if game:GetNpcPoints() >= 40 then
+            esound = lib.ESound.MIDDLE_HAPPY
+        elseif game:GetNpcPoints() < 20 then
+            esound = lib.ESound.MIDDLE_SAD
+        end
+
+        game.npcData.hasQuippedPhase2 = true
+        quipProbability = 1
+    end
+
+    -- quip
+    if math.random() < quipProbability then
+        lib.quip(game.npcData.npcHandle:getObject(), esound)
     end
 
     -- wait before updating

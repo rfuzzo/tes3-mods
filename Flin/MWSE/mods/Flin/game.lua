@@ -21,6 +21,7 @@ local GAME_FORFEIT_DISTANCE = 400
 ---@field npcOriginalFacing number?
 ---@field npcOriginalCell string?
 ---@field npcStrategy FlinNpcAi
+---@field hasQuippedPhase2 boolean
 
 ---@class FlinGame
 ---@field private currentState GameState
@@ -51,7 +52,8 @@ function FlinGame:new(pot, npcHandle)
         pot = pot,
         npcData = {
             npcHandle = npcHandle,
-            npcStrategy = AiStrategy:new(npcHandle)
+            npcStrategy = AiStrategy:new(npcHandle),
+            hasQuippedPhase2 = false
         },
         playerHand = {},
         npcHand = {},
@@ -933,6 +935,8 @@ function FlinGame:startGame(deckRef)
 
         -- Set the AI to stand in place
         tes3.setAIWander({ reference = reference, idles = { 0, 0, 0, 0, 0, 0, 0, 0 } })
+        -- play sound
+        lib.quip(reference, lib.ESound.GAME_START)
     end)
 
     pathing.startPathing({
@@ -980,6 +984,7 @@ function FlinGame.endGame(isSetup)
     if game.npcData and game.npcData.npcOriginalPosition then
         pathing.registerCallback("onReturnFinished", onReturnFinished)
 
+        lib.quip(game.npcData.npcHandle:getObject(), lib.ESound.GAME_END)
         pathing.startPathing({
             data = game.npcData,
             destination = game.npcData.npcOriginalPosition,

@@ -72,6 +72,19 @@ local function registerModConfig()
         }
     })
 
+    generalCategory:createDropdown {
+        label = "Difficulty",
+        description = "Set the game difficulty.",
+        options = {
+            { label = "NORMAL",    value = "NORMAL" },
+            { label = "DIFFICULT", value = "DIFFICULT" },
+        },
+        variable = mwse.mcm.createTableVariable {
+            id = "difficulty",
+            table = config
+        },
+    }
+
 
     template:register()
 end

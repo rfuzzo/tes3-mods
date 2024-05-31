@@ -1,5 +1,6 @@
 local lib = require("Flin.lib")
 local interop = require("Flin.interop")
+local config = require("Flin.config") ---@type FlinConfig
 
 local log = lib.log
 
@@ -78,14 +79,24 @@ function strategy:new(handle)
 end
 
 local function pShuffle(willpower)
-    if willpower > 75 then
-        return 0
-    elseif willpower > 50 then
-        return 75 - willpower
-    elseif willpower > 25 then
-        return 90 - willpower
+    if config.difficulty == "DIFFICULT" then
+        if willpower > 45 then
+            return 0
+        elseif willpower > 25 then
+            return 75 - willpower
+        else -- willpower <= 25
+            return math.min(90, 100 - willpower)
+        end
     else
-        return math.min(100, 100 - willpower)
+        if willpower > 75 then
+            return 0
+        elseif willpower > 50 then
+            return 75 - willpower
+        elseif willpower > 25 then
+            return 90 - willpower
+        else -- willpower <= 25
+            return math.min(100, 100 - willpower)
+        end
     end
 end
 
@@ -123,16 +134,26 @@ function strategy:choose(game)
 end
 
 local function cardFuzz(intelligence)
-    if intelligence >= 75 then
-        return 1
-    elseif intelligence >= 50 then
-        return 2
-    elseif intelligence >= 30 then
-        return 3
-    elseif intelligence >= 15 then
-        return 4
+    if config.difficulty == "DIFFICULT" then
+        if intelligence >= 45 then
+            return 1
+        elseif intelligence >= 25 then
+            return 2
+        else -- intelligence < 25
+            return 3
+        end
     else
-        return 5
+        if intelligence >= 75 then
+            return 1
+        elseif intelligence >= 50 then
+            return 2
+        elseif intelligence >= 30 then
+            return 3
+        elseif intelligence >= 15 then
+            return 4
+        else -- intelligence < 15
+            return 5
+        end
     end
 end
 
