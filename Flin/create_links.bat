@@ -1,10 +1,10 @@
 @ECHO off
 
+set "modname=Flin"
+
 rem get the environment variable with name TES3PATH
 set "datafiles=%TES3PATH%\Data Files"
 set "cd=%CD%"
-
-set "modname=Flin"
 
 echo cd: %cd%
 echo gamepath: %datafiles%

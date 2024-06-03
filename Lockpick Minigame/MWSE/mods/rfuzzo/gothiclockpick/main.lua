@@ -14,26 +14,29 @@
 		- 75-99	max sequence -1 (70s), -2 (80s), -3 (90s)
 		- 100		doesn't need to start over (TODO)
 	- keyboard shortcuts
-	- 
-]] --
--- dbg
-local ENABLE_MOD = true
-local ENABLE_LOG = false
+	- now with lots of configurability!
+]]
+--
+
+-- cyrodiilic imports
+local config = require("rfuzzo.gothiclockpick.config")
 
 -- const
-local lockpickAttemptExpValue = 1
-local lockpickSuccessExpValueBase = 2
-local pickConditionSub = 8 -- how much condition a pick loses on fail
+local lockpickAttemptExpValue = config.xpAttempt
+local lockpickSuccessExpValueBase = config.xpSuccess
+local lockpickNoExpChance = config.xpChanceNone   -- chance there's no exp drain for picking just one arrow right
+local pickConditionSub = config.condFail          -- how much condition a pick loses on fail
+local pickCondNoExpChance = config.condChanceNone -- chance there's no durability drain for picking just one arrow right
 
 -- ui
-local id_menu = nil
-local id_label = nil
-local id_left = nil
-local id_right = nil
-local id_cancel = nil
+local id_menu = nil ---@type integer?
+local id_label = nil ---@type integer?
+local id_left = nil ---@type integer?
+local id_right = nil ---@type integer?
+local id_cancel = nil ---@type integer?
 
 -- logic
-local currentRef = nil
+local currentRef = nil ---@type tes3reference?
 local currentSequence = {}
 local currentAttempt = {}
 --- @type number | nil
@@ -48,6 +51,7 @@ local currentPick = nil
 
 -- ///////////////////////////////////////////////////////////////
 -- LOCALS
+
 
 local function Cleanup()
 	-- cleanup
@@ -71,7 +75,7 @@ local function GetCombination(s)
 
 	-- reverse hash
 	local sequence = {}
-	-- clamp length of sequence by lock level: 
+	-- clamp length of sequence by lock level:
 	-- y = 2 + (x * 2 / 11)
 	local sequenceMax = math.round(2 + (currentLockLevel * 2 / 11))
 	local max = math.min(#hashStr, sequenceMax)
@@ -84,10 +88,9 @@ local function GetCombination(s)
 		else
 			sequence[i] = "R"
 		end
-
 	end
 
-	if ENABLE_LOG then
+	if config.debug then
 		debug.log(s)
 		debug.log(hash)
 		debug.log(hashStr)
@@ -118,7 +121,7 @@ local function EndAttempt()
 	-- random roll
 	local rnd = math.random(100)
 
-	if ENABLE_LOG then
+	if config.debug then
 		debug.log(mp.agility.current)
 		debug.log(mp.luck.current)
 		debug.log(mp.security.current)
@@ -131,7 +134,6 @@ local function EndAttempt()
 
 	--- break lockpick
 	if rnd > chance then
-
 		---@diagnostic disable-next-line: param-type-mismatch
 		tes3.messageBox(tes3.findGMST("sLockFail").value)
 
@@ -178,7 +180,7 @@ local function Unlock()
 end
 
 local function UpdateUI()
-	-- update UI 
+	-- update UI
 	local menu = tes3ui.findMenu(id_menu)
 	if (menu) then
 		local label = menu:findChild(id_label)
@@ -203,15 +205,21 @@ end
 local function Validate()
 	local menu = tes3ui.findMenu(id_menu)
 	if (menu) then
+		local rnd = math.random(100)
+
 		-- decrease pick use
 		if currentPickData ~= nil then
-			currentPickData.charge = currentPickData.charge - 1
+			if rnd > pickCondNoExpChance then
+				currentPickData.charge = currentPickData.charge - 1
+			end
 		end
 
 		UpdateUI()
 
 		-- proc skill
-		tes3.mobilePlayer:exerciseSkill(tes3.skill.security, lockpickAttemptExpValue)
+		if rnd > lockpickNoExpChance then
+			tes3.mobilePlayer:exerciseSkill(tes3.skill.security, lockpickAttemptExpValue)
+		end
 
 		for i, value in ipairs(currentAttempt) do
 			if currentSequence[i] ~= value then
@@ -232,9 +240,7 @@ local function Validate()
 		if #currentAttempt == max then
 			Unlock()
 		end
-
 	end
-
 end
 
 -- ///////////////////////////////////////////////////////////////
@@ -251,26 +257,26 @@ local function onCancel(e)
 	Cleanup()
 end
 
--- Cancel button callback.
+-- Left button callback.
 local function onLeft(e)
 	table.insert(currentAttempt, "L")
 	Validate()
 end
 
--- Cancel button callback.
+-- Right button callback.
 local function onRight(e)
 	table.insert(currentAttempt, "R")
 	Validate()
 end
 
---- the timer menu that determins how much time you get with the minigame 
+--- the timer menu that determins how much time you get with the minigame
 local function CreateLockpickMenu()
 	-- Create window and frame
 	local menu = tes3ui.createMenu { id = id_menu, fixedFrame = true }
 	menu.alpha = 1.0
 
 	-- Create layout
-	local label = menu:createLabel{ text = "Lockpicking ..." }
+	local label = menu:createLabel { text = "Lockpicking ..." }
 	label.borderBottom = 5
 	label.minWidth = 350
 
@@ -283,7 +289,7 @@ local function CreateLockpickMenu()
 	sequence_block.paddingAllSides = 5
 	sequence_block.borderBottom = 5
 	-- label with your progress
-	sequence_block:createLabel{ id = id_label, text = "" }
+	sequence_block:createLabel { id = id_label, text = "" }
 	-- annotate if the max length has been reduced
 	local s = ""
 	if tes3.mobilePlayer.security.current >= 90 then
@@ -293,7 +299,7 @@ local function CreateLockpickMenu()
 	elseif tes3.mobilePlayer.security.current >= 75 then
 		s = s .. " - 1"
 	end
-	sequence_block:createLabel{ text = " | " .. #currentSequence .. s }
+	sequence_block:createLabel { text = " | " .. #currentSequence .. s }
 
 	-- info
 	local reduce = " 0"
@@ -301,7 +307,7 @@ local function CreateLockpickMenu()
 		reduce = s
 	end
 	local info_text = "Your security skill reduces the maximum lock sequence by:" .. reduce ..
-	                  " (but not lower than 2). \n"
+		" (but not lower than 2). \n"
 	if tes3.mobilePlayer.security.current > 0 then
 		info_text = info_text .. "You can guess the maximum sequence count." .. "\n"
 	end
@@ -311,21 +317,21 @@ local function CreateLockpickMenu()
 	if tes3.mobilePlayer.security.current >= 50 then
 		info_text = info_text .. "You know your current sequence attempt." .. "\n"
 	end
-	local info_label = menu:createLabel{ text = info_text }
+	local info_label = menu:createLabel { text = info_text }
 	info_label.wrapText = true
 	info_label.maxWidth = 300
 	info_label.minHeight = 70
 
 	-- buttons
-	local button_block = menu:createBlock{}
+	local button_block = menu:createBlock {}
 	button_block.widthProportional = 1.0 -- width is 100% parent width
 	button_block.autoHeight = true
 	button_block.autoWidth = true
 	button_block.childAlignX = 1.0 -- right content alignment
 
-	local button_cancel = button_block:createButton{ id = id_cancel, text = "Cancel" }
-	local button_left = button_block:createButton{ id = id_left, text = "<" }
-	local button_right = button_block:createButton{ id = id_right, text = ">" }
+	local button_cancel = button_block:createButton { id = id_cancel, text = "Cancel" }
+	local button_left = button_block:createButton { id = id_left, text = "<" }
+	local button_right = button_block:createButton { id = id_right, text = ">" }
 
 	-- Events
 	button_cancel:register(tes3.uiEvent.mouseClick, onCancel)
@@ -335,7 +341,6 @@ local function CreateLockpickMenu()
 	-- Final setup
 	menu:updateLayout()
 	tes3ui.enterMenuMode(id_menu)
-
 end
 
 -- ///////////////////////////////////////////////////////////////
@@ -343,7 +348,7 @@ end
 
 --- @param e lockPickEventData
 local function lockPickCallback(e)
-	if ENABLE_MOD == false then
+	if config.enabled == false then
 		return
 	end
 	-- special case for skeleton_key
@@ -368,7 +373,7 @@ local function lockPickCallback(e)
 	local pos = e.reference.position
 	currentSequence = GetCombination(pos)
 
-	if ENABLE_LOG then
+	if config.debug then
 		local dbg = ""
 		for _, value in ipairs(currentSequence) do
 			dbg = dbg .. value
@@ -410,3 +415,5 @@ local function keyDownCallback(e)
 	end
 end
 event.register(tes3.event.keyDown, keyDownCallback)
+
+require("rfuzzo.gothiclockpick.mcm")
