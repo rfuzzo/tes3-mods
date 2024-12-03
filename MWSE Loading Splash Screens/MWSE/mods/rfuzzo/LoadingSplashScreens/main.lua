@@ -19,52 +19,61 @@ local function mod_log(msg, ...)
 	return mwse.log(str, config.author, config.id, unpack(arg))
 end
 
---[[
-    modifies the loading UI to display the splash screen
-]]
---- @param e uiActivatedEventData
-local function uiActivatedCallback(e)
-	local menu = e.element
-	local name = menu.name
 
-	if (isEnabled == false) then
-		return
-	end
-
-	if (tes3.mobilePlayer == nil) then
-		return
-	end
-
-	local i = math.random(1, #splashScreens)
-	local p = splashScreens[i]
-	-- mwse.log("[ LSS ] ".. i .. ": " .. p)
-
-	-- local width, height = tes3.getViewportSize()
-	-- local scale = tes3ui.getViewportScale()
+local function renderSplashScreen(splashScreen)
+	local splashMenu = tes3ui.createMenu{ id = "SplashScreen_menu", fixedFrame = true }
 	local uwidth, uheight = tes3ui.getViewportSize()
+	splashMenu.absolutePosAlignX = 0
+	splashMenu.absolutePosAlignY = 0
+	splashMenu.width = uwidth
+	splashMenu.height = uheight
+	splashMenu.paddingAllSides = 0
+	splashMenu.borderAllSides = 0
 
-	local frame = menu:createBlock{}
-	frame.width = uwidth
-	frame.height = uheight
-	frame.childAlignX = 0.5
-	frame.alpha = 0.0
-	frame.paddingAllSides = 3
+	local contentElement = splashMenu:getContentElement()
+	contentElement.borderAllSides = 0
+	contentElement.paddingAllSides = 0
 
-	local image = frame:createImage{ id = i, path = p }
+	local image = splashMenu:createImage{ path = splashScreen }
+	image.borderAllSides = 0
 	image.widthProportional = 1.0
 	image.heightProportional = 1.0
 	image.width = uwidth
 	image.height = uheight
 	image.scaleMode = true
 	image.alpha = config.alpha / 100
-	-- image.paddingAllSides = 15
+	splashMenu:updateLayout()
+	return splashMenu
+end
 
-	-- Final setup
-	menu:updateLayout()
+local function destroySplashScreen()
+	local menu = tes3ui.findMenu("SplashScreen_menu")
+	if (menu) then
+		menu:destroy()
+	end
 end
 
 --[[
-    Init mod and find all installed splash screens
+	modifies the loading UI to display the splash screen
+]]
+--- @param e uiActivatedEventData
+local function uiActivatedCallback(e)
+	local menu = e.element
+	if (isEnabled == false) then
+		return
+	end
+	if (tes3.mobilePlayer == nil) then
+		return
+	end
+	local i = math.random(1, #splashScreens)
+	local splashScreen = splashScreens[i]
+	renderSplashScreen(splashScreen)
+	menu:triggerEvent("mouseClick")
+	menu:register("destroy", destroySplashScreen)
+end
+
+--[[
+	Init mod and find all installed splash screens
 ]]
 --- @param e initializedEventData
 local function initializedCallback(e)
@@ -88,8 +97,8 @@ local function initializedCallback(e)
 end
 
 --[[
-    hacks to only enable mod once a save has been loaded properly
-    and not on saving
+	hacks to only enable mod once a save has been loaded properly
+	and not on saving
 ]]
 --- @param e saveEventData
 local function saveCallback(e)
@@ -109,7 +118,7 @@ local function loadedCallback(e)
 end
 
 --[[
-    event hooks
+	event hooks
 ]]
 event.register(tes3.event.initialized, initializedCallback)
 event.register(tes3.event.uiActivated, uiActivatedCallback, { filter = "MenuLoading" })
