@@ -1,6 +1,6 @@
 ECHO off
 
-set "modname=kcdpickpocket"
+set "modname=simple_item_requirements"
 
 rem get the environment variable with name TES3PATH
 set "datafiles=%TES3PATH%\Data Files"

@@ -8,9 +8,7 @@ set "cd=%CD%"
 
 echo cd: %cd%
 echo gamepath: %datafiles%
-mklink /J "%datafiles%\MWSE\mods\%modname%" "%cd%\MWSE\mods\rfuzzo\%modname%"
-
-echo ""
+mklink /J "%datafiles%\MWSE\mods\rfuzzo\%modname%" "%cd%\MWSE\mods\rfuzzo\%modname%"
 
 echo mo2mods: %MO2MODS%
 mklink /J "%MO2MODS%\%modname%" "%cd%"
