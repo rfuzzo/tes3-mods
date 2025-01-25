@@ -15,83 +15,58 @@
 -- const
 local timerDuration = 0.01
 local timerResolution = 1000
-local npcForgetH = 48
 local crimeValue = 25 -- static crime value for when a victim detected you
 local pickpocketExpValue = 2
 local backstabDegrees = 80
 local backstabAngle = (2 * math.pi) * (backstabDegrees / 360)
+
+local logger = require("logging.logger")
+local log = logger.new {
+	name = "kcdpickpocket",
+	logLevel = "DEBUG",
+	logToConsole = false,
+	includeTimestamp = false,
+}
 
 -- IDs
 local id_menu = nil ---@type number?
 local id_ok = nil ---@type number?
 local id_cancel = nil ---@type number?
 local id_fillbar = nil ---@type number?
-local id_minigame = nil ---@type number?
+local id_minigameProgressBar = nil ---@type number?
 local id_minigame_fillbar = nil ---@type number?
 local GUI_Pickpocket_multi = nil ---@type number?
 local GUI_Pickpocket_sneak = nil ---@type number?
 
--- variable
---local npcs = {}
-local itemsTaken = 0
+-- variables
 local myTimer = nil ---@type mwseTimer?
 local timePassed = 0
 local detectionTime = 10        -- the time after which the victim detects you
 local maxDetectionTime = 20     -- the time after which the victim detects you
 local detectionTimeGuessed = 10 -- how accurate you are with detecting the time left
----@type tes3reference | nil
-local victim = nil
-local ready = false
+---@type mwseSafeObjectHandle | nil
+local victimHandle = nil
 
 -- /////////////////////////////////////////////////////////////////
 
---- @param e loadEventData
-local function loadCallback(e)
-	-- on save load, we reset all, this is cheesy I guess but hey
-	-- npcs = {}
-	itemsTaken = 0
-end
-event.register(tes3.event.load, loadCallback)
-
--- /////////////////////////////////////////////////////////////////
-
--- Leave button callback.
-local function onMinigameOK(e)
-	local menu = tes3ui.findMenu(id_minigame)
-	if (menu) then
-		tes3ui.leaveMenuMode()
-		menu:destroy()
-
-		-- stop timer
-		if myTimer then
-			myTimer:cancel()
-			myTimer = nil
-		end
-	end
-end
-
---- checks if any items can be stolen still
-local function canStealItems()
-	local playerSkill = tes3.mobilePlayer.security.current
-	if (itemsTaken < 2 + (playerSkill / 10)) then
-		return true
-	else
-		-- TODO notification
-		return false
-	end
+local function isPlayerSneaking()
+	return tes3ui.findMenu(GUI_Pickpocket_multi):findChild(GUI_Pickpocket_sneak).visible
 end
 
 -- This function will filter items depending on certain parameters
 --- @param e tes3ui.showInventorySelectMenu.filterParams
 local function valueFilter(e)
-	if victim == nil then
+	if not victimHandle then
+		return false
+	end
+	if not victimHandle:valid() then
 		return false
 	end
 
 	-- filter items by value depending on your skill
 	local playerSkill = tes3.mobilePlayer.security.current
 	local itemWeight = e.item.weight
-	local isItemEquipped = victim.object:hasItemEquipped(e.item, e.itemData)
+	local isItemEquipped = victimHandle:getObject().object:hasItemEquipped(e.item, e.itemData)
 
 	local canSteal = false
 	if playerSkill >= 100 then
@@ -113,90 +88,105 @@ local function valueFilter(e)
 	return canSteal
 end
 
--- --- @param e pickpocketEventData
--- local function pickpocketCallback(e)
--- 	e.chance = 100
--- end
--- event.register(tes3.event.pickpocket, pickpocketCallback)
+--- @param e pickpocketEventData
+local function pickpocketCallback(e)
+	log:debug("pickpocketCallback")
 
---- Shows an item select menu
-local function ShowItemSelectmenu()
-	if victim == nil then
-		return
-	end
+	e.chance = 100
 
-	ready = false
-
-	-- local wasShown = tes3.showContentsMenu({ reference = victim, pickpocket = true })
-	-- return wasShown
-
-	tes3ui.showInventorySelectMenu {
-		reference = victim,
-		title = "Pickpocket",
-		noResultsText = "There are no items to steal.",
-		filter = valueFilter,
-		callback = function(e)
-			if e.item then
-				-- steal item
-				tes3.transferItem({
-					from = victim,
-					to = tes3.player,
-					item = e.item,
-					itemData = e.itemData,
-					count = e
-						.count
-				})
-
-				-- proc skill
-				tes3.mobilePlayer:exerciseSkill(tes3.skill.security, pickpocketExpValue)
-				-- ready = true
-				timer.start {
-					duration = 0.7,
-					type = timer.real,
-					iterations = 1,
-					callback = function()
-						ready = true
-					end,
-				}
-
-				-- -- save npc
-				-- table.insert(npcs, victim.baseObject.id)
-				-- npcs[victim.baseObject.id] = tes3.getSimulationTimestamp()
-			else
-				-- left without picking anything: close everything
-				-- destroy timer
-				if myTimer then
-					myTimer:cancel()
-					myTimer = nil
-				end
-
-				-- leave menu
-				local menu = tes3ui.findMenu(id_minigame)
-				if (menu) then
-					tes3ui.leaveMenuMode()
-					menu:destroy()
-				end
-			end
-		end,
-	}
+	-- proc skill
+	tes3.mobilePlayer:exerciseSkill(tes3.skill.security, pickpocketExpValue)
 end
 
-local function reportCrime()
-	if victim == nil then
-		return
-	end
+--- @param victim tes3reference
+local function reportCrime(victim)
+	log:debug("reportCrime")
+
 
 	local blind = victim.mobile.blind
 	local invisible = tes3.mobilePlayer.invisibility
 	-- TODO crime report modifiers
 
-	tes3.worldController.mobController.processManager:detectPresence(tes3.mobilePlayer, true)
+	tes3.worldController.mobManager.processManager:detectPresence(tes3.mobilePlayer, true)
 
-	-- debug.log(tes3.mobilePlayer.isPlayerDetected)
-	-- if tes3.mobilePlayer.isPlayerDetected then
-	-- tes3.messageBox("Detected!")
-	tes3.triggerCrime({ type = tes3.crimeType.theft, value = crimeValue, victim = victim.mobile, forceDetection = true })
-	-- end
+	if tes3.mobilePlayer.isPlayerDetected then
+		-- tes3.messageBox("Detected!")
+		log:debug("triggerCrime")
+		tes3.triggerCrime({ type = tes3.crimeType.theft, value = crimeValue, victim = victim.mobile, forceDetection = true })
+	end
+end
+
+--- @param shouldReportCrime boolean
+local function OnPickpocketMinigameEnd(shouldReportCrime)
+	log:debug("OnPickpocketMinigameEnd")
+
+	event.unregister(tes3.event.pickpocket, pickpocketCallback)
+
+	-- destroy timer
+	if myTimer then
+		myTimer:cancel()
+		myTimer = nil
+	end
+
+	-- leave minigame menu
+	local menu = tes3ui.findMenu(id_minigameProgressBar)
+	if (menu) then
+		menu:destroy()
+	end
+
+	-- leave charge menu
+	local menu2 = tes3ui.findMenu(id_menu)
+	if (menu2) then
+		menu2:destroy()
+	end
+
+	-- trigger crime for stealing
+	if (shouldReportCrime and victimHandle and victimHandle:valid()) then
+		local victim = victimHandle:getObject()
+		reportCrime(victim)
+	end
+
+	victimHandle = nil
+
+	tes3ui.leaveMenuMode()
+end
+
+--- Shows an item select menu
+--- @return boolean
+local function ShowItemSelectmenu()
+	if not victimHandle then
+		return false
+	end
+	if not victimHandle:valid() then
+		return false
+	end
+
+	-- events
+	event.register(tes3.event.pickpocket, pickpocketCallback)
+
+	local wasShown = tes3.showContentsMenu({ reference = victimHandle:getObject(), pickpocket = true })
+
+
+	if wasShown then
+		local menu1 = tes3ui.findMenu("MenuContents")
+		if (menu1) then
+			-- hide take all button
+			menu1:findChild("MenuContents_takeallbutton").visible = false
+
+			-- hook into the destroy event
+			menu1:registerAfter(tes3.uiEvent.destroy, function()
+				log:debug("destroy")
+				OnPickpocketMinigameEnd(false)
+			end)
+
+			-- TODO hide certain items
+			menu1:registerBefore(tes3.uiEvent.focus, function()
+				log:debug("focus")
+			end)
+		end
+	end
+
+	return wasShown
 end
 
 --- Count down timer
@@ -205,54 +195,41 @@ local function onMinigameTimerTick()
 		return
 	end
 
+	-- check if right mouse buttton was pressed and end charge
+	if tes3.worldController.inputController:isMouseButtonPressedThisFrame(1) then
+		log:debug("isButtonPressed")
+		OnPickpocketMinigameEnd(false)
+
+		return
+	end
+
 	timePassed = timePassed - timerDuration
 
 	if timePassed <= timerDuration then
-		-- trigger crime for stealing
-		if (victim) then
-			reportCrime()
-		end
-
-		-- destroy timer
-		myTimer:cancel()
-		myTimer = nil
-
-		-- destroy inventorySelectMenu if it exists
-		local menu1 = tes3ui.findMenu("MenuInventorySelect")
-		if (menu1) then
-			menu1:destroy()
-		end
-		-- leave minigame menu
-		local menu = tes3ui.findMenu(id_minigame)
-		if (menu) then
-			menu:destroy()
-		end
-		tes3ui.leaveMenuMode()
+		-- we took too long
+		log:debug("timePassed <= timerDuration in minigame")
+		OnPickpocketMinigameEnd(true)
 	else
 		-- update UI
-		local menu = tes3ui.findMenu(id_minigame)
+		local menu = tes3ui.findMenu(id_minigameProgressBar)
 		if (menu) then
 			local fillBar = menu:findChild(id_minigame_fillbar)
 			-- decrement time
 			fillBar.widget.current = timePassed * timerResolution
 
 			menu:updateLayout()
-
-			-- open the menu again
-			if ready and canStealItems() then
-				ShowItemSelectmenu()
-			end
 		end
 	end
 end
 
 --- the actual pickpocket minigame
 local function CreateMinigameMenu()
-	if victim == nil then
-		return
+	if not victimHandle then
+		return false
 	end
-
-	itemsTaken = 0;
+	if not victimHandle:valid() then
+		return false
+	end
 
 	-- local generate = true
 	-- if table.find(npcs, victim.baseObject.id) then
@@ -272,7 +249,7 @@ local function CreateMinigameMenu()
 	-- 	tes3.addItem({ reference = victim, item = "random gold", count = 25 })
 	-- end
 
-	local menu = tes3ui.createMenu({ id = id_minigame, dragFrame = true, fixedFrame = true })
+	local menu = tes3ui.createMenu({ id = id_minigameProgressBar, dragFrame = true, fixedFrame = true })
 	menu.alpha = 1.0
 	-- align the menu (which consists just of the timer)
 	menu.absolutePosAlignX = 0.5
@@ -307,51 +284,51 @@ local function CreateMinigameMenu()
 	button_block.autoHeight = true
 	button_block.childAlignX = 1.0    -- right content alignment
 
-	local button_ok = button_block:createButton { id = id_ok, text = "Leave" }
-
-	-- Events
-	menu:register(tes3.uiEvent.keyEnter, onMinigameOK)
-	button_ok:register(tes3.uiEvent.mouseClick, onMinigameOK)
+	local button_leave = button_block:createButton { id = id_ok, text = "Leave" }
+	button_leave:register(tes3.uiEvent.mouseClick, function(e)
+		log:debug("leave minigame")
+		OnPickpocketMinigameEnd(false)
+	end)
 
 	-- item select
 	ShowItemSelectmenu()
 
 	-- Final setup
 	menu:updateLayout()
-	tes3ui.enterMenuMode(id_minigame)
+	tes3ui.enterMenuMode(id_minigameProgressBar)
 end
 
 -- /////////////////////////////////////////////////////////////////
 
 -- OK button callback.
-local function onOK(e)
+local function onChargeOK(e)
+	-- stop timer
+	if myTimer then
+		myTimer:cancel()
+		myTimer = nil
+	end
+
 	local menu = tes3ui.findMenu(id_menu)
 	if (menu) then
-		tes3ui.leaveMenuMode()
+		-- tes3ui.leaveMenuMode()
 		menu:destroy()
-
-		-- stop timer
-		if myTimer then
-			myTimer:cancel()
-			myTimer = nil
-		end
-
-		CreateMinigameMenu()
 	end
+
+	CreateMinigameMenu()
 end
 
 -- Cancel button callback.
-local function onCancel(e)
+local function onChargeCancel(e)
+	-- stop timer
+	if myTimer then
+		myTimer:cancel()
+		myTimer = nil
+	end
+
 	local menu = tes3ui.findMenu(id_menu)
 	if (menu) then
 		tes3ui.leaveMenuMode()
 		menu:destroy()
-
-		-- stop timer
-		if myTimer then
-			myTimer:cancel()
-			myTimer = nil
-		end
 	end
 end
 
@@ -361,29 +338,48 @@ local function onChargeTimerTick()
 		return
 	end
 
-	if tes3.worldController.inputController:isKeyReleasedThisFrame(tes3.scanCode.enter) then
-		onOK()
+	-- enters
+	-- check if enter was pressed and end charge
+	if tes3.worldController.inputController:isKeyPressedThisFrame(tes3.scanCode.enter) then
+		log:debug("isKeyPressedThisFrame")
+		onChargeOK()
+
+		return
+	end
+
+	-- cancels
+	-- check if escape was pressed and end charge
+	if tes3.worldController.inputController:isKeyPressedThisFrame(tes3.scanCode.escape) then
+		log:debug("isKeyPressedThisFrame")
+		onChargeCancel()
+
+		return
+	end
+	-- check if right mouse buttton was pressed and end charge
+	if tes3.worldController.inputController:isMouseButtonPressedThisFrame(1) then
+		log:debug("isButtonPressed")
+		onChargeCancel()
+
+		return
+	end
+
+	-- TODO end if we move to far away from the victim
+
+	-- fails
+	-- also check if we are still in sneak mode
+	if not isPlayerSneaking() then
+		log:debug("not isPlayerSneaking")
+		OnPickpocketMinigameEnd(true)
+
 		return
 	end
 
 	timePassed = timePassed + timerDuration
 
 	if timePassed >= detectionTime then
-		-- trigger crime for "just browsing"
-		if (victim) then
-			reportCrime()
-		end
-
-		-- destroy timer
-		myTimer:cancel()
-		myTimer = nil
-
-		-- leave menu
-		local menu = tes3ui.findMenu(id_menu)
-		if (menu) then
-			tes3ui.leaveMenuMode()
-			menu:destroy()
-		end
+		-- we took too long
+		log:debug("timePassed >= detectionTime during charge")
+		OnPickpocketMinigameEnd(true)
 	else
 		-- update UI
 		local menu = tes3ui.findMenu(id_menu)
@@ -440,23 +436,29 @@ local function CreateTimerMenu()
 	button_block.autoHeight = true
 	button_block.childAlignX = 1.0    -- right content alignment
 
-	local button_cancel = button_block:createButton { id = id_cancel, text = "Cancel" }
-	local button_ok = button_block:createButton { id = id_ok, text = "Start" }
+	-- local button_cancel = button_block:createButton { id = id_cancel, text = "Cancel" }
+	--local button_ok = button_block:createButton { id = id_ok, text = "Start" }
 
 	-- Events
-	button_cancel:register(tes3.uiEvent.mouseClick, onCancel)
-	button_ok:register(tes3.uiEvent.mouseClick, onOK)
+	-- button_cancel:register(tes3.uiEvent.mouseClick, onChargeCancel)
+	--button_ok:register(tes3.uiEvent.mouseClick, onChargeOK)
 
 	-- Final setup
 	menu:updateLayout()
-	tes3ui.enterMenuMode(id_menu)
+	-- tes3ui.enterMenuMode(id_menu)
 end
 
 -- /////////////////////////////////////////////////////////////////
+
 --- Calculate how fast a victim will detect you pickpocketing
+--- @param actor tes3reference
+--- @param target tes3reference
 local function CalculateDetectionTime(actor, target)
-	if victim == nil then
-		return
+	if not victimHandle then
+		return false
+	end
+	if not victimHandle:valid() then
+		return false
 	end
 
 	local playerSkill = tes3.mobilePlayer.security.current
@@ -473,13 +475,13 @@ local function CalculateDetectionTime(actor, target)
 
 	-- other modifiers
 	-- if detected ... -5
-	if (tes3ui.findMenu(GUI_Pickpocket_multi):findChild(GUI_Pickpocket_sneak).visible == false) then
+	if not isPlayerSneaking() then
 		detectionTime = math.max(detectionTime - 5, 0);
 		-- mwse.log("visible " .. detectionTime)
 	end
 
 	-- if in front ... -5, blind and invisibility victims can be pickpocketed from the front
-	local blind = victim.mobile.blind
+	local blind = target.mobile.blind
 	if (tes3.mobilePlayer.invisibility == 1) or (blind > 15) then
 		-- invisibility grants a flat bonus
 		detectionTime = detectionTime + 3
@@ -502,7 +504,7 @@ local function CalculateDetectionTime(actor, target)
 	end
 
 	-- noise: a distracted person would have a hard time detecting a thief, but could report one
-	local sound = victim.mobile.sound
+	local sound = target.mobile.sound
 	detectionTime = detectionTime + (sound / 10)
 	-- mwse.log("sound " .. detectionTime)
 	-- mwse.log("-------------------")
@@ -549,7 +551,7 @@ local function activateCallback(e)
 	-- end
 
 	-- make a new ui with a timer
-	victim = e.target
+	victimHandle = tes3.makeSafeObjectHandle(e.target)
 	CalculateDetectionTime(e.activator, e.target)
 	CreateTimerMenu()
 
@@ -565,7 +567,7 @@ local function init()
 	id_ok = tes3ui.registerID("kcdpickpocket:menu1_ok")
 	id_cancel = tes3ui.registerID("kcdpickpocket:menu1_cancel")
 
-	id_minigame = tes3ui.registerID("kcdpickpocket:menu2")
+	id_minigameProgressBar = tes3ui.registerID("kcdpickpocket:menu2")
 	id_minigame_fillbar = tes3ui.registerID("kcdpickpocket:menu2_fillbar")
 
 	GUI_Pickpocket_multi = tes3ui.registerID("MenuMulti")
