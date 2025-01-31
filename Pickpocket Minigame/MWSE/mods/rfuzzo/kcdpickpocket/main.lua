@@ -25,7 +25,7 @@ local log = logger.new {
 local PICKPOCKET_DISTANCE = 250
 local TIMER_DURATION = 0.01
 local TIMER_RESOLUTION = 1000
-local MINIGAME_TIME_MULT = 2
+local MINIGAME_TIME_MULT = 10
 local BACKSTAB_DEG = 80
 local BACKSTAB_ANGLE = (2 * math.pi) * (BACKSTAB_DEG / 360)
 
@@ -75,11 +75,8 @@ local function isPlayerSneaking()
 	return tes3ui.findMenu(GUI_Pickpocket_multi):findChild(GUI_Pickpocket_sneak).visible
 end
 
-
-
-
 ---@param item tes3alchemy|tes3apparatus|tes3armor|tes3book|tes3clothing|tes3ingredient|tes3item|tes3light|tes3lockpick|tes3misc|tes3probe|tes3repairTool|tes3weapon
----@param itemData tes3itemData
+---@param itemData tes3itemData?
 ---@return boolean
 local function canStealItem(item, itemData)
 	if not item then
@@ -174,6 +171,95 @@ end
 -- MINIGAME
 -- /////////////////////////////////////////////////////////////////
 
+--- @param e crimeWitnessedEventData
+local function crimeWitnessedCallback(e)
+	log:warn("crimeWitnessedCallback")
+end
+event.register(tes3.event.crimeWitnessed, crimeWitnessedCallback, { filter = tes3.crimeType.pickpocket })
+
+-- NOTE this is for hiding elements
+--- @param e itemTileUpdatedEventData
+local function itemTileUpdatedCallback(e)
+	if not modData then
+		return
+	end
+	if modData.state == EModState.NONE then
+		return
+	end
+
+	-- e.tile.element.visible = canStealItem(e.item, e.itemData)
+	-- e.element:updateLayout()
+
+	-- hook the clicked event
+	e.tile.element:registerBefore(tes3.uiEvent.mouseClick, function()
+		if not modData then
+			return
+		end
+		if modData.state == EModState.NONE then
+			return
+		end
+
+		local canSteal = canStealItem(e.item, e.itemData)
+
+		log:warn("element clicked %s, can steal %s", e.item.name, canSteal)
+
+		if not canSteal then
+			-- cancel lower callbacks
+			return false
+		end
+	end)
+end
+event.register(tes3.event.itemTileUpdated, itemTileUpdatedCallback)
+
+local function getRequiredSkillLevel(item)
+	local itemWeight = item.weight
+
+	-- get level depending on weight
+	local requiredSkillLevel = 0
+	if itemWeight <= 2 then
+		requiredSkillLevel = 1
+	elseif itemWeight <= 15 then
+		requiredSkillLevel = 25
+	elseif itemWeight <= 30 then
+		requiredSkillLevel = 50
+	else
+		requiredSkillLevel = 75
+	end
+
+	return requiredSkillLevel
+end
+
+--- @param e uiObjectTooltipEventData
+local function uiObjectTooltipCallback(e)
+	if not modData then
+		return
+	end
+	if modData.state == EModState.NONE then
+		return
+	end
+
+	if e.tooltip then
+		local result = e.tooltip:findChild("HelpMenu_weight")
+		if result then
+			local parent = result.parent
+			if parent then
+				local canSteal = canStealItem(e.object)
+				if not canSteal then
+					local requiredSkillLevel = getRequiredSkillLevel(e.object)
+					local label = parent:createLabel {
+						text = "Required security: " .. requiredSkillLevel
+					}
+					label.color = tes3ui.getPalette(tes3.palette.healthFillColor)
+
+					parent:reorderChildren(result, label, -1)
+					e.tooltip:updateLayout()
+				end
+			end
+		end
+	end
+end
+event.register(tes3.event.uiObjectTooltip, uiObjectTooltipCallback)
+
 --- @param e pickpocketEventData
 local function pickpocketCallback(e)
 	if not modData then
@@ -183,19 +269,16 @@ local function pickpocketCallback(e)
 		return
 	end
 
+	log:debug("pickpocketCallback")
+
 	-- check value
 	-- TODO make this better in the UI
 	local canSteal = canStealItem(e.item, e.itemData)
-
-	log:debug("steal: %s", canSteal)
-
 	if canSteal then
 		e.chance = 100
 
 		modData.itemsStolen = modData.itemsStolen + 1
-		-- tes3.mobilePlayer:exerciseSkill(tes3.skill.security, EXP_SINGLE_ITEM)
 	else
-		e.chance = 0
 		return false
 	end
 end
@@ -391,8 +474,6 @@ local function StartMinigame(e)
 		menu:destroy()
 	end
 
-	modData.state = EModState.NONE
-
 	CreateMinigameMenu()
 end
 
@@ -538,7 +619,7 @@ local function mouseButtonUpCallback(e)
 
 	if modData.state == EModState.CHARGE then
 		-- check if right mouse buttton was pressed and end charge
-		if tes3.worldController.inputController:isMouseButtonPressedThisFrame(1) then
+		if e.button == 1 then
 			log:debug("Charge canceled")
 
 			CancelCharge()
@@ -547,7 +628,7 @@ local function mouseButtonUpCallback(e)
 		end
 	elseif modData.state == EModState.MINIGAME then
 		-- check if right mouse buttton was pressed and end charge
-		if tes3.worldController.inputController:isMouseButtonPressedThisFrame(1) then
+		if e.button == 1 then
 			log:debug("Minigame canceled")
 
 			CancelPickpocketMinigame()
@@ -651,8 +732,6 @@ local function activateCallback(e)
 
 	-- check if already pickpocketing
 	if modData then
-		e.claim = true
-
 		if modData.state == EModState.CHARGE then
 			StartMinigame()
 		end
@@ -662,13 +741,11 @@ local function activateCallback(e)
 
 	-- taken from mort
 	-- so many npcs have alarms of 0, its ridiculous
-	-- debug.log(tes3.getPlayerTarget().mobile.alarm)
 	if e.target.mobile.alarm < 50 then
 		e.target.mobile.alarm = 50
 	end
 
 	-- make a new ui with a timer
-
 	modData = {
 		myTimer = nil,
 		timePassed = 0,

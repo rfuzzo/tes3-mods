@@ -68,8 +68,8 @@ local function uiObjectTooltipCallback(e)
         if result then
             local parent = result.parent
             if parent then
-                local requiredLevel = getRequiredLevel(e.object)
                 if not canEquip(e.object) then
+                    local requiredLevel = getRequiredLevel(e.object)
                     local label = parent:createLabel {
                         text = "Required level: " .. requiredLevel
                     }
