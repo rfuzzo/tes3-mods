@@ -362,10 +362,12 @@ local function onMinigameTimerTick()
 		local menu = tes3ui.findMenu(id_minigameProgressBar)
 		if (menu) then
 			local fillBar = menu:findChild(id_minigame_fillbar)
-			-- decrement time
-			fillBar.widget.current = modData.timePassed * TIMER_RESOLUTION
+			if (fillBar) then
+				-- decrement time
+				fillBar.widget.current = modData.timePassed * TIMER_RESOLUTION
 
-			menu:updateLayout()
+				menu:updateLayout()
+			end
 		end
 	end
 end
@@ -512,18 +514,20 @@ local function onChargeTimerTick()
 	local menu = tes3ui.findMenu(id_menu)
 	if (menu) then
 		local fillBar = menu:findChild(id_fillbar)
-		-- increment time
-		fillBar.widget.current = modData.timePassed * TIMER_RESOLUTION
-		-- increment color
-		if modData.timePassed < ((modData.detectionTimeGuessed / 3) * 1) then
-			fillBar.widget.fillColor = tes3ui.getPalette("fatigue_color")
-		elseif modData.timePassed < ((modData.detectionTimeGuessed / 3) * 2) then
-			fillBar.widget.fillColor = tes3ui.getPalette("health_npc_color")
-		else
-			fillBar.widget.fillColor = tes3ui.getPalette("health_color")
-		end
+		if (fillBar) then
+			-- increment time
+			fillBar.widget.current = modData.timePassed * TIMER_RESOLUTION
+			-- increment color
+			if modData.timePassed < ((modData.detectionTimeGuessed / 3) * 1) then
+				fillBar.widget.fillColor = tes3ui.getPalette("fatigue_color")
+			elseif modData.timePassed < ((modData.detectionTimeGuessed / 3) * 2) then
+				fillBar.widget.fillColor = tes3ui.getPalette("health_npc_color")
+			else
+				fillBar.widget.fillColor = tes3ui.getPalette("health_color")
+			end
 
-		menu:updateLayout()
+			menu:updateLayout()
+		end
 	end
 end
 
